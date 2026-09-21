@@ -1,0 +1,26 @@
+# Secrets — .env.example currently holds real credentials, never commit it as-is.
+# Replace its contents with placeholders before removing this line.
+.env
+.env.example
+.env.local
+
+# Backend (Maven/Java)
+backend/target/
+backend/data/
+*.class
+*.log
+
+# Backend static resources are a generated Angular build output (npm run build:spring)
+backend/src/main/resources/static/*
+
+# Frontend (Angular/Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

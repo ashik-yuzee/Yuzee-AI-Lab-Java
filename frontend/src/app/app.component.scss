@@ -1,0 +1,8 @@
+.app-shell { min-height: 100vh; background: #f4f6fb; }
+.main-layout { background: #f4f6fb; }
+.main-content { min-height: 0; }
+.flex-1 { flex: 1 1 0%; min-width: 0; }
+.login-card { border-radius: 16px; border: 1px solid #e4e9f2; width: 360px; }
+.btn-purple { background: #7957c6; color: #fff; border: none; }
+.btn-purple:hover { background: #6744b5; color: #fff; }
+.btn-purple:disabled { background: #b5a3e0; }

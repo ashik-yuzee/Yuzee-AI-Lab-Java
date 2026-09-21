@@ -1,0 +1,39 @@
+<div class="app-shell" [class.authenticated]="auth.isAuthenticated">
+
+  @if (!auth.isAuthenticated) {
+    <div class="login-screen d-flex align-items-center justify-content-center vh-100">
+      <div class="login-card card p-4 shadow">
+        <div class="text-center mb-4">
+          <h4 class="fw-bold mb-1" style="color:#7957c6">Yuzee AI Token Lab</h4>
+          <p class="text-muted small">Sign in to continue</p>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Username</label>
+          <input class="form-control" type="text" [(ngModel)]="loginUsername" placeholder="yuzeeadmin">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input class="form-control" type="password" [(ngModel)]="loginPassword" (keyup.enter)="doLogin()">
+        </div>
+        @if (loginError()) {
+          <div class="alert alert-danger py-2 small">{{ loginError() }}</div>
+        }
+        <button class="btn btn-purple w-100" [disabled]="loggingIn()" (click)="doLogin()">
+          {{ loggingIn() ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (auth.isAuthenticated) {
+    <div class="main-layout d-flex flex-column vh-100">
+      <app-navbar />
+      <div class="main-content flex-1 d-flex overflow-hidden">
+        <chat-area class="flex-1" />
+      </div>
+    </div>
+    @if (!lab.locationProvided() && showLocationPrompt()) {
+      <app-location-prompt-modal (locationSet)="onLocationSet($event)" (dismiss)="dismissLocation()" />
+    }
+  }
+</div>

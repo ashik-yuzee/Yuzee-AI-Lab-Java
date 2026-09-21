@@ -1,0 +1,67 @@
+<div class="protocol-output">
+  @for (block of response.content_blocks; track $index) {
+    @switch (block.type) {
+      @case ('text') {
+        <div class="content-block text-block" [innerHTML]="renderText(block.text ?? '')"></div>
+      }
+      @case ('steps') {
+        <div class="content-block steps-block">
+          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
+          <ol class="steps-list">
+            @for (item of blockItems(block); track $index) {
+              <li class="step-item">
+                @if (itemLabel(item)) { <strong>{{ itemLabel(item) }}</strong> }
+                @if (itemText(item)) { <span> {{ itemText(item) }}</span> }
+              </li>
+            }
+          </ol>
+        </div>
+      }
+      @case ('cards') {
+        <div class="content-block cards-block">
+          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
+          <div class="cards-grid">
+            @for (item of blockItems(block); track $index) {
+              <div class="info-card">
+                @if (itemLabel(item)) { <div class="card-label">{{ itemLabel(item) }}</div> }
+                @if (itemText(item)) { <div class="card-text">{{ itemText(item) }}</div> }
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @case ('list') {
+        <div class="content-block list-block">
+          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
+          <ul class="info-list">
+            @for (item of blockItems(block); track $index) {
+              <li>@if (itemLabel(item)) { <strong>{{ itemLabel(item) }}: </strong> }{{ itemText(item) }}</li>
+            }
+          </ul>
+        </div>
+      }
+      @default {
+        <div class="content-block">
+          <div class="response-prose" [innerHTML]="renderText(block.text ?? '')"></div>
+        </div>
+      }
+    }
+  }
+
+  @if (response.interaction && response.interaction.kind !== 'none') {
+    <div class="interaction-block mt-3">
+      @if (response.interaction.question) {
+        <p class="interaction-question fw-semibold">{{ response.interaction.question }}</p>
+      }
+      @if (response.interaction.options?.length) {
+        <div class="options-list">
+          @for (opt of response.interaction.options!; track opt.value) {
+            <button class="btn btn-outline-primary btn-sm me-2 mb-2" (click)="onOption(opt.value)">
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

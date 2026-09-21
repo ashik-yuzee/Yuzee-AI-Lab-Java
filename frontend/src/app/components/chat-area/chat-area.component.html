@@ -1,0 +1,117 @@
+<div class="chat-layout d-flex h-100 overflow-hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar d-flex flex-column border-end bg-white">
+    <div class="sidebar-header d-flex align-items-center justify-content-between p-3 border-bottom">
+      <span class="fw-semibold text-dark" style="font-size:13px">Conversations</span>
+      <button class="btn btn-sm btn-purple" (click)="newConv()">＋ New</button>
+    </div>
+    <div class="sidebar-list flex-1 overflow-auto py-2">
+      @for (conv of lab.conversations(); track conv.id) {
+        <div class="sidebar-item d-flex align-items-center px-3 py-2 gap-2"
+             [class.active]="conv.id === lab.activeConversationId()"
+             (click)="selectConv(conv.id)">
+          <div class="flex-1 min-w-0">
+            <div class="text-truncate fw-medium" style="font-size:13px">{{ conv.title }}</div>
+            <div class="text-muted" style="font-size:11px">{{ conv.messages.length }} messages</div>
+          </div>
+          <button class="btn btn-sm text-muted p-0 ms-1 del-btn" (click)="deleteConv($event, conv.id)">✕</button>
+        </div>
+      }
+      @if (!lab.conversations().length) {
+        <div class="text-center text-muted py-4" style="font-size:13px">No conversations yet</div>
+      }
+    </div>
+  </aside>
+
+  <!-- Main chat -->
+  <div class="chat-main d-flex flex-column flex-1 overflow-hidden">
+
+    @if (!lab.activeConversation()) {
+      <div class="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
+        <div class="empty-icon mb-3">💬</div>
+        <h5 class="fw-semibold text-dark">Start a conversation</h5>
+        <p class="text-muted" style="font-size:14px">Select an existing conversation or create a new one.</p>
+        <button class="btn btn-purple mt-2" (click)="newConv()">＋ New conversation</button>
+      </div>
+    }
+
+    @if (lab.activeConversation()) {
+      <!-- Messages -->
+      <div class="messages-area flex-1 overflow-auto p-4" #messagesArea>
+
+        @for (msg of lab.activeConversation()!.messages; track msg.id) {
+
+          @if (msg.role === 'user') {
+            <div class="message d-flex justify-content-end mb-4">
+              <div class="user-bubble">{{ asString(msg.content) }}</div>
+            </div>
+          }
+
+          @if (msg.role === 'assistant') {
+            <div class="message assistant-message mb-4">
+              <div class="assistant-header d-flex align-items-center gap-2 mb-2">
+                <div class="assistant-avatar">Y</div>
+                <span class="text-muted" style="font-size:12px">Yuzee AI</span>
+                @if (tokenTotal(msg) > 0) {
+                  <span class="token-badge ms-auto">{{ tokenTotal(msg) }} tokens</span>
+                }
+              </div>
+
+              @if (msg.streaming) {
+                <div class="assistant-content card border-0 shadow-sm p-3">
+                  <pre class="stream-text">{{ msg.streamBuffer }}</pre>
+                </div>
+              }
+
+              @if (!msg.streaming && isValidProtocol(msg.parsedResponse)) {
+                <div class="assistant-content card border-0 shadow-sm p-3">
+                  <app-protocol-renderer [response]="asProtocol(msg.parsedResponse)" />
+                </div>
+              }
+
+              @if (!msg.streaming && !isValidProtocol(msg.parsedResponse)) {
+                <div class="assistant-content card border-0 shadow-sm p-3">
+                  <div class="response-prose" [innerHTML]="renderMarkdown(asString(msg.content))"></div>
+                </div>
+              }
+
+              @if (msg.streamStopped) {
+                <div class="text-muted mt-1" style="font-size:12px">⏹ Stream stopped</div>
+              }
+              @if (msg.validationFailed) {
+                <div class="text-warning mt-1" style="font-size:11px">⚠ Format validation failed — showing raw output</div>
+              }
+            </div>
+          }
+        }
+
+        @if (lab.isStreaming() && lab.streamPhase()) {
+          <app-chat-progress [phase]="lab.streamPhase()!" (stop)="lab.stopStream()" />
+        }
+      </div>
+
+      <!-- Composer -->
+      <div class="composer-area border-top bg-white p-3">
+        <div class="composer-inner d-flex gap-2 align-items-end">
+          <textarea class="form-control composer-input"
+                    [(ngModel)]="draftMessage"
+                    [disabled]="lab.isStreaming()"
+                    placeholder="Message Yuzee AI…"
+                    rows="1"
+                    (keydown)="onKeydown($event)"
+                    (input)="autoResize($event)">
+          </textarea>
+          <button class="btn btn-purple send-btn"
+                  [disabled]="!draftMessage.trim() || lab.isStreaming()"
+                  (click)="send()">
+            @if (lab.isStreaming()) { ↺ } @else { ➤ }
+          </button>
+        </div>
+        <div class="text-muted text-center mt-1" style="font-size:11px">
+          Enter to send · Shift+Enter for new line
+        </div>
+      </div>
+    }
+  </div>
+</div>

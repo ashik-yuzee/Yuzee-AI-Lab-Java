@@ -1,0 +1,62 @@
+<nav class="navbar-shell d-flex align-items-center px-3 py-2 border-bottom bg-white">
+  <!-- Logo -->
+  <div class="d-flex align-items-center gap-2 me-3">
+    <div class="brand-icon rounded-3">
+      <span class="brand-letter">Y</span>
+    </div>
+    <span class="fw-semibold text-dark" style="font-size:14px">Yuzee AI Lab</span>
+  </div>
+
+  <!-- Conversation selector -->
+  <div class="conv-selector mx-2" style="max-width:300px;position:relative">
+    <button class="btn btn-sm btn-light w-100 text-start d-flex align-items-center gap-2 justify-content-between"
+            (click)="toggleConvMenu()">
+      <span class="text-truncate" style="max-width:200px;font-size:13px">
+        {{ lab.activeConversation()?.title ?? 'Select conversation' }}
+      </span>
+      <span class="text-muted">⌄</span>
+    </button>
+
+    @if (convMenuOpen()) {
+      <div class="dropdown-menu show conv-dropdown">
+        <button class="dropdown-item d-flex align-items-center gap-2 text-purple" (click)="newConversation()">
+          <span>＋</span><span>New conversation</span>
+        </button>
+        <div class="dropdown-divider"></div>
+        @for (conv of lab.conversations(); track conv.id) {
+          <button class="dropdown-item text-truncate"
+                  [class.active]="conv.id === lab.activeConversationId()"
+                  (click)="selectConv(conv)">
+            {{ conv.title }}
+          </button>
+        }
+        @if (!lab.conversations().length) {
+          <div class="px-3 py-2 text-muted small">No conversations yet</div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="flex-1"></div>
+
+  <!-- Model badge -->
+  <div class="model-badge me-2 px-2 py-1 rounded-pill">
+    {{ lab.activeModelId() | slice:0:20 }}
+  </div>
+
+  <!-- Session cost -->
+  @if (lab.sessionStats()) {
+    <div class="stats-pill me-2 px-2 py-1 rounded-pill text-muted">
+      {{ costDisplay }}
+    </div>
+  }
+
+  <!-- Sign out -->
+  <button class="btn btn-sm btn-outline-secondary ms-1" (click)="logout()" style="font-size:12px">
+    Sign out
+  </button>
+</nav>
+
+@if (convMenuOpen()) {
+  <div class="backdrop" (click)="convMenuOpen.set(false)"></div>
+}

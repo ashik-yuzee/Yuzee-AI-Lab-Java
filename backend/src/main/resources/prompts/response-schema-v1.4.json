@@ -1,0 +1,894 @@
+{
+  "title": "Yuzee Response Protocol v1.4",
+  "description": "JSON-only response contract for Yuzee. Extends v1.3 with 7 new semantic block types, typed data field per block, and splits the service object into service_trigger and rmo_readiness.",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.4"]
+    },
+    "current_mode": {
+      "type": "string",
+      "enum": [
+        "A_CONVERSATION",
+        "B_DELIVERY",
+        "S_SERVICE_HANDOFF"
+      ]
+    },
+    "response_intent": {
+      "type": "string",
+      "enum": [
+        "SAFETY_BOUNDARY",
+        "PAUSE_CLOSURE",
+        "SERVICE_SCOPE_CLARIFICATION",
+        "SERVICE_ACTION_READY",
+        "SERVICE_NOT_VERIFIED",
+        "BARRIER_REDIRECT",
+        "SERVICE_EXECUTION_READY",
+        "SERVICE_EXECUTION_RESULT",
+        "SERVICE_HANDOFF",
+        "SERVICE_INTAKE_PAUSED",
+        "DIRECT_VERDICT",
+        "ACTION_PLAN",
+        "TIMEFRAME",
+        "REQUESTED_OUTPUT",
+        "CRITICAL_CLARIFICATION",
+        "COMPARE",
+        "MULTI_COMPARE",
+        "SKILLS_EXPLORE",
+        "JOB_ROLE_MENU",
+        "EXPLORE_OPTIONS",
+        "TOPIC_OVERVIEW",
+        "FOCUS_SELECTION",
+        "DETAIL_FIRST_DELIVERY",
+        "SOCRATIC_DIRECTION",
+        "CONTEXT_CLARIFICATION",
+        "ROUTE_SELECTION",
+        "GENERAL_DELIVERY",
+        "FLEXIBLE_WORK_READINESS",
+        "OFF_TOPIC_REDIRECT"
+      ]
+    },
+    "content_blocks": {
+      "type": "array",
+      "description": "Ordered semantic content. The first block must be a plain text block with level=none and title empty. Never include HTML/CSS/Markdown UI. h1 is forbidden; structured blocks are presentation-gated by the system prompt.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable within this response, e.g. b1."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "heading",
+              "text",
+              "list",
+              "steps",
+              "table",
+              "comparison",
+              "callout",
+              "key_value",
+              "cards",
+              "timeline",
+              "flow",
+              "pathway_map",
+              "scorecard",
+              "chart",
+              "progress"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": ["none", "h2", "h3"],
+            "description": "Heading hierarchy. Use none for non-heading blocks. h1 is forbidden; heading blocks may use h2 or h3 only."
+          },
+          "variant": {
+            "type": "string",
+            "enum": ["default", "info", "success", "warning", "danger", "muted"],
+            "description": "Semantic presentation only; frontend owns visual styling."
+          },
+          "title": {
+            "type": "string",
+            "description": "Block title. Required key; empty when unused."
+          },
+          "text": {
+            "type": "string",
+            "description": "Primary block text. Required key; empty when unused."
+          },
+          "content": {
+            "type": "string",
+            "description": "Alias for text — accepted when model outputs content instead of text."
+          },
+          "items": {
+            "type": "array",
+            "description": "Used by list, steps and key_value; otherwise usually empty.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stable within this response, e.g. i1."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Short item heading; empty when not needed."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Human-readable item explanation; empty when not needed."
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Compact display value or key value; empty when not needed."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["", "current", "next", "complete", "warning", "blocked", "positive", "negative", "neutral"],
+                  "description": "Semantic status only; frontend owns styling."
+                }
+              },
+              "required": ["id", "title", "text", "value", "status"]
+            }
+          },
+          "columns": {
+            "type": "array",
+            "description": "Used by table/comparison; otherwise empty.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "key": {"type": "string"},
+                "label": {"type": "string"}
+              },
+              "required": ["key", "label"]
+            }
+          },
+          "rows": {
+            "type": "array",
+            "description": "Used by table/comparison; otherwise empty.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {"type": "string"},
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "description": "Must match a columns[].key in the same block."
+                      },
+                      "value": {"type": "string"}
+                    },
+                    "required": ["key", "value"]
+                  }
+                }
+              },
+              "required": ["id", "cells"]
+            }
+          },
+          "data": {
+            "type": "object",
+            "description": "Typed payload for semantic block types. Empty object for legacy types."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "level",
+          "variant",
+          "title",
+          "text",
+          "items",
+          "columns",
+          "rows",
+          "data"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {"type": {"const": "cards"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["cards"],
+                  "properties": {
+                    "cards": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "title", "subtitle", "description", "status", "badge", "facts"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "title": {"type": "string"},
+                          "subtitle": {"type": "string"},
+                          "description": {"type": "string"},
+                          "status": {
+                            "type": "string",
+                            "enum": ["neutral", "recommended", "alternative", "completed", "current", "upcoming", "blocked", "warning"]
+                          },
+                          "badge": {"type": "string"},
+                          "facts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": ["label", "value"],
+                              "properties": {
+                                "label": {"type": "string"},
+                                "value": {"type": "string"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "timeline"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["milestones"],
+                  "properties": {
+                    "milestones": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "label", "description", "time_label", "status", "optional"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "label": {"type": "string"},
+                          "description": {"type": "string"},
+                          "time_label": {"type": "string"},
+                          "status": {
+                            "type": "string",
+                            "enum": ["completed", "current", "upcoming", "blocked", "paused", "unknown"]
+                          },
+                          "optional": {"type": "boolean"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "flow"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["nodes", "edges"],
+                  "properties": {
+                    "nodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "label", "description", "node_type", "status"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "label": {"type": "string"},
+                          "description": {"type": "string"},
+                          "node_type": {
+                            "type": "string",
+                            "enum": ["goal", "pathway", "education", "training", "skill", "experience", "job", "decision", "requirement", "blocker", "milestone", "outcome", "other"]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["neutral", "recommended", "alternative", "completed", "current", "upcoming", "blocked", "warning"]
+                          }
+                        }
+                      }
+                    },
+                    "edges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["from", "to", "label", "condition"],
+                        "properties": {
+                          "from": {"type": "string"},
+                          "to": {"type": "string"},
+                          "label": {"type": "string"},
+                          "condition": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "pathway_map"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["goal", "lanes"],
+                  "properties": {
+                    "goal": {"type": "string"},
+                    "lanes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "title", "summary", "recommended", "steps"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "title": {"type": "string"},
+                          "summary": {"type": "string"},
+                          "recommended": {"type": "boolean"},
+                          "steps": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": ["id", "label", "description", "status"],
+                              "properties": {
+                                "id": {"type": "string"},
+                                "label": {"type": "string"},
+                                "description": {"type": "string"},
+                                "status": {"type": "string"}
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "scorecard"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["metrics"],
+                  "properties": {
+                    "metrics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "label", "value", "value_type", "unit", "max", "status", "trend", "description"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "label": {"type": "string"},
+                          "value": {},
+                          "value_type": {
+                            "type": "string",
+                            "enum": ["number", "percentage", "rating", "text"]
+                          },
+                          "unit": {"type": "string"},
+                          "max": {},
+                          "status": {"type": "string"},
+                          "trend": {
+                            "type": "string",
+                            "enum": ["up", "down", "stable", "unknown"]
+                          },
+                          "description": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "chart"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["chart_type", "categories", "series", "source_status"],
+                  "properties": {
+                    "chart_type": {
+                      "type": "string",
+                      "enum": ["bar", "line", "donut", "funnel"]
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {"type": "string"}
+                    },
+                    "series": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "label", "values", "unit"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "label": {"type": "string"},
+                          "values": {
+                            "type": "array",
+                            "items": {"type": "number"}
+                          },
+                          "unit": {"type": "string"}
+                        }
+                      }
+                    },
+                    "source_status": {
+                      "type": "string",
+                      "enum": ["verified", "provided", "estimated", "to_verify"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"type": {"const": "progress"}},
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["stages"],
+                  "properties": {
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["id", "label", "status", "description"],
+                        "properties": {
+                          "id": {"type": "string"},
+                          "label": {"type": "string"},
+                          "status": {
+                            "type": "string",
+                            "enum": ["completed", "current", "upcoming", "blocked", "paused", "failed", "unknown"]
+                          },
+                          "description": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "enum": ["text", "list", "callout", "heading", "steps", "table", "comparison", "key_value"]
+                }
+              },
+              "required": ["type"]
+            },
+            "then": {
+              "properties": {
+                "data": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["none", "question", "handoff"]
+        },
+        "input_type": {
+          "type": "string",
+          "enum": ["none", "text", "single_select", "multi_select", "ranked_select", "fields"],
+          "description": "Explicit frontend interaction renderer. Never infer from option count, prose, intent or confidence."
+        },
+        "question_id": {
+          "type": "string",
+          "description": "Stable id for active interaction; empty when kind=none."
+        },
+        "question": {
+          "type": "string",
+          "description": "Single user-facing question/prompt; empty when kind=none."
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Short stable option id."
+              },
+              "label": {
+                "type": "string",
+                "description": "User-facing choice label."
+              },
+              "description": {
+                "type": "string",
+                "description": "Optional user-facing secondary explanation; empty string when not needed."
+              },
+              "value": {
+                "type": "string",
+                "description": "Stable backend-safe value; no hidden instruction."
+              }
+            },
+            "required": ["id", "label", "description", "value"]
+          },
+          "description": "Question choices. Empty for none, text questions, and handoff."
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": ["goal", "location", "residency"]
+              },
+              "label": {"type": "string"},
+              "input_type": {
+                "type": "string",
+                "enum": ["text", "australian_location", "single_select"]
+              },
+              "required": {"type": "boolean"},
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "Short stable option id."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "User-facing choice label."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Optional user-facing secondary explanation; empty string when not needed."
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Stable backend-safe value; no hidden instruction."
+                    }
+                  },
+                  "required": ["id", "label", "description", "value"]
+                }
+              }
+            },
+            "required": ["id", "label", "input_type", "required", "options"]
+          },
+          "description": "Structured handoff fields. Empty outside handoff."
+        },
+        "recommended_actions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "e.g. RQ1."
+              },
+              "label": {
+                "type": "string",
+                "description": "Short clickable label, max 12 words."
+              },
+              "message": {
+                "type": "string",
+                "description": "Exact user message the frontend should send if selected."
+              }
+            },
+            "required": ["id", "label", "message"]
+          },
+          "description": "Optional next-message suggestions when no active question/handoff. Empty for pause, safety, handoff, intake-paused and execution-result turns."
+        },
+        "allow_other_input": {
+          "type": "boolean",
+          "description": "For single_select or multi_select only: whether frontend may offer a typed alternative outside the supplied choices. It does not control the primary text question input."
+        },
+        "other_input_label": {
+          "type": "string",
+          "description": "User-facing label for the optional typed Other answer; empty unless allow_other_input=true."
+        }
+      },
+      "required": [
+        "kind",
+        "input_type",
+        "question_id",
+        "question",
+        "options",
+        "allow_other_input",
+        "other_input_label",
+        "fields",
+        "recommended_actions"
+      ]
+    },
+    "service_trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service_intent_detected",
+        "primary_requested_service",
+        "confidence",
+        "reason",
+        "trigger_now",
+        "needs_more_clarity",
+        "actions"
+      ],
+      "properties": {
+        "service_intent_detected": {
+          "type": "boolean"
+        },
+        "primary_requested_service": {
+          "type": "string",
+          "enum": [
+            "NONE",
+            "EDU_OFFER_RMO",
+            "JOB_MATCH_RMO",
+            "APPRENTICESHIP_RMO",
+            "TRAINEESHIP_RMO",
+            "INTERNSHIP_RMO",
+            "WORK_PLACEMENT_RMO",
+            "RPL_RMO",
+            "EARN_AND_LEARN_RMO",
+            "GRAD_PROGRAM_RMO",
+            "PATHWAY_RMO",
+            "OTHER_YUZEE_SERVICE"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW"]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "trigger_now": {
+          "type": "boolean"
+        },
+        "needs_more_clarity": {
+          "type": "boolean"
+        },
+        "actions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "title", "description", "action_id", "requires_confirmation", "rmo_type"],
+            "properties": {
+              "id": {"type": "string"},
+              "title": {"type": "string"},
+              "description": {"type": "string"},
+              "action_id": {"type": "string"},
+              "requires_confirmation": {"type": "boolean"},
+              "rmo_type": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "rmo_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readiness",
+        "ready_to_generate",
+        "missing_inputs",
+        "verification_required"
+      ],
+      "properties": {
+        "readiness": {
+          "type": "string",
+          "enum": ["READY", "PARTIAL", "NOT_READY"]
+        },
+        "ready_to_generate": {
+          "type": "boolean"
+        },
+        "missing_inputs": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "enum": ["goal", "location", "residency"]
+          }
+        },
+        "verification_required": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_response_mode": {
+          "type": "string",
+          "enum": ["Standard", "Quick", "Explain", "Explore", "Detail", "Decide"]
+        },
+        "effective_response_mode": {
+          "type": "string",
+          "enum": ["Standard", "Quick", "Explain", "Explore", "Detail", "Decide"]
+        },
+        "mode_source": {
+          "type": "string",
+          "enum": ["tag", "sticky", "default"]
+        },
+        "safety_override_applied": {
+          "type": "boolean"
+        },
+        "progress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "explained": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "failed_attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "loop_count_same_issue": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["explained", "failed_attempts", "loop_count_same_issue"]
+        },
+        "user_confidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Internal/user-decision confidence state. Frontend should not display as a judgement unless product explicitly enables a confidence-reflection experience.",
+          "properties": {
+            "score": {
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 100,
+              "description": "-1 means insufficient evidence; otherwise active-topic decision confidence 0..100."
+            },
+            "band": {
+              "type": "string",
+              "enum": ["unknown", "low", "medium", "high"]
+            },
+            "evidence_strength": {
+              "type": "string",
+              "enum": ["none", "weak", "moderate", "strong"]
+            },
+            "trend": {
+              "type": "string",
+              "enum": ["unknown", "down", "stable", "up"]
+            },
+            "reason_codes": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "EXPLICIT_UNCERTAINTY",
+                  "EXPLICIT_CONFIDENCE",
+                  "GOAL_UNCLEAR",
+                  "GOAL_CLEAR",
+                  "CHOICE_UNSTABLE",
+                  "CHOICE_STABLE",
+                  "CRITERIA_UNCLEAR",
+                  "CRITERIA_PARTIAL",
+                  "CRITERIA_CLEAR",
+                  "ROUTE_UNRESOLVED",
+                  "ROUTE_CHOSEN",
+                  "ACTION_NOT_READY",
+                  "ACTION_EXPLORING",
+                  "ACTION_READY",
+                  "CONTRADICTION_PRESENT",
+                  "NEW_TOPIC_RESET"
+                ]
+              }
+            }
+          },
+          "required": ["score", "band", "evidence_strength", "trend", "reason_codes"]
+        }
+      },
+      "required": [
+        "active_response_mode",
+        "effective_response_mode",
+        "mode_source",
+        "safety_override_applied",
+        "user_confidence",
+        "progress"
+      ]
+    },
+    "followups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "cancel_on_user_message": {"type": "boolean"},
+        "topic_lock": {"type": "boolean"},
+        "topic_key": {"type": "string"},
+        "triggers": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "after_seconds": {
+                "type": "integer",
+                "enum": [10, 300, 600]
+              },
+              "message": {"type": "string"},
+              "suggested_replies": {
+                "type": "array",
+                "items": {"type": "string"}
+              }
+            },
+            "required": ["after_seconds", "message", "suggested_replies"]
+          }
+        }
+      },
+      "required": ["enabled", "cancel_on_user_message", "topic_lock", "topic_key", "triggers"]
+    }
+  },
+  "required": [
+    "schema_version",
+    "current_mode",
+    "response_intent",
+    "content_blocks",
+    "interaction",
+    "service_trigger",
+    "rmo_readiness",
+    "state",
+    "followups"
+  ]
+}
