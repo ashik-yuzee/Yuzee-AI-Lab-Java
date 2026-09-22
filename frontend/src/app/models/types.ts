@@ -1,5 +1,6 @@
 import { CompactionInfo } from './token-lab-inspector.types';
 import { ResearchOffer } from '../components/research-details/research-details.types';
+import { WarehousePack } from '../components/warehouse/warehouse.types';
 
 export type ModelId = string;
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'adaptive';
@@ -212,6 +213,7 @@ export interface ChatMessage {
   tokenUsage?: TokenUsage;
   compaction?: CompactionInfo;
   researchOffer?: ResearchOffer;
+  warehouseData?: WarehousePack;
   streamStopped?: boolean;
   validationFailed?: boolean;
   streaming?: boolean;

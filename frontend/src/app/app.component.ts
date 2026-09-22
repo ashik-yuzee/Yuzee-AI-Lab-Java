@@ -1,6 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { IonApp, IonContent } from '@ionic/angular/standalone';
 import { AuthService } from './services/auth.service';
 import { TokenLabService } from './services/token-lab.service';
 import { NavbarComponent, ToolMenuKey } from './components/navbar/navbar.component';
@@ -27,6 +28,8 @@ import { ExportModalComponent } from './components/modals/export/export-modal.co
   imports: [
     CommonModule,
     FormsModule,
+    IonApp,
+    IonContent,
     NavbarComponent,
     ChatAreaComponent,
     LocationPromptModalComponent,

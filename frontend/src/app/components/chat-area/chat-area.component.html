@@ -72,6 +72,18 @@
                   (useInPlan)="onUseResearch($event)" />
               }
 
+              @if (!msg.streaming && msg.warehouseData) {
+                @if (msg.warehouseData.courses.length) {
+                  <app-warehouse-courses [pack]="msg.warehouseData" />
+                }
+                @if (msg.warehouseData.connected) {
+                  <app-warehouse-connections [pack]="msg.warehouseData" />
+                }
+                @if (msg.warehouseData.comparison) {
+                  <app-provider-comparison [data]="msg.warehouseData.comparison" />
+                }
+              }
+
               @if (msg.streamStopped) {
                 <div class="text-muted mt-1" style="font-size:12px">⏹ Stream stopped</div>
               }

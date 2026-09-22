@@ -83,7 +83,14 @@ public class PersistenceConfig {
      * DATABASE_URL arrives in "postgres://user:pass@host:port/db?query" form (same as the Node
      * app's `pg` client accepts directly) — the JDBC driver needs "jdbc:postgresql://..." plus
      * separate username/password. Also appends sslmode=require, the JDBC equivalent of the old
-     * app's `ssl: { rejectUnauthorized: false }` (encrypt, don't verify the cert).
+     * app's `ssl: { rejectUnauthorized: false }` (encrypt, don't verify the cert), and
+     * prepareThreshold=0: our DATABASE_URL points at Supabase's port-6543 PgBouncer pooler, which
+     * runs in transaction mode and hands a client statements from whichever backend connection is
+     * free. pgjdbc's default server-side prepared-statement optimization names statements
+     * sequentially ("S_1", "S_2", ...) per JDBC connection, so a name can collide with one another
+     * client already prepared on the physical backend PgBouncer just handed us, throwing
+     * "prepared statement \"S_1\" already exists". prepareThreshold=0 disables that optimization
+     * (always sends plain/unnamed statements), which is the standard fix for PgBouncer compatibility.
      */
     private ConnectionInfo parse(String raw) {
         if (raw.startsWith("jdbc:")) return new ConnectionInfo(raw, null, null);
@@ -99,7 +106,8 @@ public class PersistenceConfig {
         String jdbcUrl = "jdbc:postgresql://" + uri.getHost()
             + (uri.getPort() > 0 ? ":" + uri.getPort() : "")
             + uri.getPath()
-            + (query != null && !query.isBlank() ? "?" + query + "&sslmode=require" : "?sslmode=require");
+            + (query != null && !query.isBlank() ? "?" + query + "&sslmode=require" : "?sslmode=require")
+            + "&prepareThreshold=0";
         return new ConnectionInfo(jdbcUrl, user, password);
     }
 

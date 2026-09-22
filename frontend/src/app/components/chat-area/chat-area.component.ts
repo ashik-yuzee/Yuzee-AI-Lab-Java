@@ -8,11 +8,14 @@ import { ComposerComponent, ComposerSendEvent } from '../composer/composer.compo
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ChatTurnDividerComponent } from '../chat-turn-divider/chat-turn-divider.component';
 import { ResearchDetailsComponent } from '../research-details/research-details.component';
+import { WarehouseCoursesComponent } from '../warehouse/warehouse-courses.component';
+import { WarehouseConnectionsComponent } from '../warehouse/warehouse-connections.component';
+import { ProviderComparisonComponent } from '../warehouse/provider-comparison.component';
 
 @Component({
   selector: 'chat-area',
   standalone: true,
-  imports: [CommonModule, ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, SidebarComponent, ChatTurnDividerComponent, ResearchDetailsComponent],
+  imports: [CommonModule, ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, SidebarComponent, ChatTurnDividerComponent, ResearchDetailsComponent, WarehouseCoursesComponent, WarehouseConnectionsComponent, ProviderComparisonComponent],
   templateUrl: './chat-area.component.html',
   styleUrl: './chat-area.component.scss'
 })

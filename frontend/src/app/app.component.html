@@ -1,4 +1,5 @@
-<div class="app-shell" [class.authenticated]="auth.isAuthenticated">
+<ion-app class="app-shell" [class.authenticated]="auth.isAuthenticated">
+<ion-content [scrollY]="false" [fullscreen]="true">
 
   @if (!auth.isAuthenticated) {
     <div class="login-screen d-flex align-items-center justify-content-center vh-100">
@@ -92,4 +93,6 @@
       [open]="activeTool() === 'export'"
       (closed)="closeTool()" />
   }
-</div>
+
+</ion-content>
+</ion-app>

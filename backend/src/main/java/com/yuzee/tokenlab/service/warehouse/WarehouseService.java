@@ -144,7 +144,7 @@ public class WarehouseService {
 
             if (!plan.hasNonNull("action") || !ACTIONS.contains(plan.get("action").asText())
                 || !isStringArray(plan.get("queries")) || !plan.path("reuse_selected").isBoolean()) {
-                throw new IllegalStateException("Invalid query plan");
+                throw new IllegalStateException("Invalid query plan, raw response: " + raw);
             }
             String action = plan.get("action").asText();
             if ("NONE".equals(action)) return WarehousePack.of("NOT_NEEDED");

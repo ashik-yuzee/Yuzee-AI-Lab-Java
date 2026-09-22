@@ -446,6 +446,19 @@ public class GeminiService {
      * {@link #generate} builds its request.
      */
     public JsonResult generateJson(String model, String systemInstruction, String userMessage, int maxOutputTokens) throws IOException {
+        return generateJson(model, systemInstruction, userMessage, maxOutputTokens, null);
+    }
+
+    /**
+     * Same as {@link #generateJson(String, String, String, int)}, but also constrains the model's
+     * output to {@code responseSchema} (Gemini's structured-output mode) when non-null. Without a
+     * schema, prose-described field names in a system instruction are only ever a strong hint --
+     * Gemini is free to invent its own reasonable-but-different key names (observed in practice:
+     * the warehouse query planner's system instruction never worked without one, since it discusses
+     * fields like "queries"/"facets" in prose but Gemini returned {@code target} instead of the
+     * expected {@code action} key). A schema makes the exact property names load-bearing.
+     */
+    public JsonResult generateJson(String model, String systemInstruction, String userMessage, int maxOutputTokens, JsonNode responseSchema) throws IOException {
         if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
 
         ObjectNode body = mapper.createObjectNode();
@@ -469,6 +482,7 @@ public class GeminiService {
         ObjectNode genConfig = mapper.createObjectNode();
         genConfig.put("responseMimeType", "application/json");
         genConfig.put("maxOutputTokens", maxOutputTokens);
+        if (responseSchema != null) genConfig.set("responseSchema", responseSchema);
         body.set("generationConfig", genConfig);
 
         String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;

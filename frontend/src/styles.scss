@@ -1,5 +1,12 @@
 @import 'bootstrap/scss/bootstrap';
 
+// Required for ion-app/ion-content to size and position themselves (structural shell only --
+// no ionic theming). Deliberately skips typography.css/display.css etc: those restyle
+// h1-h6/links/utility classes and would fight Bootstrap's visible styling.
+@import '@ionic/angular/css/core.css';
+@import '@ionic/angular/css/normalize.css';
+@import '@ionic/angular/css/structure.css';
+
 :root {
   --accent: #7957c6;
   --accent-8: #f2edff;

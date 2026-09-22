@@ -236,6 +236,7 @@ export class TokenLabService {
       tokenUsage: data?.tokenUsage,
       compaction: data?.compaction,
       researchOffer: data?.researchOffer,
+      warehouseData: data?.warehouseData,
       validationFailed: data?.validationFailed || !!error,
       streaming: false
     };

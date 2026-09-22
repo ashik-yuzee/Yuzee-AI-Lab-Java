@@ -32,6 +32,9 @@ import com.yuzee.tokenlab.service.TokenService;
 import com.yuzee.tokenlab.service.TurnNeedsService;
 import com.yuzee.tokenlab.model.HistoryTurn;
 import com.yuzee.tokenlab.model.TurnNeeds;
+import com.yuzee.tokenlab.model.warehouse.WarehouseInput;
+import com.yuzee.tokenlab.model.warehouse.WarehousePack;
+import com.yuzee.tokenlab.service.warehouse.WarehouseService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -67,6 +70,7 @@ public class ChatController {
     private final DetailResearchService detailResearchService;
     private final ObjectiveService objectiveService;
     private final TurnNeedsService turnNeedsService;
+    private final WarehouseService warehouseService;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -91,7 +95,8 @@ public class ChatController {
                           MiniPathwayService miniPathwayService,
                           DetailResearchService detailResearchService,
                           ObjectiveService objectiveService,
-                          TurnNeedsService turnNeedsService) {
+                          TurnNeedsService turnNeedsService,
+                          WarehouseService warehouseService) {
         this.conversationService = conversationService;
         this.geminiService = geminiService;
         this.systemPromptService = systemPromptService;
@@ -110,6 +115,7 @@ public class ChatController {
         this.detailResearchService = detailResearchService;
         this.objectiveService = objectiveService;
         this.turnNeedsService = turnNeedsService;
+        this.warehouseService = warehouseService;
     }
 
     @PostMapping(value = "/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -228,6 +234,33 @@ public class ChatController {
                 preflight = turnNeedsService.assessTurnNeeds(turnText, historyTurns, structuredTurn, null, null);
             } catch (Exception ignored) {
                 // classification is advisory only
+            }
+
+            // Warehouse enrichment (course/provider/career/local data) — advisory only, same as
+            // the TurnNeeds preflight above: needsWarehouse() cheaply gates out trivial/off-topic
+            // turns before any LLM planning call runs, and any failure here (including the
+            // warehouse source database simply not being configured) must never break the turn.
+            // Bounded with a timeout, not just try/catch: the very first call after a source-data
+            // change can spend a long time rebuilding the on-disk FTS5 index (WarehouseIndexBuilder
+            // .ensureReady() is synchronized and can take a while over a multi-GB source file), and
+            // a slow enrichment must never make a user wait on their actual chat turn. The build
+            // keeps running to completion on the executor thread even after we stop waiting on it,
+            // so later turns benefit from a warm index.
+            WarehousePack warehousePack = null;
+            try {
+                String turnText = currentUserInput instanceof String s ? s : "";
+                StringBuilder recentContext = new StringBuilder();
+                List<ChatMessage> priorMessages = conv.getMessages();
+                for (int i = Math.max(0, priorMessages.size() - 4); i < priorMessages.size(); i++) {
+                    Object c = priorMessages.get(i).getContent();
+                    if (c instanceof String s2) recentContext.append(s2).append('\n');
+                }
+                WarehouseInput whInput = new WarehouseInput(turnText);
+                whInput.setContext(recentContext.toString());
+                warehousePack = executor.submit(() -> warehouseService.retrieve(whInput))
+                    .get(4, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception ignored) {
+                // enrichment is advisory only -- including a timeout while a first-time index build runs
             }
 
             // Persist the user's turn now — after classification/history assembly has already
@@ -364,6 +397,9 @@ public class ChatController {
             if (compactionMetrics != null) finalPayload.put("compaction", compactionMetrics);
             TurnNeeds offer = preflight != null ? turnNeedsService.researchOffer(preflight) : null;
             if (offer != null) finalPayload.put("researchOffer", offer);
+            if (warehousePack != null && ("READY".equals(warehousePack.getStatus()) || "NO_MATCH".equals(warehousePack.getStatus()))) {
+                finalPayload.put("warehouseData", warehousePack);
+            }
             sendQuiet(emitter, finalPayload);
             emitter.complete();
         } catch (Exception e) {
