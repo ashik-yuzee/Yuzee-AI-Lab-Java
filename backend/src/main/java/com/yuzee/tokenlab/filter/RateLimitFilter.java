@@ -14,10 +14,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 /**
- * Per-IP fixed-window rate limiter for the LLM-calling endpoints, matching the scale of the old
- * Node app's makeRateLimit(n) (express-rate-limit, n requests/minute per IP): chat turns and the
- * benchmark endpoint at 20/min, routing + profile-fact/contradiction/pre-check endpoints at
- * 30/min. Returns 429 with {"error":"Too many requests"} once a group's limit is exceeded.
+ * Per-IP fixed-window rate limiter for the LLM-calling endpoints, a Java port of the old Node
+ * app's per-route {@code makeRateLimit(n)} (express-rate-limit, n requests/minute per IP) --
+ * same routes, same limits (server.ts lines 260-1607). Returns 429 with
+ * {"error":"Too many requests"} once a group's limit is exceeded.
  * <p>
  * // ponytail: one 60s fixed window per (ip, path-group) rather than a true sliding window/token
  * // bucket -- allows a small double-burst right at the window boundary, which is fine at this
@@ -39,12 +39,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private final List<Group> groups = List.of(
-        new Group("^/api/benchmark$", 20),
-        new Group("^/api/conversations/[^/]+/messages$", 20),
-        new Group("^/api/routing/.*$", 30),
+        new Group("^/api/conversations/[^/]+/objectives/[^/]+$", 12),
+        new Group("^/api/conversations/[^/]+/mini-pathway$", 6),
+        new Group("^/api/conversations/[^/]+/details$", 6),
+        new Group("^/api/routing/llm$", 30),
         new Group("^/api/extract-profile-facts$", 30),
-        new Group("^/api/detect-contradictions$", 30),
-        new Group("^/api/pre-check$", 30)
+        new Group("^/api/detect-contradictions$", 20),
+        new Group("^/api/pre-check$", 30),
+        new Group("^/api/pathway/generate$", 20),
+        new Group("^/api/pathway/recommend$", 30),
+        new Group("^/api/pathway/explain$", 30),
+        new Group("^/api/conversations/[^/]+/generate-title$", 10),
+        new Group("^/api/tokens/count$", 30),
+        new Group("^/api/benchmark$", 10),
+        new Group("^/api/conversations/[^/]+/messages$", 20)
     );
 
     private static final class Counter {

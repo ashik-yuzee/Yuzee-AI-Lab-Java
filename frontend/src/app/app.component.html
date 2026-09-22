@@ -48,18 +48,18 @@
     <app-token-inspector
       [open]="activeTool() === 'token-inspector'"
       [tokenUsage]="lastAssistantTokenUsage"
-      [compaction]="null"
+      [compaction]="lastCompaction"
       (closed)="closeTool()"
       (openContextInspector)="onOpenTool('context-inspector')"
       (openMemoryTimeline)="onOpenTool('memory-timeline')" />
     <app-context-inspector-modal
       [open]="activeTool() === 'context-inspector'"
-      [compaction]="null"
+      [compaction]="lastCompaction"
       (closed)="closeTool()" />
     <app-memory-timeline-modal
       [open]="activeTool() === 'memory-timeline'"
       [conversationId]="lab.activeConversationId()"
-      [compaction]="null"
+      [compaction]="lastCompaction"
       (closed)="closeTool()" />
     <app-analytics-dashboard-modal
       [open]="activeTool() === 'analytics'"

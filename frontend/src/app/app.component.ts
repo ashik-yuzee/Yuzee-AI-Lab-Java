@@ -62,6 +62,15 @@ export class AppComponent implements OnInit {
     return null;
   }
 
+  /** Last assistant message's memory-compaction metrics, for Token Inspector / Context Inspector / Memory Timeline. */
+  get lastCompaction() {
+    const msgs = this.lab.activeConversation()?.messages ?? [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'assistant' && msgs[i].compaction) return msgs[i].compaction!;
+    }
+    return null;
+  }
+
   ngOnInit(): void {
     if (this.auth.isAuthenticated) {
       this.lab.loadConversations();

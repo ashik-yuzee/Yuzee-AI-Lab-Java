@@ -231,6 +231,7 @@ export class TokenLabService {
       content: this.streamBuffer(),
       parsedResponse: data?.parsedResponse,
       tokenUsage: data?.tokenUsage,
+      compaction: data?.compaction,
       validationFailed: data?.validationFailed || !!error,
       streaming: false
     };

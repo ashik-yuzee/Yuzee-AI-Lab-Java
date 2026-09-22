@@ -1,3 +1,5 @@
+import { CompactionInfo } from './token-lab-inspector.types';
+
 export type ModelId = string;
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'adaptive';
 export type OptimizationMode = 'AUTO' | 'SAVE_TOKENS' | 'FULL_CONTEXT' | 'ADVANCED' | 'VANILLA' | 'MICRO_PROMPT';
@@ -207,6 +209,7 @@ export interface ChatMessage {
   timestamp?: string;
   parsedResponse?: YuzeeResponseV13;
   tokenUsage?: TokenUsage;
+  compaction?: CompactionInfo;
   streamStopped?: boolean;
   validationFailed?: boolean;
   streaming?: boolean;
