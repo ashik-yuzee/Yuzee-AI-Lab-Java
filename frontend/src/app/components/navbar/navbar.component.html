@@ -51,6 +51,26 @@
     </div>
   }
 
+  <!-- Tools -->
+  <div class="tools-menu me-2" style="position:relative">
+    <button class="btn btn-sm btn-light" (click)="toggleToolsMenu()" style="font-size:12px">
+      Tools ⌄
+    </button>
+    @if (toolsMenuOpen()) {
+      <div class="dropdown-menu show tools-dropdown">
+        <button class="dropdown-item" (click)="selectTool('settings')">Settings</button>
+        <button class="dropdown-item" (click)="selectTool('profile')">Profile &amp; Facts</button>
+        <button class="dropdown-item" (click)="selectTool('career-context')">Career Context</button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" (click)="selectTool('token-inspector')">Token Inspector</button>
+        <button class="dropdown-item" (click)="selectTool('context-inspector')">Context Inspector</button>
+        <button class="dropdown-item" (click)="selectTool('memory-timeline')">Memory Timeline</button>
+        <button class="dropdown-item" (click)="selectTool('analytics')">Analytics</button>
+        <button class="dropdown-item" (click)="selectTool('benchmark')">Benchmark</button>
+      </div>
+    }
+  </div>
+
   <!-- Sign out -->
   <button class="btn btn-sm btn-outline-secondary ms-1" (click)="logout()" style="font-size:12px">
     Sign out
@@ -59,4 +79,7 @@
 
 @if (convMenuOpen()) {
   <div class="backdrop" (click)="convMenuOpen.set(false)"></div>
+}
+@if (toolsMenuOpen()) {
+  <div class="backdrop" (click)="toolsMenuOpen.set(false)"></div>
 }

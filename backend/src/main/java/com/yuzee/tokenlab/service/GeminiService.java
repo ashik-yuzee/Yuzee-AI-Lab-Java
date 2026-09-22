@@ -311,4 +311,190 @@ public class GeminiService {
             return result.path("candidates").get(0).path("content").path("parts").get(0).path("text").asText("");
         }
     }
+
+    /** True when GEMINI_API_KEY is configured -- callers can fail fast with a friendly message instead. */
+    public boolean isConfigured() {
+        return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** One grounding source, ported from a Gemini {@code groundingChunks} entry. */
+    public static final class GroundingChunk {
+        public final String uri;
+        public final String title;
+
+        public GroundingChunk(String uri, String title) {
+            this.uri = uri;
+            this.title = title;
+        }
+    }
+
+    /** One grounded excerpt, ported from a Gemini {@code groundingSupports} entry. */
+    public static final class GroundingSupport {
+        public final String segmentText;
+        public final List<Integer> chunkIndices;
+
+        public GroundingSupport(String segmentText, List<Integer> chunkIndices) {
+            this.segmentText = segmentText;
+            this.chunkIndices = chunkIndices;
+        }
+    }
+
+    /** Result of {@link #generateGrounded}: text plus the grounding metadata and usage Gemini reports. */
+    public static final class GroundedResult {
+        public String text = "";
+        public String finishReason;
+        public int promptTokens;
+        public int outputTokens; // candidatesTokenCount + thoughtsTokenCount
+        public int searchQueries;
+        public String searchSuggestionsHtml = "";
+        public List<GroundingChunk> groundingChunks = new java.util.ArrayList<>();
+        public List<GroundingSupport> groundingSupports = new java.util.ArrayList<>();
+    }
+
+    /**
+     * Non-streaming generate with Gemini's Google Search grounding tool enabled ({@code tools:
+     * [{"google_search": {}}]}), so the model can ground its answer in live search results. Built
+     * the same way {@link #generate} builds its request (same OkHttp client, same auth pattern),
+     * with the {@code tools} field added and {@code groundingMetadata} parsed out of the response
+     * alongside the usual {@code content.parts[].text}.
+     */
+    public GroundedResult generateGrounded(String model, String systemInstruction, String userMessage, int maxOutputTokens) throws IOException {
+        if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+
+        ObjectNode body = mapper.createObjectNode();
+        ArrayNode contents = mapper.createArrayNode();
+        ObjectNode userContent = mapper.createObjectNode();
+        userContent.put("role", "user");
+        ArrayNode parts = mapper.createArrayNode();
+        parts.add(mapper.createObjectNode().put("text", userMessage));
+        userContent.set("parts", parts);
+        contents.add(userContent);
+        body.set("contents", contents);
+
+        if (systemInstruction != null && !systemInstruction.isBlank()) {
+            ObjectNode si = mapper.createObjectNode();
+            ArrayNode siParts = mapper.createArrayNode();
+            siParts.add(mapper.createObjectNode().put("text", systemInstruction));
+            si.set("parts", siParts);
+            body.set("system_instruction", si);
+        }
+
+        ArrayNode tools = mapper.createArrayNode();
+        tools.add(mapper.createObjectNode().set("google_search", mapper.createObjectNode()));
+        body.set("tools", tools);
+
+        ObjectNode genConfig = mapper.createObjectNode();
+        genConfig.put("maxOutputTokens", maxOutputTokens);
+        body.set("generationConfig", genConfig);
+
+        String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
+        Request request = new Request.Builder()
+            .url(url)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini error " + response.code() + ": " + err);
+            }
+            JsonNode root = mapper.readTree(response.body().string());
+            GroundedResult result = new GroundedResult();
+            JsonNode candidate = root.path("candidates").path(0);
+            result.finishReason = candidate.path("finishReason").asText(null);
+
+            StringBuilder text = new StringBuilder();
+            for (JsonNode part : candidate.path("content").path("parts")) {
+                text.append(part.path("text").asText(""));
+            }
+            result.text = text.toString();
+
+            JsonNode grounding = candidate.path("groundingMetadata");
+            for (JsonNode chunk : grounding.path("groundingChunks")) {
+                JsonNode web = chunk.path("web");
+                result.groundingChunks.add(new GroundingChunk(web.path("uri").asText(null), web.path("title").asText("")));
+            }
+            for (JsonNode support : grounding.path("groundingSupports")) {
+                String segmentText = support.path("segment").path("text").asText("").trim();
+                List<Integer> indices = new java.util.ArrayList<>();
+                for (JsonNode i : support.path("groundingChunkIndices")) indices.add(i.asInt());
+                result.groundingSupports.add(new GroundingSupport(segmentText, indices));
+            }
+            for (JsonNode q : grounding.path("webSearchQueries")) {
+                if (q.isTextual() && !q.asText().isBlank()) result.searchQueries++;
+            }
+            result.searchSuggestionsHtml = grounding.path("searchEntryPoint").path("renderedContent").asText("");
+
+            JsonNode usage = root.path("usageMetadata");
+            result.promptTokens = usage.path("promptTokenCount").asInt(0);
+            result.outputTokens = usage.path("candidatesTokenCount").asInt(0) + usage.path("thoughtsTokenCount").asInt(0);
+            return result;
+        }
+    }
+
+    /** Result of {@link #generateJson}: text plus the finish reason and usage Gemini reports. */
+    public static final class JsonResult {
+        public String text = "";
+        public String finishReason;
+        public int promptTokens;
+        public int outputTokens;
+    }
+
+    /**
+     * Non-streaming JSON-mode generate that (unlike {@link #generate}) reports back the finish
+     * reason and token usage, and takes an explicit output-token budget. Built the same way
+     * {@link #generate} builds its request.
+     */
+    public JsonResult generateJson(String model, String systemInstruction, String userMessage, int maxOutputTokens) throws IOException {
+        if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+
+        ObjectNode body = mapper.createObjectNode();
+        ArrayNode contents = mapper.createArrayNode();
+        ObjectNode userContent = mapper.createObjectNode();
+        userContent.put("role", "user");
+        ArrayNode parts = mapper.createArrayNode();
+        parts.add(mapper.createObjectNode().put("text", userMessage));
+        userContent.set("parts", parts);
+        contents.add(userContent);
+        body.set("contents", contents);
+
+        if (systemInstruction != null && !systemInstruction.isBlank()) {
+            ObjectNode si = mapper.createObjectNode();
+            ArrayNode siParts = mapper.createArrayNode();
+            siParts.add(mapper.createObjectNode().put("text", systemInstruction));
+            si.set("parts", siParts);
+            body.set("system_instruction", si);
+        }
+
+        ObjectNode genConfig = mapper.createObjectNode();
+        genConfig.put("responseMimeType", "application/json");
+        genConfig.put("maxOutputTokens", maxOutputTokens);
+        body.set("generationConfig", genConfig);
+
+        String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
+        Request request = new Request.Builder()
+            .url(url)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini error " + response.code() + ": " + err);
+            }
+            JsonNode root = mapper.readTree(response.body().string());
+            JsonResult result = new JsonResult();
+            JsonNode candidate = root.path("candidates").path(0);
+            result.finishReason = candidate.path("finishReason").asText(null);
+            StringBuilder text = new StringBuilder();
+            for (JsonNode part : candidate.path("content").path("parts")) {
+                text.append(part.path("text").asText(""));
+            }
+            result.text = text.toString();
+            JsonNode usage = root.path("usageMetadata");
+            result.promptTokens = usage.path("promptTokenCount").asInt(0);
+            result.outputTokens = usage.path("candidatesTokenCount").asInt(0) + usage.path("thoughtsTokenCount").asInt(0);
+            return result;
+        }
+    }
 }

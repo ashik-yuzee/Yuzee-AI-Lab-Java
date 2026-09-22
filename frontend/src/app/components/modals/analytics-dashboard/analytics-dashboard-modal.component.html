@@ -1,0 +1,97 @@
+@if (open) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <div class="header-icon">📊</div>
+          <div>
+            <h2 class="card-title-text mb-0">Session Analytics</h2>
+            <p class="card-subtitle mb-0">Cumulative token usage &amp; cost for this session</p>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+      </div>
+
+      <div class="card-body">
+        @if (loading()) {
+          <div class="empty-state">Loading session analytics…</div>
+        } @else if (!sessionStats()) {
+          <div class="empty-state">Session stats are unavailable right now.</div>
+        } @else {
+          <!-- Headline grid -->
+          <div class="headline-grid">
+            <div class="headline-card">
+              <span class="headline-label">Turns</span>
+              <span class="headline-value">{{ sessionStats()!.turns | number }}</span>
+            </div>
+            <div class="headline-card headline-input">
+              <span class="headline-label">Total Tokens</span>
+              <span class="headline-value">{{ sessionStats()!.totalTokens | number }}</span>
+            </div>
+            <div class="headline-card headline-cost">
+              <span class="headline-label">Session Cost</span>
+              <span class="headline-value">${{ sessionStats()!.estimatedCostUsd | number: '1.2-4' }}</span>
+            </div>
+            <div class="headline-card headline-daily">
+              <span class="headline-label">Today's Cost</span>
+              <span class="headline-value">${{ (dailyCost()?.estimatedCostUsd ?? 0) | number: '1.2-4' }}</span>
+            </div>
+          </div>
+
+          <!-- Token allocation -->
+          <div class="allocation-card">
+            <h3 class="section-label">Token Allocation</h3>
+            <div class="bar-row">
+              <div class="bar-row-label">
+                <span>Prompt Tokens</span>
+                <span>{{ sessionStats()!.promptTokens | number }} tokens</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-prompt" [style.width.%]="pct(sessionStats()!.promptTokens, sessionStats()!.totalTokens)"></div>
+              </div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-row-label">
+                <span>Output Tokens</span>
+                <span>{{ sessionStats()!.outputTokens | number }} tokens</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-output" [style.width.%]="pct(sessionStats()!.outputTokens, sessionStats()!.totalTokens)"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Utility stats -->
+          @if (utilityStats(); as util) {
+            <div class="grid-3">
+              <div class="mini-card">
+                <span class="mini-label">Whiteboard Calls</span>
+                <span class="mini-value">{{ util.whiteboardCalls | number }}</span>
+              </div>
+              <div class="mini-card">
+                <span class="mini-label">Utility Model Calls</span>
+                <span class="mini-value">{{ util.utilityModelCalls | number }}</span>
+              </div>
+              <div class="mini-card">
+                <span class="mini-label">Avg Tokens / Turn</span>
+                <span class="mini-value">{{ avgTokensPerTurn() | number }}</span>
+              </div>
+            </div>
+          }
+
+          <p class="footnote">
+            Cache-read totals, compaction overhead and a "tokens saved vs. baseline" figure from the old app aren't
+            shown — the backend's session tracker (TokenService) doesn't accumulate those, only the figures above.
+          </p>
+        }
+      </div>
+
+      <div class="card-footer d-flex align-items-center justify-content-between">
+        <button class="btn-reset" [disabled]="loading()" (click)="resetSession()" title="Reset session totals">
+          ↺ Reset Session
+        </button>
+        <button class="btn btn-dark btn-sm" (click)="close()">Close Dashboard</button>
+      </div>
+    </div>
+  </div>
+}

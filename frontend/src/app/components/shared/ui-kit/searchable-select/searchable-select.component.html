@@ -1,0 +1,98 @@
+<div class="searchable-select" [class.disabled]="disabled" (keydown)="onKeydown($event)">
+  @if (label) {
+    <label class="searchable-select-label" [attr.for]="id ?? selectId">{{ label }}</label>
+  }
+
+  <button
+    #triggerBtn
+    type="button"
+    [id]="id ?? selectId"
+    class="searchable-select-trigger"
+    [class.compact]="compact"
+    [class.open]="isOpen()"
+    [disabled]="disabled"
+    aria-haspopup="listbox"
+    [attr.aria-expanded]="isOpen()"
+    [attr.aria-label]="label || selectedOption?.label || placeholder"
+    (click)="toggleOpen()">
+    <span class="searchable-select-trigger-content">
+      @if (leadingIcon) { <i class="searchable-select-leading-icon {{ leadingIcon }}" aria-hidden="true"></i> }
+      <span class="searchable-select-value">{{ selectedOption?.label ?? placeholder }}</span>
+    </span>
+    <i class="searchable-select-chevron" [class.is-open]="isOpen()" aria-hidden="true"></i>
+  </button>
+
+  @if (isOpen()) {
+    <div
+      class="searchable-select-popover"
+      role="listbox"
+      [attr.aria-label]="label || 'Options'"
+      [style.width.px]="popoverWidthPx">
+
+      @if (showSearch) {
+        <div class="searchable-select-search-wrap">
+          <div class="searchable-select-search">
+            <i class="searchable-select-search-icon" aria-hidden="true"></i>
+            <input
+              #searchInput
+              type="text"
+              class="searchable-select-search-input"
+              placeholder="Search..."
+              [value]="searchQuery()"
+              (input)="onSearchInput($event)" />
+          </div>
+        </div>
+      }
+
+      <div class="searchable-select-list">
+        @if (groupedOptions.length === 0) {
+          <div class="searchable-select-empty">No matching options</div>
+        }
+
+        @for (group of groupedOptions; track group.groupName) {
+          <div class="searchable-select-group">
+            @if (group.groupName) {
+              <div class="searchable-select-group-name">{{ group.groupName }}</div>
+            }
+
+            @for (opt of group.items; track opt.value) {
+              <button
+                type="button"
+                role="option"
+                class="searchable-select-option"
+                [class.selected]="opt.value === value"
+                [class.is-focused]="opt.value === focusedValue()"
+                [class.disabled]="opt.disabled"
+                [disabled]="opt.disabled"
+                [attr.aria-selected]="opt.value === value"
+                (click)="selectOption(opt)">
+                <span class="searchable-select-option-main">
+                  @if (opt.icon) { <i class="searchable-select-option-icon {{ opt.icon }}" aria-hidden="true"></i> }
+                  <span class="searchable-select-option-text">
+                    <span class="searchable-select-option-row">
+                      <span class="searchable-select-option-label">{{ opt.label }}</span>
+                      @if (opt.badge) {
+                        <span class="searchable-select-badge" [ngClass]="badgeClass(opt.badgeColor)">{{ opt.badge }}</span>
+                      }
+                    </span>
+                    @if (opt.description) {
+                      <span class="searchable-select-option-desc">{{ opt.description }}</span>
+                    }
+                  </span>
+                </span>
+
+                @if (opt.value === value) {
+                  <span class="searchable-select-check" aria-hidden="true">&#10003;</span>
+                }
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      @if (footerNote) {
+        <div class="searchable-select-footer">{{ footerNote }}</div>
+      }
+    </div>
+  }
+</div>

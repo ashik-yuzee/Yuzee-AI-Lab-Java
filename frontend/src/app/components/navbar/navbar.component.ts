@@ -1,8 +1,13 @@
-import { Component, signal } from '@angular/core';
+import { Component, EventEmitter, Output, signal } from '@angular/core';
 import { CommonModule, DecimalPipe } from '@angular/common';
 import { TokenLabService } from '../../services/token-lab.service';
 import { AuthService } from '../../services/auth.service';
 import { Conversation } from '../../models/types';
+
+/** Keys the parent (AppComponent) understands for opening a specific tool/modal. */
+export type ToolMenuKey =
+  | 'settings' | 'profile' | 'career-context' | 'token-inspector'
+  | 'context-inspector' | 'memory-timeline' | 'analytics' | 'benchmark';
 
 @Component({
   selector: 'app-navbar',
@@ -13,10 +18,19 @@ import { Conversation } from '../../models/types';
 })
 export class NavbarComponent {
   convMenuOpen = signal(false);
+  toolsMenuOpen = signal(false);
+
+  @Output() openTool = new EventEmitter<ToolMenuKey>();
 
   constructor(public lab: TokenLabService, private auth: AuthService) {}
 
   toggleConvMenu(): void { this.convMenuOpen.update(v => !v); }
+  toggleToolsMenu(): void { this.toolsMenuOpen.update(v => !v); }
+
+  selectTool(key: ToolMenuKey): void {
+    this.toolsMenuOpen.set(false);
+    this.openTool.emit(key);
+  }
 
   async newConversation(): Promise<void> {
     this.convMenuOpen.set(false);

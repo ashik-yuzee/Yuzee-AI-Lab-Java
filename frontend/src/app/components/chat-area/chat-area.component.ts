@@ -1,25 +1,55 @@
 import { Component, AfterViewChecked, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { TokenLabService } from '../../services/token-lab.service';
-import { ChatMessage, YuzeeResponseV13 } from '../../models/types';
+import { ChatMessage, UserEvent, YuzeeResponseV13 } from '../../models/types';
 import { ProtocolRendererComponent } from '../protocol-renderer/protocol-renderer.component';
 import { ChatProgressComponent } from '../chat-progress/chat-progress.component';
+import { ComposerComponent, ComposerSendEvent } from '../composer/composer.component';
+import { SidebarComponent } from '../sidebar/sidebar.component';
+import { ChatTurnDividerComponent } from '../chat-turn-divider/chat-turn-divider.component';
 
 @Component({
   selector: 'chat-area',
   standalone: true,
-  imports: [CommonModule, FormsModule, ProtocolRendererComponent, ChatProgressComponent],
+  imports: [CommonModule, ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, SidebarComponent, ChatTurnDividerComponent],
   templateUrl: './chat-area.component.html',
   styleUrl: './chat-area.component.scss'
 })
 export class ChatAreaComponent implements AfterViewChecked {
   @ViewChild('messagesArea') messagesArea?: ElementRef<HTMLElement>;
 
-  draftMessage = '';
   private lastScrollHeight = 0;
 
   constructor(public lab: TokenLabService) {}
+
+  /** Divider shows before a message whose calendar day differs from the previous one (or the first message). */
+  showDividerBefore(messages: ChatMessage[], index: number): boolean {
+    if (index === 0) return true;
+    const prev = new Date(messages[index - 1].timestamp ?? Date.now());
+    const cur = new Date(messages[index].timestamp ?? Date.now());
+    return prev.toDateString() !== cur.toDateString();
+  }
+
+  /** ChatMessage.timestamp is an ISO string (from the backend's Instant); the divider wants epoch millis. */
+  toEpoch(timestamp?: string): number | undefined {
+    if (!timestamp) return undefined;
+    const ms = new Date(timestamp).getTime();
+    return Number.isNaN(ms) ? undefined : ms;
+  }
+
+  /**
+   * A protocol-rendered interaction (question answer or recommended-action click) or an
+   * action-execute confirmation always resolves through the same chat-send path as free text —
+   * the server re-validates the submitted UserEvent against the interaction it actually last
+   * sent (see ChatController/ProtocolValidator), never trusting this client-side echo alone.
+   */
+  onInteract(event: UserEvent, renderer: ProtocolRendererComponent): void {
+    if (this.lab.isStreaming()) return;
+    this.lab.sendMessage(event.value ?? '', event.userEvent);
+    // sendMessage is fire-and-forget (SSE handled internally); the interaction widget only needs
+    // to leave its "submitting" state, not know the eventual answer, so report acceptance now.
+    renderer.reportInteractionResult(true);
+  }
 
   ngAfterViewChecked(): void {
     const el = this.messagesArea?.nativeElement;
@@ -38,21 +68,12 @@ export class ChatAreaComponent implements AfterViewChecked {
     await this.lab.deleteConversation(id);
   }
 
-  send(): void {
-    const msg = this.draftMessage.trim();
-    if (!msg || this.lab.isStreaming()) return;
-    this.draftMessage = '';
-    this.lab.sendMessage(msg);
-  }
-
-  onKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); }
-  }
-
-  autoResize(e: Event): void {
-    const ta = e.target as HTMLTextAreaElement;
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+  onComposerSend(event: ComposerSendEvent): void {
+    if (this.lab.isStreaming()) return;
+    // Attachments aren't wired into the backend contract yet (see task follow-up); the raw text,
+    // @Oala mention included, is sent as-is — the server re-detects it independently, same as the
+    // old app's parseOalaMention on the client.
+    this.lab.sendMessage(event.text, event.addressedOala ? { addressedOala: true } : undefined);
   }
 
   asString(content: unknown): string {

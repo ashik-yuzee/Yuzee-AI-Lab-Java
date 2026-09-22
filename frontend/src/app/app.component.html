@@ -27,7 +27,7 @@
 
   @if (auth.isAuthenticated) {
     <div class="main-layout d-flex flex-column vh-100">
-      <app-navbar />
+      <app-navbar (openTool)="onOpenTool($event)" />
       <div class="main-content flex-1 d-flex overflow-hidden">
         <chat-area class="flex-1" />
       </div>
@@ -35,5 +35,39 @@
     @if (!lab.locationProvided() && showLocationPrompt()) {
       <app-location-prompt-modal (locationSet)="onLocationSet($event)" (dismiss)="dismissLocation()" />
     }
+
+    @if (activeTool() === 'settings') {
+      <app-settings-modal (closed)="closeTool()" />
+    }
+    @if (activeTool() === 'profile') {
+      <app-user-profile-modal (closed)="closeTool()" />
+    }
+    @if (activeTool() === 'career-context') {
+      <app-career-context-modal [conversationId]="lab.activeConversationId()" (closed)="closeTool()" />
+    }
+    <app-token-inspector
+      [open]="activeTool() === 'token-inspector'"
+      [tokenUsage]="lastAssistantTokenUsage"
+      [compaction]="null"
+      (closed)="closeTool()"
+      (openContextInspector)="onOpenTool('context-inspector')"
+      (openMemoryTimeline)="onOpenTool('memory-timeline')" />
+    <app-context-inspector-modal
+      [open]="activeTool() === 'context-inspector'"
+      [compaction]="null"
+      (closed)="closeTool()" />
+    <app-memory-timeline-modal
+      [open]="activeTool() === 'memory-timeline'"
+      [conversationId]="lab.activeConversationId()"
+      [compaction]="null"
+      (closed)="closeTool()" />
+    <app-analytics-dashboard-modal
+      [open]="activeTool() === 'analytics'"
+      (closed)="closeTool()" />
+    <app-benchmark-modal
+      [open]="activeTool() === 'benchmark'"
+      [conversationId]="lab.activeConversationId()"
+      [modelId]="lab.activeModelId()"
+      (closed)="closeTool()" />
   }
 </div>

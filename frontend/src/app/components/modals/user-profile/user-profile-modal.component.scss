@@ -1,0 +1,99 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-card {
+  border-radius: 16px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  border: 1px solid #e4e9f2;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.modal-header {
+  border-bottom: 1px solid #e4e9f2;
+  background: #f8f9fc;
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.nav-tabs .nav-link {
+  color: #6c757d;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.nav-tabs .nav-link.active {
+  color: #7957c6;
+  border-bottom-color: #7957c6;
+  background: transparent;
+}
+
+.fact-row {
+  background: #f8f9fc;
+  border: 1px solid #e4e9f2;
+  border-radius: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-general { background: #16a34a; }
+.dot-like { background: #0ea5e9; }
+.dot-dislike { background: #e11d48; }
+
+.contra-card {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+}
+.contra-card.resolved {
+  background: #f8f9fc;
+  border-color: #e4e9f2;
+  opacity: .6;
+}
+
+.btn-purple {
+  background: #7957c6;
+  color: #fff;
+  border: none;
+}
+.btn-purple:hover {
+  background: #6744b5;
+  color: #fff;
+}
+.btn-purple:disabled {
+  background: #b5a3e0;
+}
+
+.btn-outline-purple {
+  color: #7957c6;
+  border: 1px solid #7957c6;
+  background: transparent;
+}
+.btn-outline-purple:hover {
+  background: rgba(121, 87, 198, .08);
+  color: #7957c6;
+}
+.btn-outline-purple:disabled {
+  opacity: .6;
+}

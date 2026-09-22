@@ -1,0 +1,135 @@
+<aside class="token-inspector-panel" [class.is-open]="open">
+  <div class="panel-header">
+    <div class="d-flex align-items-center gap-2">
+      <div class="header-icon">⚡</div>
+      <div>
+        <h2 class="panel-title">Conversation Telemetry</h2>
+        <p class="panel-subtitle">Live turn usage &amp; context diagnostics</p>
+      </div>
+    </div>
+    <button class="btn btn-sm btn-icon" (click)="close()" title="Close inspector" aria-label="Close inspector">✕</button>
+  </div>
+
+  <div class="panel-body">
+    @if (!tokenUsage) {
+      <div class="empty-state">
+        <div class="empty-icon">⚡</div>
+        <p>Send a message to view turn-level telemetry.</p>
+      </div>
+    } @else {
+      <!-- Latest turn consumption -->
+      <section class="section">
+        <div class="section-label">Latest Turn Consumption</div>
+        <div class="stat-grid">
+          <div class="stat-card stat-input">
+            <span class="stat-label">{{ (tokenUsage.cachedTokens ?? 0) > 0 ? 'Gross Input (incl. cache)' : 'Total Input' }}</span>
+            <span class="stat-value">{{ tokenUsage.promptTokens | number }} tokens</span>
+            @if ((tokenUsage.cachedTokens ?? 0) > 0) {
+              <span class="stat-footnote">{{ uncachedInput() | number }} actually consumed</span>
+            }
+          </div>
+          <div class="stat-card stat-output">
+            <span class="stat-label">Visible Output</span>
+            <span class="stat-value">{{ tokenUsage.outputTokens | number }} tokens</span>
+          </div>
+          <div class="stat-card stat-thinking">
+            <span class="stat-label">Thinking / Reasoning</span>
+            <span class="stat-value">{{ tokenUsage.thinkingTokens ?? 0 | number }} tokens</span>
+          </div>
+          @if ((tokenUsage.cachedTokens ?? 0) > 0) {
+            <div class="stat-card stat-cache stat-wide">
+              <div>
+                <span class="stat-label">Served from Cache</span>
+                <span class="stat-value">{{ tokenUsage.cachedTokens | number }} tokens</span>
+              </div>
+              @if (cacheHitPercentage() !== null) {
+                <div class="text-end">
+                  <span class="stat-label d-block">of Input</span>
+                  <span class="stat-value">{{ cacheHitPercentage() }}%</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- Context composition -->
+      <section class="section section-divider">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="section-label mb-0">Context Composition</span>
+          <button class="link-btn" (click)="openContextInspector.emit()">Open Inspector</button>
+        </div>
+        <div class="legend-box">
+          <div class="legend-row"><span class="dot dot-system"></span>System prompt</div>
+          <div class="legend-row"><span class="dot dot-history"></span>Recent dialogue turns</div>
+          <div class="legend-row"><span class="dot dot-current"></span>Current message</div>
+          <p class="legend-note">
+            Per-section token counts aren't exposed by the backend yet — only the turn total above is exact.
+          </p>
+        </div>
+      </section>
+
+      <!-- Compaction summary -->
+      @if (compaction) {
+        <section class="section section-divider">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="section-label mb-0">📉 Context Compaction</span>
+            <button class="link-btn" (click)="openMemoryTimeline.emit()">View Timeline</button>
+          </div>
+          <div class="compaction-box">
+            <div class="compaction-row">
+              <span>Strategy</span>
+              <span class="fw-semibold">{{ compaction.strategy }}</span>
+            </div>
+            <div class="compaction-row">
+              <span>Turns kept / dropped</span>
+              <span class="fw-semibold">{{ compaction.turnsKept }} / {{ compaction.turnsDropped }}</span>
+            </div>
+            <div class="compaction-row">
+              <span>Tokens used / budget</span>
+              <span class="fw-semibold">{{ compaction.tokensUsed | number }} / {{ compaction.tokenBudget | number }}</span>
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- Session totals (dark terminal card) -->
+      <section class="section section-divider">
+        <span class="section-label" title="Cumulative totals since last Reset. Resets automatically on server restart.">
+          Session Totals (since last Reset)
+        </span>
+
+        @if (statsLoading()) {
+          <div class="terminal-card terminal-loading">Loading session stats…</div>
+        } @else if (statsError() || !sessionStats()) {
+          <div class="terminal-card terminal-loading">Session stats unavailable.</div>
+        } @else {
+          <div class="terminal-card">
+            <div class="terminal-row terminal-headline">
+              <span>Total Tokens</span>
+              <span class="terminal-value">{{ sessionStats()!.totalTokens | number }}</span>
+            </div>
+            <div class="terminal-sub">
+              <div class="terminal-row">
+                <span>Prompt Tokens</span>
+                <span>{{ sessionStats()!.promptTokens | number }}</span>
+              </div>
+              <div class="terminal-row">
+                <span>Output Tokens</span>
+                <span>{{ sessionStats()!.outputTokens | number }}</span>
+              </div>
+              <div class="terminal-row">
+                <span>Turns</span>
+                <span>{{ sessionStats()!.turns | number }}</span>
+              </div>
+              <div class="terminal-row">
+                <span>Estimated Cost</span>
+                <span>${{ sessionStats()!.estimatedCostUsd | number: '1.2-4' }}</span>
+              </div>
+            </div>
+          </div>
+        }
+      </section>
+    }
+  </div>
+</aside>

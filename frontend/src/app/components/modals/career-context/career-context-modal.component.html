@@ -1,0 +1,61 @@
+<div class="modal-backdrop" (click)="closed.emit()">
+  <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="modal-header d-flex align-items-center justify-content-between px-4 py-3">
+      <div>
+        <h5 class="mb-0 fw-semibold">Career Context Capsule</h5>
+        <p class="text-muted small mb-0">Structured career parameters — only populated fields are sent to the model</p>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" (click)="closed.emit()" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Token cost pill -->
+    <div class="token-pill px-4 py-2 d-flex align-items-center justify-content-between small">
+      <span>Capsule token footprint: <strong>~{{ estimatedTokens() }} tokens</strong></span>
+      <span class="text-muted">Injected stably for cache hits</span>
+    </div>
+
+    <!-- Form -->
+    <div class="modal-body px-4 py-3">
+      <div class="row g-3">
+        @for (field of fields; track field.key) {
+          <div class="col-12" [class.col-sm-6]="!field.textarea">
+            <label class="form-label small fw-semibold">{{ field.label }}</label>
+            @if (field.textarea) {
+              <textarea
+                class="form-control"
+                rows="2"
+                [placeholder]="field.placeholder"
+                [(ngModel)]="form[field.key]"
+                (ngModelChange)="onFieldChange()"
+              ></textarea>
+            } @else {
+              <input
+                type="text"
+                class="form-control"
+                [placeholder]="field.placeholder"
+                [(ngModel)]="form[field.key]"
+                (ngModelChange)="onFieldChange()"
+              />
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer d-flex align-items-center justify-content-between px-4 py-3">
+      <button class="btn btn-link btn-sm text-danger text-decoration-none px-0" (click)="clear()">
+        Clear capsule
+      </button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" (click)="closed.emit()">Cancel</button>
+        <button class="btn btn-purple" [disabled]="saving()" (click)="save()">
+          {{ savedNotice() ? 'Saved ✓' : (saving() ? 'Saving…' : 'Save Capsule') }}
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>

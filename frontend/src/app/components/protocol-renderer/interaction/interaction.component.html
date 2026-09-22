@@ -1,0 +1,101 @@
+@if (interaction && interaction.kind !== 'none' && interaction.input_type !== 'none') {
+  <form class="protocol-question" (submit)="submit($event)" novalidate>
+    <div class="protocol-question-kicker d-flex align-items-center gap-2">
+      <span aria-hidden="true">&#128172;</span>
+      <span>Your next step</span>
+    </div>
+    <p class="protocol-question-title">{{ interaction.question }}</p>
+
+    @if (readOnly || submitted) {
+      <p class="text-muted small mb-0">{{ statusText }}</p>
+    } @else {
+      <p class="protocol-question-hint text-muted small">{{ hintText }}</p>
+
+      <fieldset [disabled]="disabled" class="protocol-choices">
+        <legend class="visually-hidden">{{ interaction.question }}</legend>
+
+        @if (interaction.input_type === 'single_select' || interaction.input_type === 'multi_select') {
+          @for (o of interaction.options; track o.id) {
+            <label class="protocol-choice" [class.is-selected]="selected.includes(o.id)">
+              <input class="form-check-input mt-1 me-2"
+                     [type]="interaction.input_type === 'single_select' ? 'radio' : 'checkbox'"
+                     name="protocol-choice"
+                     [checked]="selected.includes(o.id)"
+                     (change)="onOptionToggle(o)">
+              <span class="protocol-choice-copy">
+                <strong>{{ o.label }}</strong>
+                @if (o.description) { <span class="d-block text-muted small">{{ o.description }}</span> }
+              </span>
+            </label>
+          }
+        }
+
+        @if (interaction.input_type === 'ranked_select') {
+          <ol class="protocol-ranked list-unstyled">
+            @for (id of ranked; track id; let i = $index) {
+              <li class="protocol-ranked-row">
+                <span class="protocol-ranked-index">{{ i + 1 }}</span>
+                <span class="flex-1">{{ label(id) }}</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="i === 0" (click)="move(i, -1)" [attr.aria-label]="'Move ' + label(id) + ' up'">&uarr;</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="i === ranked.length - 1" (click)="move(i, 1)" [attr.aria-label]="'Move ' + label(id) + ' down'">&darr;</button>
+              </li>
+            }
+          </ol>
+        }
+
+        @if (interaction.input_type === 'fields') {
+          @for (f of interaction.fields; track f.id) {
+            <div class="mb-3">
+              <label class="form-label fw-medium">{{ f.label }}{{ f.required ? ' (required)' : ' (optional)' }}</label>
+
+              @if (f.input_type === 'single_select' && f.id !== 'location') {
+                <select class="form-select" [class.is-invalid]="!!fieldErrors[f.id]"
+                        [ngModel]="fields[f.id]" [name]="'field_' + f.id"
+                        (ngModelChange)="fields[f.id] = $event">
+                  <option value="">Choose an option</option>
+                  @for (o of f.options; track o.value) { <option [value]="o.value || o.label">{{ o.label }}</option> }
+                </select>
+              } @else {
+                <input type="text" class="form-control" [class.is-invalid]="!!fieldErrors[f.id]" maxlength="500"
+                       [placeholder]="f.id === 'location' ? 'Type your suburb, town or postcode' : ''"
+                       [autocomplete]="f.id === 'location' ? 'address-level2' : 'off'"
+                       [ngModel]="fields[f.id]" [name]="'field_' + f.id"
+                       (ngModelChange)="fields[f.id] = $event">
+              }
+
+              @if (f.id === 'location') {
+                <p class="form-text">Include your state or country if needed. No street address needed.</p>
+              }
+              @if (fieldErrors[f.id]) { <p class="text-danger small mb-0" role="alert">{{ fieldErrors[f.id] }}</p> }
+            </div>
+          }
+        }
+
+        @if (interaction.allow_other_input && (interaction.input_type === 'single_select' || interaction.input_type === 'multi_select')) {
+          <button type="button" class="btn btn-link btn-sm own-toggle px-0" [attr.aria-expanded]="ownOpen" (click)="toggleOwn()">
+            &#9998; {{ ownOpen ? 'Hide my own answer' : 'Write my own answer' }}
+          </button>
+        }
+
+        @if (interaction.input_type === 'text' || (ownOpen && interaction.allow_other_input && (interaction.input_type === 'single_select' || interaction.input_type === 'multi_select'))) {
+          <div class="own-answer">
+            <label class="form-label">{{ interaction.input_type === 'text' ? 'Your answer' : (interaction.other_input_label || 'Your own answer') }}</label>
+            <textarea #ownAnswer class="form-control" rows="2" maxlength="4000"
+                      placeholder="A short answer is fine. You can also say you’re not sure."
+                      [ngModel]="answer" name="own_answer"
+                      (ngModelChange)="onAnswerInput($event)"></textarea>
+          </div>
+        }
+      </fieldset>
+
+      @if (error) { <p class="text-danger small" role="alert">{{ error }}</p> }
+
+      <div class="protocol-question-footer">
+        <span class="text-muted small">{{ footerText }}</span>
+        <button type="submit" class="btn btn-purple btn-sm" [disabled]="disabled || !hasAnswer">
+          {{ pending ? 'Sending…' : 'Continue' }} &rarr;
+        </button>
+      </div>
+    }
+  </form>
+}

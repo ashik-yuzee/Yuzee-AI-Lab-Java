@@ -46,6 +46,16 @@
   font-size: 13px;
 }
 
+.tools-dropdown {
+  width: 220px;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1001;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
 .backdrop {
   position: fixed;
   inset: 0;

@@ -5,12 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuzee.tokenlab.model.ChatMessage;
 import com.yuzee.tokenlab.model.ChatRequest;
 import com.yuzee.tokenlab.model.Conversation;
+import com.yuzee.tokenlab.model.DetailRequest;
+import com.yuzee.tokenlab.model.DetailResult;
+import com.yuzee.tokenlab.model.ObjectiveSession;
 import com.yuzee.tokenlab.protocol.ProtocolValidator;
 import com.yuzee.tokenlab.protocol.SecurityStateService;
+import com.yuzee.tokenlab.protocol.TrustedServiceActions;
 import com.yuzee.tokenlab.service.ConversationLogService;
 import com.yuzee.tokenlab.service.ConversationService;
+import com.yuzee.tokenlab.service.DetailResearchService;
 import com.yuzee.tokenlab.service.GeminiModelRegistry;
 import com.yuzee.tokenlab.service.GeminiService;
+import com.yuzee.tokenlab.service.MiniPathwayService;
+import com.yuzee.tokenlab.service.ObjectiveService;
+import com.yuzee.tokenlab.service.OalaService;
+import com.yuzee.tokenlab.service.PathwayGenerationException;
 import com.yuzee.tokenlab.service.ProviderRecoveryService;
 import com.yuzee.tokenlab.service.AssembledRequest;
 import com.yuzee.tokenlab.service.RequestAssemblerService;
@@ -50,6 +59,10 @@ public class ChatController {
     private final TeachingAnswerReviewService teachingAnswerReviewService;
     private final GeminiModelRegistry modelRegistry;
     private final ConversationLogService conversationLogService;
+    private final OalaService oalaService;
+    private final MiniPathwayService miniPathwayService;
+    private final DetailResearchService detailResearchService;
+    private final ObjectiveService objectiveService;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -69,7 +82,11 @@ public class ChatController {
                           ReviewRetryService reviewRetryService,
                           TeachingAnswerReviewService teachingAnswerReviewService,
                           GeminiModelRegistry modelRegistry,
-                          ConversationLogService conversationLogService) {
+                          ConversationLogService conversationLogService,
+                          OalaService oalaService,
+                          MiniPathwayService miniPathwayService,
+                          DetailResearchService detailResearchService,
+                          ObjectiveService objectiveService) {
         this.conversationService = conversationService;
         this.geminiService = geminiService;
         this.systemPromptService = systemPromptService;
@@ -83,6 +100,10 @@ public class ChatController {
         this.teachingAnswerReviewService = teachingAnswerReviewService;
         this.modelRegistry = modelRegistry;
         this.conversationLogService = conversationLogService;
+        this.oalaService = oalaService;
+        this.miniPathwayService = miniPathwayService;
+        this.detailResearchService = detailResearchService;
+        this.objectiveService = objectiveService;
     }
 
     @PostMapping(value = "/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -152,8 +173,37 @@ public class ChatController {
         try {
             sendQuiet(emitter, Map.of("phase", "routing"));
 
-            AssembledRequest assembled = requestAssemblerService.assembleRequest(
-                conv, currentUserInput, systemPromptService.getPrompt(), modelId);
+            // @Oala addressed-mention handling: an exact FAQ match short-circuits like the
+            // greeting/farewell bypass (below); anything else strips the mention from the text
+            // actually sent to Gemini and appends the service-catalogue instruction so the model
+            // answers as Oala for this turn only. The conversation history still records what the
+            // user actually typed (see userMsg below), never the stripped/rewritten form.
+            String oalaInstruction = null;
+            Object effectiveInput = currentUserInput;
+            String oalaBasicAnswer = null;
+            if (currentUserInput instanceof String text && oalaService.addressesOala(text)) {
+                String stripped = oalaService.stripOalaMention(text);
+                Optional<String> basic = oalaService.basicAnswer(stripped);
+                if (basic.isPresent()) {
+                    oalaBasicAnswer = basic.get();
+                } else {
+                    effectiveInput = stripped;
+                    oalaInstruction = oalaService.buildOalaInstruction();
+                }
+            }
+
+            AssembledRequest assembled;
+            if (oalaBasicAnswer != null) {
+                assembled = new AssembledRequest();
+                assembled.bypassResponseText = oalaBasicAnswer;
+            } else {
+                assembled = requestAssemblerService.assembleRequest(
+                    conv, effectiveInput, systemPromptService.getPrompt(), modelId);
+                if (oalaInstruction != null) {
+                    assembled.systemInstruction = (assembled.systemInstruction == null ? "" : assembled.systemInstruction)
+                        + "\n\n" + oalaInstruction;
+                }
+            }
             compactionMetrics = assembled.compactionMetrics;
 
             // Persist the user's turn now — after classification/history assembly has already
@@ -468,27 +518,31 @@ public class ChatController {
         }
 
         Conversation conv = convOpt.get();
+        String goal = str(body.get("goal"));
+        String modelId = body.get("modelId") != null ? str(body.get("modelId")) : conv.getModelId();
+
         executor.execute(() -> {
             try {
-                emitter.send(SseEmitter.event().data("{\"phase\":\"generating\"}"));
-                String prompt = "Generate a career pathway for: " + body.getOrDefault("goal", "the learner");
-                String result = geminiService.generate(GeminiModelRegistry.DEFAULT_MODEL_ID,
-                    "Generate a structured mini career pathway as JSON with nodes and edges.", prompt);
+                sendQuiet(emitter, Map.of("phase", "generating"));
+                MiniPathwayService.PathwayGenerationResult result = miniPathwayService.generate(
+                    conv, goal, modelId, block -> sendQuiet(emitter, Map.of("block", block)));
 
-                Map<String, Object> pathway = Map.of(
-                    "id", UUID.randomUUID().toString(),
-                    "goal", body.getOrDefault("goal", ""),
-                    "content", result,
-                    "createdAt", System.currentTimeMillis()
-                );
+                Map<String, Object> pathway = new LinkedHashMap<>();
+                pathway.put("id", UUID.randomUUID().toString());
+                pathway.put("goal", goal);
+                pathway.put("report", mapper.convertValue(result.report, Map.class));
+                pathway.put("createdAt", System.currentTimeMillis());
                 conv.getMiniPathways().add(pathway);
                 conversationService.save(conv);
 
-                emitter.send(SseEmitter.event().data(mapper.writeValueAsString(Map.of("done", true, "pathway", pathway))));
+                sendQuiet(emitter, Map.of("done", true, "pathway", pathway));
+                emitter.complete();
+            } catch (PathwayGenerationException e) {
+                sendQuiet(emitter, Map.of("error", e.getMessage()));
                 emitter.complete();
             } catch (Exception e) {
-                try { emitter.send(SseEmitter.event().data("{\"error\":\"" + e.getMessage() + "\"}")); emitter.complete(); }
-                catch (IOException ioEx) { emitter.completeWithError(ioEx); }
+                sendQuiet(emitter, Map.of("error", e.getMessage() != null ? e.getMessage() : "Mini pathway generation failed"));
+                emitter.complete();
             }
         });
         return emitter;
@@ -504,12 +558,34 @@ public class ChatController {
     @PostMapping(value = "/{id}/details", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter generateDetails(@PathVariable String id, @RequestBody Map<String, Object> body) {
         SseEmitter emitter = new SseEmitter(120_000L);
+        Optional<Conversation> convOpt = conversationService.findById(id);
+        if (convOpt.isEmpty()) {
+            sendQuiet(emitter, Map.of("error", "Not found"));
+            emitter.complete();
+            return emitter;
+        }
+        Conversation conv = convOpt.get();
+
+        DetailRequest request;
+        try {
+            request = DetailRequest.parse(body);
+        } catch (Exception e) {
+            sendQuiet(emitter, Map.of("error", e.getMessage() != null ? e.getMessage() : "Invalid research request"));
+            emitter.complete();
+            return emitter;
+        }
+
         executor.execute(() -> {
             try {
-                emitter.send(SseEmitter.event().data("{\"phase\":\"researching\"}"));
-                emitter.send(SseEmitter.event().data("{\"done\":true,\"details\":{\"content\":\"Detail research completed.\"}}"));
+                DetailResult result = detailResearchService.research(conv, request,
+                    phase -> sendQuiet(emitter, Map.of("phase", phase)));
+                conversationService.save(conv);
+                sendQuiet(emitter, Map.of("done", true, "details", result));
                 emitter.complete();
-            } catch (IOException e) { emitter.completeWithError(e); }
+            } catch (Exception e) {
+                sendQuiet(emitter, Map.of("error", e.getMessage() != null ? e.getMessage() : "Research failed"));
+                emitter.complete();
+            }
         });
         return emitter;
     }
@@ -517,7 +593,7 @@ public class ChatController {
     @GetMapping("/{id}/objectives")
     public ResponseEntity<?> getObjectives(@PathVariable String id) {
         return conversationService.findById(id)
-            .<ResponseEntity<?>>map(c -> ResponseEntity.ok(c.getObjectives()))
+            .<ResponseEntity<?>>map(c -> ResponseEntity.ok(objectiveService.list(c)))
             .orElse(ResponseEntity.notFound().build());
     }
 
@@ -525,8 +601,60 @@ public class ChatController {
     public ResponseEntity<?> objectiveOperation(@PathVariable String id,
                                                 @PathVariable String operation,
                                                 @RequestBody(required = false) Map<String, Object> body) {
-        return conversationService.findById(id)
-            .<ResponseEntity<?>>map(c -> ResponseEntity.ok(Map.of("ok", true, "operation", operation)))
-            .orElse(ResponseEntity.notFound().build());
+        Optional<Conversation> convOpt = conversationService.findById(id);
+        if (convOpt.isEmpty()) return ResponseEntity.notFound().build();
+        Conversation conv = convOpt.get();
+        Map<String, Object> b = body != null ? body : Map.of();
+        String modelId = b.get("modelId") != null ? str(b.get("modelId")) : conv.getModelId();
+        String sessionId = str(b.get("sessionId"));
+
+        try {
+            Object result = switch (operation) {
+                case "start" -> objectiveService.start(conv, str(b.get("toolId")), modelId);
+                case "answer" -> objectiveService.advance(conv, sessionId, asMap(b.get("answer")), modelId);
+                case "correct" -> objectiveService.correct(conv, sessionId, asMap(b.get("correction")), modelId);
+                case "dismiss" -> {
+                    objectiveService.dismiss(conv, sessionId);
+                    yield Map.of("ok", true);
+                }
+                case "handoff" -> objectiveService.handoff(conv, sessionId);
+                default -> throw new IllegalArgumentException("Unknown objectives operation: " + operation);
+            };
+            conversationService.save(conv);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Simulation-only service-action execution, matching the old app's TRUSTED_SERVICE_ACTIONS
+     * registry: every entry currently has isConnectedInLab=false, so this always reports the
+     * action as not connected rather than pretending to have executed something real.
+     */
+    @PostMapping("/{id}/actions/{actionId}/execute")
+    public ResponseEntity<?> executeAction(@PathVariable String id, @PathVariable String actionId,
+                                           @RequestBody(required = false) Map<String, Object> body) {
+        if (conversationService.findById(id).isEmpty()) return ResponseEntity.notFound().build();
+        TrustedServiceActions.TrustedServiceAction action = TrustedServiceActions.TRUSTED_SERVICE_ACTIONS.get(actionId);
+        if (action == null) {
+            return ResponseEntity.badRequest().body(Map.of("executed", false, "message", "Unknown or untrusted action."));
+        }
+        if (!action.isConnectedInLab) {
+            return ResponseEntity.ok(Map.of("executed", false,
+                "message", action.title + " is not connected in this preview. Guidance and preparation are available; live execution is not."));
+        }
+        return ResponseEntity.ok(Map.of("executed", true, "message", "Action completed."));
+    }
+
+    private String str(Object o) {
+        return o == null ? null : o.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object o) {
+        return o instanceof Map ? (Map<String, Object>) o : new LinkedHashMap<>();
     }
 }

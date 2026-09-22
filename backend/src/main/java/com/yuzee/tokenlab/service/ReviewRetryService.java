@@ -37,7 +37,7 @@ public class ReviewRetryService {
 
     private static final Pattern STATUS_PATTERN = Pattern.compile("\\b(4\\d{2}|5\\d{2})\\b");
     private static final Pattern INVALID_RESPONSE_PATTERN =
-        Pattern.compile("Incomplete teaching review|Empty teaching review|Review output limit");
+        Pattern.compile("Incomplete (?:teaching|pathway) review|Empty (?:teaching|pathway) review|Review output limit");
 
     /**
      * Runs {@code operation}, retrying exactly once (800ms fixed delay) for a

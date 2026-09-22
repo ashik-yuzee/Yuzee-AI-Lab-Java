@@ -1,0 +1,66 @@
+@if (open) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <div class="header-icon">🕓</div>
+          <div>
+            <h2 class="card-title-text mb-0">Memory Timeline</h2>
+            <p class="card-subtitle mb-0">Conversation memory state &amp; compaction result</p>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+      </div>
+
+      <div class="card-body">
+        <div class="summary-card">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="section-label mb-0">Active Conversation Memory</span>
+            @if (summaryLoading()) {
+              <span class="text-muted small">loading…</span>
+            }
+          </div>
+          <div class="summary-box">
+            {{ summaryText() || 'No compacted summary yet — full recent dialogue is retained in context.' }}
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <span class="section-label">Latest Compaction Result</span>
+          @if (!compaction) {
+            <div class="empty-state">No compaction has run yet in this conversation.</div>
+          } @else {
+            <div class="metric-card">
+              <div class="metric-row"><span>Strategy</span><span class="fw-semibold">{{ compaction.strategy }}</span></div>
+              <div class="metric-row"><span>Turns kept</span><span class="fw-semibold">{{ compaction.turnsKept }}</span></div>
+              <div class="metric-row"><span>Turns dropped</span><span class="fw-semibold">{{ compaction.turnsDropped }}</span></div>
+              <div class="metric-row"><span>Tokens used / budget</span>
+                <span class="fw-semibold">{{ compaction.tokensUsed | number }} / {{ compaction.tokenBudget | number }}</span>
+              </div>
+            </div>
+          }
+          <p class="footnote">
+            This backend doesn't persist a compaction event log (Conversation only stores a single
+            <code>summaryText</code>) — so a full timeline of past events can't be shown, only the latest turn's
+            result above.
+          </p>
+        </div>
+
+        @if (resetError()) {
+          <div class="alert-box alert-danger mt-2">{{ resetError() }}</div>
+        }
+        @if (resetDone()) {
+          <div class="alert-box alert-success mt-2">Conversation memory has been reset.</div>
+        }
+      </div>
+
+      <div class="card-footer d-flex align-items-center justify-content-between">
+        <button class="btn-reset" [disabled]="!conversationId || resetting()" (click)="resetMemory()"
+                title="Clear compacted summary and restore full recent memory">
+          ↺ {{ resetting() ? 'Resetting…' : 'Reset Conversation Memory' }}
+        </button>
+        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+      </div>
+    </div>
+  </div>
+}

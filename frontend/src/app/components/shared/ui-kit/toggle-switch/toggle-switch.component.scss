@@ -1,0 +1,67 @@
+.toggle-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.toggle-switch-text {
+  padding-right: 8px;
+}
+
+.toggle-switch-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #27364a;
+}
+
+.toggle-switch-desc {
+  font-size: 11px;
+  color: #7a8699;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+// Bootstrap's .form-switch base is close enough structurally (checkbox → sliding thumb);
+// everything visual is overridden here to match AppleToggle's exact pixel dimensions and colors.
+.toggle-switch-control {
+  flex-shrink: 0;
+  min-height: 0;
+
+  .form-check-input {
+    width: 44px;
+    height: 24px;
+    margin: 0;
+    background-color: #e4e7ec;
+    border: 1px solid #d7dbe3;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+    background-position: left center;
+    background-size: 20px 20px;
+    box-shadow: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, background-position 0.2s ease-in-out, border-color 0.2s ease-in-out;
+
+    &:checked {
+      background-color: #10b981;
+      border-color: rgba(5, 122, 85, 0.3);
+      background-position: right center;
+    }
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+      border-color: #10b981;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+  }
+}

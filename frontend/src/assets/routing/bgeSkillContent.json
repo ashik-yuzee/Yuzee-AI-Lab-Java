@@ -1,0 +1,414 @@
+[
+  {
+    "id": "CORE_003",
+    "text": "Explore an already identified education or work topic in greater depth. Unpack the next layer of detail about the same object, retaining the conversation context."
+  },
+  {
+    "id": "CORE_004",
+    "text": "Show how a specific study topic or occupation fits within broader fields. Explain what larger sector or parent discipline it belongs to and which adjacent areas are connected."
+  },
+  {
+    "id": "CORE_005",
+    "text": "Show connections between a course, occupation or skill and the related training options, workplace abilities, employers and industries linked to it. Map the broader ecosystem around a subject."
+  },
+  {
+    "id": "CORE_006",
+    "text": "Compare different kinds of education or work options side by side using the person's priorities. Weigh a project against volunteering or an internship; explain trade-offs."
+  },
+  {
+    "id": "CORE_007",
+    "text": "Explain what an unfamiliar education or employment term means in everyday language. Give a simple definition with a concrete example that makes the concept immediately clear."
+  },
+  {
+    "id": "CORE_008",
+    "text": "Explain why a specific study or career finding should influence someone's decision. Show the practical consequences of that information and why it matters to their choices."
+  },
+  {
+    "id": "CORE_009",
+    "text": "Having reviewed study or career options, identify the single most valuable next action for the person to take in their education or employment journey. Recommend one concrete step and explain why it takes priority."
+  },
+  {
+    "id": "CORE_010",
+    "text": "Verify the evidence behind an education or employment claim. Check source reliability, publication dates, uncertainty and whether the source actually supports the claim."
+  },
+  {
+    "id": "COURSE_001",
+    "text": "Describe a particular course: what it covers, who it is for, duration, delivery and expected outcomes. Give a focused course overview."
+  },
+  {
+    "id": "COURSE_002",
+    "text": "Compare two or more specific courses or qualifications for a learner. Contrast cost, content, delivery, requirements and fit with their goal."
+  },
+  {
+    "id": "COURSE_003",
+    "text": "Explain the level and type of a qualification, such as certificate, diploma, bachelor or masters. Explain learning complexity and the qualification framework."
+  },
+  {
+    "id": "COURSE_004",
+    "text": "Describe the full structure of a degree or course program: compulsory subjects and elective options, total credit points required, prerequisite sequences and how the learning builds year by year or term by term."
+  },
+  {
+    "id": "COURSE_005",
+    "text": "Explain individual subjects within a course. Describe what each unit teaches, typical activities, assessment, prerequisites and how it contributes to the learner's goal."
+  },
+  {
+    "id": "COURSE_006",
+    "text": "Describe and compare the majors, minors, streams and specialisations a student can choose inside a degree program. Help someone decide which specialisation to select and how each focus differs."
+  },
+  {
+    "id": "COURSE_007",
+    "text": "Map what a course teaches to the capabilities its graduates develop. Explain skill depth and which subjects build each skill."
+  },
+  {
+    "id": "COURSE_008",
+    "text": "Identify occupations and job roles that a particular qualification can lead to. Distinguish realistic entry jobs from roles needing more experience."
+  },
+  {
+    "id": "COURSE_009",
+    "text": "Identify which organisations and employers hire graduates of a particular course or qualification. Explain which types of companies recruit people with those capabilities."
+  },
+  {
+    "id": "COURSE_010",
+    "text": "Check a learner against the admission criteria for a named course. Review prerequisite subjects, prior qualifications, language requirements and eligibility gaps."
+  },
+  {
+    "id": "COURSE_011",
+    "text": "Explain the cost of studying: tuition, loans, funding, scholarships, subsidies, placement expenses and lost earnings. Build a realistic budget with verified figures or clearly labelled unknowns."
+  },
+  {
+    "id": "COURSE_012",
+    "text": "Explain everyday study commitments: classes, assessments, workload, placements, practical sessions and attendance. Assess how studying fits around paid work and family."
+  },
+  {
+    "id": "COURSE_013",
+    "text": "Identify missing capabilities in a particular course for a target job. Explain what extra learning or experience a graduate would still need."
+  },
+  {
+    "id": "COURSE_014",
+    "text": "Check whether a course syllabus teaches current industry methods and tools. Identify outdated content and areas needing modernisation."
+  },
+  {
+    "id": "COURSE_015",
+    "text": "Find another route to the same study or career destination. Compare bridging, staged qualifications, alternative courses and entry pathways when the direct route is unsuitable."
+  },
+  {
+    "id": "COURSE_016",
+    "text": "Explain different ways of learning: degree, apprenticeship, short course, self-study, bootcamp or workplace learning. Compare learning formats and recognition."
+  },
+  {
+    "id": "MICRO_001",
+    "text": "Evaluate a specific short microcredential: scope, assessment, recognition, skill depth and whether it fills the learner's particular gap."
+  },
+  {
+    "id": "CAREER_001",
+    "text": "Give a detailed description of a particular occupation: what people in that role do day-to-day, the kinds of organisations that employ them, typical entry pathways and what personal interests or abilities suit the work."
+  },
+  {
+    "id": "CAREER_002",
+    "text": "Compare junior, intermediate, senior, expert and manager levels within an occupation. Explain how responsibility and expectations differ at each level."
+  },
+  {
+    "id": "CAREER_003",
+    "text": "Explore branches within an occupation, such as different nursing specialties. Compare specialist fields and the kind of work they involve."
+  },
+  {
+    "id": "CAREER_004",
+    "text": "Plan advancement within the person's existing profession. Identify the next role, experience, training and milestones for career progression."
+  },
+  {
+    "id": "CAREER_005",
+    "text": "Help someone change from their current job or industry into a different occupation. Identify which skills from their present work transfer, what they need to learn and the most realistic routes to make that career change."
+  },
+  {
+    "id": "JOB_001",
+    "text": "Explain a specific advertised vacancy: the employer, role, conditions, responsibilities and whether this opportunity warrants further investigation."
+  },
+  {
+    "id": "JOB_002",
+    "text": "Interpret a job advertisement's requirements. Separate mandatory criteria from preferred qualifications and desirable experience."
+  },
+  {
+    "id": "JOB_003",
+    "text": "Explain the actual tasks performed in a job, with examples of a working day and recurring responsibilities."
+  },
+  {
+    "id": "JOB_004",
+    "text": "Identify the abilities required to perform a job, and the depth of each skill. Map role responsibilities to capabilities."
+  },
+  {
+    "id": "JOB_005",
+    "text": "Explain the software, equipment and technical tools used in a particular job. Distinguish essential tools from occasional ones."
+  },
+  {
+    "id": "JOB_006",
+    "text": "Assess the current and near-term employment outlook for a particular occupation. Use labour-market data to explain whether job demand is growing, stable or declining and what that means for someone pursuing that career."
+  },
+  {
+    "id": "JOB_007",
+    "text": "Compare job availability for the same occupation across different Australian cities or regions. Explain where a particular role is in higher demand and which location offers better opportunities."
+  },
+  {
+    "id": "JOB_008",
+    "text": "Analyse the daily tasks in a specific occupation to identify which activities could be taken over by AI automation and which still require human judgment. Explain the resulting shift in work responsibilities."
+  },
+  {
+    "id": "SKILL_001",
+    "text": "Explain a specific capability: what it means, examples of using it, and its connection to work tasks and roles."
+  },
+  {
+    "id": "SKILL_002",
+    "text": "Describe what beginner, intermediate and advanced ability looks like for a named skill. Give observable, practical examples that clearly mark the boundary between each proficiency level."
+  },
+  {
+    "id": "SKILL_003",
+    "text": "Compare what a person already knows or can demonstrate against what a specific target job or role requires. Name which skills are already evidenced and which gaps still need to be filled."
+  },
+  {
+    "id": "SKILL_004",
+    "text": "Identify abilities from previous work that transfer to a new occupation. Translate existing experience into relevant transferable skills."
+  },
+  {
+    "id": "SKILL_005",
+    "text": "Identify and rank the skills a person should develop next to progress toward their career or study goal. Explain the recommended learning sequence and why each skill has priority over others."
+  },
+  {
+    "id": "SKILL_006",
+    "text": "Determine whether demand for a particular named skill is growing or falling in the job market. Show evidence of the trend and what it means for someone who holds or is building that skill."
+  },
+  {
+    "id": "SKILL_007",
+    "text": "Explain how an established skill is evolving or being replaced by a newer capability. Identify what to retain, update or learn instead."
+  },
+  {
+    "id": "SKILL_008",
+    "text": "Find adjacent capabilities that build naturally on a skill the person already has. Explain why the learning transfer is useful."
+  },
+  {
+    "id": "SKILL_009",
+    "text": "Help someone develop a specific professional or work-related skill. Plan practical learning activities, hands-on exercises and feedback cycles suited to their current ability and career needs."
+  },
+  {
+    "id": "SKILL_010",
+    "text": "Find courses that teach a named skill to the required level. Compare relevant learning providers and course coverage."
+  },
+  {
+    "id": "SKILL_011",
+    "text": "Given a skill or personal strength, identify which occupations and job roles make regular use of that ability. Connect what someone is good at to concrete employment opportunities."
+  },
+  {
+    "id": "SKILL_012",
+    "text": "Search for organisations and businesses currently advertising for people who have a specific technical or professional skill. Use recruitment evidence to match the capability with employers."
+  },
+  {
+    "id": "IND_001",
+    "text": "Explain how an entire industry or sector operates: its main business activities, how the supply chain fits together, major employers and the types of workforce it employs. Give a structured overview."
+  },
+  {
+    "id": "IND_002",
+    "text": "Break an industry into sub-sectors and explain how the hierarchy fits together. Identify broad categories within a sector."
+  },
+  {
+    "id": "IND_003",
+    "text": "Explore specialist market niches within an industry. Describe focused segments and the expertise they need."
+  },
+  {
+    "id": "IND_004",
+    "text": "List and describe the various types of jobs and occupations employed across an industry sector, including frontline workers, administrators, technical specialists and management roles beyond the most visible positions."
+  },
+  {
+    "id": "IND_005",
+    "text": "Identify companies operating in an industry or market segment in a chosen location. Build an industry employer map."
+  },
+  {
+    "id": "IND_006",
+    "text": "Map the capabilities needed across an industry's workforce. Explain common and specialist skills in that sector."
+  },
+  {
+    "id": "IND_007",
+    "text": "Identify occupations with worker shortages in an industry. Explain vacancies, recruitment difficulty and evidence of undersupply."
+  },
+  {
+    "id": "IND_008",
+    "text": "Compare an industry's activity and workforce demand across regions. Explain geographical differences within that sector."
+  },
+  {
+    "id": "IND_009",
+    "text": "Explain technologies changing an industry and the resulting workforce skills. Cover tools and production methods across the sector."
+  },
+  {
+    "id": "IND_010",
+    "text": "Explain artificial intelligence's impact across an entire industry: changing roles, workflows, services and workforce skills."
+  },
+  {
+    "id": "IND_011",
+    "text": "Identify education providers and courses supplying graduates to an industry. Map the sector's training supply."
+  },
+  {
+    "id": "IND_012",
+    "text": "Compare an industry's future workforce needs with the training and candidate pipeline. Identify long-term talent supply gaps."
+  },
+  {
+    "id": "COMP_001",
+    "text": "Describe a particular company as an employer: business activities, workforce, work environment and career opportunities."
+  },
+  {
+    "id": "COMP_002",
+    "text": "List and describe the job families, occupational categories and types of roles that exist across a particular employer's workforce. Explain what kinds of positions this organisation contains beyond its most visible jobs."
+  },
+  {
+    "id": "COMP_003",
+    "text": "Identify capabilities needed in a named company's roles. Build an employer-specific skills map."
+  },
+  {
+    "id": "COMP_004",
+    "text": "Identify the software and technical stack used by a company from job ads or public evidence. Separate confirmed tools from assumptions."
+  },
+  {
+    "id": "COMP_005",
+    "text": "Review a particular employer's recent recruitment activity: vacancies, growing teams and current hiring signals."
+  },
+  {
+    "id": "COMP_006",
+    "text": "Identify roles a particular employer struggles to recruit for. Assess evidence of difficult-to-fill vacancies."
+  },
+  {
+    "id": "COMP_007",
+    "text": "Identify missing or scarce capabilities inside a company from hiring and workforce evidence. Diagnose the employer's skill needs."
+  },
+  {
+    "id": "COMP_008",
+    "text": "Assess how a candidate fits a particular employer. Compare their evidence with the company's role and capability requirements."
+  },
+  {
+    "id": "COMP_009",
+    "text": "Estimate the pool of suitably skilled candidates available to one employer in a location. Assess local talent supply for its roles."
+  },
+  {
+    "id": "COMP_010",
+    "text": "Decide whether a company should train existing employees or recruit new people to close a capability gap. Compare cost, time and feasibility."
+  },
+  {
+    "id": "COMP_011",
+    "text": "Create a workforce upskilling program for a company. Sequence training, practical application and measures of capability improvement."
+  },
+  {
+    "id": "COMP_012",
+    "text": "Plan internal career mobility within an organisation. Identify which existing staff or teams could be reskilled and transitioned into different roles inside the same employer through targeted training."
+  },
+  {
+    "id": "COMP_013",
+    "text": "Match an employer's workforce training needs to suitable education providers. Compare institutions capable of delivering the training."
+  },
+  {
+    "id": "COMP_014",
+    "text": "Design a long-term employer talent pipeline connecting training, practical experience and recruitment. Define stages and partnerships."
+  },
+  {
+    "id": "INST_001",
+    "text": "Describe an education provider: institution type, focus, learning provision, industry links and learner support."
+  },
+  {
+    "id": "INST_002",
+    "text": "Find the courses and programs offered by a particular university, college or training provider. Browse its course catalogue."
+  },
+  {
+    "id": "INST_003",
+    "text": "Assess an institution's areas of expertise and specialist strengths across teaching, facilities, research and industry relationships. Evaluate provider depth in a field."
+  },
+  {
+    "id": "INST_004",
+    "text": "Map a provider's curriculum and assessments to the skills students develop. Produce a curriculum-to-capability map."
+  },
+  {
+    "id": "INST_005",
+    "text": "Assess how a program prepares students for specific target occupations. Compare curriculum outcomes with job requirements."
+  },
+  {
+    "id": "INST_006",
+    "text": "Assess whether a curriculum aligns with the current and future needs of an entire industry. Review sector-wide relevance."
+  },
+  {
+    "id": "INST_007",
+    "text": "Recommend concrete improvements to a curriculum based on identified gaps. Suggest subject content, assessment and practical learning changes."
+  },
+  {
+    "id": "INST_008",
+    "text": "Identify employer partners whose workforce needs align with a provider's courses. Explore industry collaboration opportunities."
+  },
+  {
+    "id": "INST_009",
+    "text": "Find host organisations for a provider's student placements, internships and work-integrated learning. Check supervision and learning fit."
+  },
+  {
+    "id": "INST_010",
+    "text": "Assess employment demand connected to a proposed or existing course. Determine whether its graduates are needed in the labour market."
+  },
+  {
+    "id": "CAND_001",
+    "text": "Summarise a person's skills, qualifications, experience, goals and constraints into a useful candidate profile before matching options."
+  },
+  {
+    "id": "CAND_002",
+    "text": "Assess whether a person is ready for a specific next step, considering eligibility, skills, credentials, portfolio and experience together."
+  },
+  {
+    "id": "CAND_003",
+    "text": "Build a staged personal plan to close multiple readiness gaps. Combine learning, experience, credentials and application preparation."
+  },
+  {
+    "id": "PROVE_001",
+    "text": "Help someone demonstrate a skill credibly through work samples, portfolio projects, assessments or practical evidence employers can review."
+  },
+  {
+    "id": "RPL_001",
+    "text": "Assess how previous work experience or study might count towards a qualification through recognition of prior learning or credit. Identify evidence to submit."
+  },
+  {
+    "id": "EXPERIENCE_001",
+    "text": "Find practical work experience, volunteering, internships or projects that fill a learner's specific experience gap."
+  },
+  {
+    "id": "APP_001",
+    "text": "Find an apprenticeship or traineeship combining paid employment and structured training. Explain suitable earn-and-learn options and requirements."
+  },
+  {
+    "id": "TECH_001",
+    "text": "Explain a software tool or technology: how it works, what it is used for, limitations and links to tasks and jobs."
+  },
+  {
+    "id": "TECH_002",
+    "text": "Assess adoption and maturity of a particular technology. Explain whether use is growing, declining or being replaced by another tool."
+  },
+  {
+    "id": "TREND_001",
+    "text": "Explore broad labour-market and workforce changes across occupations, industries and skills. Identify important patterns shaping future work."
+  },
+  {
+    "id": "TREND_002",
+    "text": "Identify new or rapidly emerging occupations created by changes in technology, services and ways of working."
+  },
+  {
+    "id": "TREND_003",
+    "text": "Identify occupations losing jobs or being restructured. Explain evidence of declining headcount and changing role boundaries."
+  },
+  {
+    "id": "TREND_004",
+    "text": "Track how employer expectations for qualifications and certifications are changing over time. Explain credential requirements as a market trend."
+  },
+  {
+    "id": "TREND_005",
+    "text": "Identify groups of skills rising or falling together in a field. Explain trends in skill combinations rather than one isolated ability."
+  },
+  {
+    "id": "TREND_006",
+    "text": "Analyse changes in hiring activity across the labour market or sector over time. Compare recruitment volumes and patterns."
+  },
+  {
+    "id": "TREND_007",
+    "text": "Analyse changes in pay, benefits, hours and working conditions over time using comparable labour-market evidence."
+  },
+  {
+    "id": "TREND_008",
+    "text": "Identify geographical shifts in workforce opportunity. Explain where industries and jobs are moving or growing over time."
+  }
+]

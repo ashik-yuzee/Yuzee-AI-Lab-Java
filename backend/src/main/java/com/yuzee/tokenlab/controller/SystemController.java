@@ -1,16 +1,27 @@
 package com.yuzee.tokenlab.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.yuzee.tokenlab.model.Conversation;
 import com.yuzee.tokenlab.model.ModelInfo;
+import com.yuzee.tokenlab.service.BenchmarkService;
+import com.yuzee.tokenlab.service.ClarificationPreCheckService;
+import com.yuzee.tokenlab.service.ConversationLogService;
+import com.yuzee.tokenlab.service.ConversationService;
 import com.yuzee.tokenlab.service.GeminiModelRegistry;
+import com.yuzee.tokenlab.service.ObjectiveCatalogueService;
+import com.yuzee.tokenlab.service.ProfileFactService;
 import com.yuzee.tokenlab.service.SystemPromptService;
 import com.yuzee.tokenlab.service.TokenService;
+import com.yuzee.tokenlab.service.warehouse.WarehouseService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 public class SystemController {
@@ -18,15 +29,34 @@ public class SystemController {
     private final SystemPromptService systemPromptService;
     private final TokenService tokenService;
     private final GeminiModelRegistry modelRegistry;
+    private final ProfileFactService profileFactService;
+    private final ClarificationPreCheckService clarificationPreCheckService;
+    private final ConversationService conversationService;
+    private final BenchmarkService benchmarkService;
+    private final ConversationLogService conversationLogService;
+    private final ObjectiveCatalogueService objectiveCatalogueService;
+    private final WarehouseService warehouseService;
 
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
 
     public SystemController(SystemPromptService systemPromptService, TokenService tokenService,
-                             GeminiModelRegistry modelRegistry) {
+                             GeminiModelRegistry modelRegistry, ProfileFactService profileFactService,
+                             ClarificationPreCheckService clarificationPreCheckService,
+                             ConversationService conversationService, BenchmarkService benchmarkService,
+                             ConversationLogService conversationLogService,
+                             ObjectiveCatalogueService objectiveCatalogueService,
+                             WarehouseService warehouseService) {
         this.systemPromptService = systemPromptService;
         this.tokenService = tokenService;
         this.modelRegistry = modelRegistry;
+        this.profileFactService = profileFactService;
+        this.clarificationPreCheckService = clarificationPreCheckService;
+        this.conversationService = conversationService;
+        this.benchmarkService = benchmarkService;
+        this.conversationLogService = conversationLogService;
+        this.objectiveCatalogueService = objectiveCatalogueService;
+        this.warehouseService = warehouseService;
     }
 
     @GetMapping("/api/db-status")
@@ -59,12 +89,13 @@ public class SystemController {
         }
         return Map.of(
             "models", models,
-            // pathway/objectives endpoints exist but still return placeholder data (Phase 3/4 of
-            // the migration); warehouse has no source data available at all yet (Phase 9).
+            // "pathway" here means mini-pathway (real). The pathway *whiteboard* is a distinct
+            // visual node-graph feature (/api/pathway/*) not built yet and isn't reflected by this
+            // flag in the old app either. Warehouse has no source data available at all yet.
             "features", Map.of(
-                "pathway", false,
-                "warehouse", false,
-                "objectives", false
+                "pathway", true,
+                "warehouse", warehouseService.isAvailable(),
+                "objectives", true
             )
         );
     }
@@ -118,13 +149,13 @@ public class SystemController {
 
     @GetMapping("/api/tokens/lifetime-stats")
     public Map<String, Object> lifetimeStats() {
-        return tokenService.getSessionStats();
+        return conversationLogService.loadLifetimeStats();
     }
 
     @GetMapping("/api/tokens/daily-cost")
     public Map<String, Object> dailyCost() {
-        Map<String, Object> stats = tokenService.getSessionStats();
-        return Map.of("estimatedCostUsd", stats.get("estimatedCostUsd"), "date", java.time.LocalDate.now().toString());
+        boolean dbEnabled = datasourceUrl != null && !datasourceUrl.isBlank();
+        return Map.of("totalCostUsd", conversationLogService.loadDailyCost(), "source", dbEnabled ? "db" : "file");
     }
 
     @GetMapping("/api/tokens/utility-stats")
@@ -141,12 +172,13 @@ public class SystemController {
 
     @GetMapping("/api/warehouse/status")
     public Map<String, Object> warehouseStatus() {
-        return Map.of("state", "UNAVAILABLE", "message", "Warehouse database not configured");
+        return warehouseService.status();
     }
 
     @GetMapping("/api/objectives/catalogue")
     public Map<String, Object> objectivesCatalogue() {
-        return Map.of("version", "1.0", "experimental", true, "objectives", List.of());
+        List<JsonNode> available = objectiveCatalogueService.availableCatalogueObjectives();
+        return Map.of("version", objectiveCatalogueService.catalogueVersion(), "experimental", true, "objectives", available);
     }
 
     @GetMapping("/api/pathway/stats")
@@ -154,24 +186,85 @@ public class SystemController {
         return Map.of("calls", 0, "tokens", 0);
     }
 
+    /**
+     * Modelled-estimate (default) or live Gemini benchmark comparing the three retention
+     * strategies. Body: {conversationId?, live?: boolean, modelId?, tokenBudget?}. Java port of
+     * the old app's POST /api/benchmark (server.ts).
+     */
     @PostMapping("/api/benchmark")
     public Map<String, Object> benchmark(@RequestBody Map<String, Object> body) {
-        return Map.of("results", List.of(), "message", "Benchmark not available in Java port");
+        String conversationId = str(body.get("conversationId"));
+        Conversation conv = (conversationId != null && !conversationId.isBlank())
+            ? conversationService.findById(conversationId).orElse(null) : null;
+        boolean live = Boolean.TRUE.equals(body.get("live"));
+        int tokenBudget = body.get("tokenBudget") instanceof Number n ? n.intValue() : 8000;
+
+        List<Map<String, Object>> results = live
+            ? benchmarkService.runLiveBenchmark(conv, str(body.get("modelId")), tokenBudget)
+            : benchmarkService.runModelledBenchmark(conv, tokenBudget);
+
+        return Map.of("results", results);
     }
 
     @PostMapping("/api/extract-profile-facts")
     public Map<String, Object> extractProfileFacts(@RequestBody Map<String, Object> body) {
-        return Map.of("facts", List.of());
+        String userMessage = str(body.get("userMessage"));
+        String modelId = str(body.get("modelId"));
+        List<Map<String, Object>> facts = profileFactService.extractFacts(userMessage, modelId);
+        return Map.of("facts", facts);
     }
 
     @PostMapping("/api/detect-contradictions")
     public Map<String, Object> detectContradictions(@RequestBody Map<String, Object> body) {
-        return Map.of("contradictions", List.of());
+        String userMessage = str(body.get("userMessage"));
+        String modelId = str(body.get("modelId"));
+        List<Map<String, Object>> profileFacts = asListOfMaps(body.get("profileFacts"));
+        if (profileFacts.isEmpty()) {
+            profileFacts = storedProfileFacts(str(body.get("conversationId")));
+        }
+        List<Map<String, Object>> contradictions =
+            profileFactService.detectContradictions(userMessage, profileFacts, modelId);
+        return Map.of("contradictions", contradictions);
     }
 
     @PostMapping("/api/pre-check")
     public Map<String, Object> preCheck(@RequestBody Map<String, Object> body) {
-        return Map.of("questions", List.of());
+        String userMessage = str(body.get("userMessage"));
+        String modelId = str(body.get("modelId"));
+        List<Map<String, Object>> unresolvedContradictions = asListOfMaps(body.get("unresolvedContradictions"));
+        List<Map<String, Object>> questions =
+            clarificationPreCheckService.preCheck(userMessage, unresolvedContradictions, modelId);
+        return Map.of("needsClarification", !questions.isEmpty(), "questions", questions);
+    }
+
+    private String str(Object value) {
+        return value != null ? value.toString() : null;
+    }
+
+    /** Best-effort: each element is either an already-shaped fact/contradiction map, or a bare string. */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> asListOfMaps(Object raw) {
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map) {
+                out.add((Map<String, Object>) item);
+            } else if (item != null) {
+                Map<String, Object> wrapped = new LinkedHashMap<>();
+                wrapped.put("id", UUID.randomUUID().toString());
+                wrapped.put("text", item.toString());
+                wrapped.put("category", "general");
+                out.add(wrapped);
+            }
+        }
+        return out;
+    }
+
+    private List<Map<String, Object>> storedProfileFacts(String conversationId) {
+        if (conversationId == null || conversationId.isBlank()) return List.of();
+        return conversationService.findById(conversationId)
+            .map(Conversation::getProfileFacts)
+            .orElse(List.of());
     }
 
     @PostMapping("/api/pathway/generate")

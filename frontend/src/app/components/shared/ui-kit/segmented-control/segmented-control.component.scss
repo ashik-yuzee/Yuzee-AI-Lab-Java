@@ -1,0 +1,74 @@
+.segmented-control {
+  display: inline-flex;
+  padding: 3px;
+  background: rgba(228, 231, 236, 0.7);
+  border: 1px solid rgba(203, 210, 221, 0.4);
+  border-radius: 12px;
+  gap: 2px;
+  user-select: none;
+}
+
+.segmented-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5b6472;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  border: none;
+  background: transparent;
+  line-height: 1.2;
+
+  &:hover {
+    color: #27364a;
+    background: rgba(255, 255, 255, 0.4);
+  }
+}
+
+// .btn-check:checked + label is the Bootstrap-provided selected-state hook; everything past
+// that is custom so the selected segment reads as a raised white pill, matching the original.
+.btn-check:checked + .segmented-control-btn {
+  background: #fff;
+  color: #1c1f26;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.btn-check:focus-visible + .segmented-control-btn {
+  outline: 2px solid var(--accent, #7957c6);
+  outline-offset: 1px;
+}
+
+.segmented-control-sm .segmented-control-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.segmented-control-icon {
+  font-size: 13px;
+  color: #7a8699;
+}
+
+.btn-check:checked + .segmented-control-btn .segmented-control-icon {
+  color: var(--accent, #7957c6);
+}
+
+.segmented-control-badge {
+  font-size: 10px;
+  font-weight: 400;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(203, 210, 221, 0.5);
+  color: #5b6472;
+}
+
+.btn-check:checked + .segmented-control-btn .segmented-control-badge {
+  background: #f2edff;
+  color: #5b6472;
+}

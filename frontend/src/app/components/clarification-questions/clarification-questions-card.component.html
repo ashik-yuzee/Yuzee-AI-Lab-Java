@@ -1,0 +1,88 @@
+<div class="cq-card-root">
+  @if (bridgeMessage) {
+    <p class="bridge-message">{{ bridgeMessage }}</p>
+  }
+
+  @for (q of questions; track q.questionId; let qi = $index) {
+    <div class="question-block mb-2">
+      <div class="question-header">
+        <span class="question-index">{{ qi + 1 }}.</span>
+        <span class="question-text">{{ q.question }}</span>
+        <span class="ui-type-badge">{{ uiTypeOf(q).replace('_', ' ') }}</span>
+      </div>
+
+      <div class="question-body">
+        @switch (uiTypeOf(q)) {
+
+          @case ('free_text') {
+            <textarea
+              rows="3"
+              class="form-control form-control-sm"
+              [ngModel]="answers[q.questionId]?.selfInput"
+              (ngModelChange)="onSelfInputChange(q, $event)"
+              [disabled]="disabled"
+              [placeholder]="q.selfInputLabel || 'Type your answer…'"
+            ></textarea>
+          }
+
+          @case ('ranked_select') {
+            <div class="ranked-list">
+              @for (val of rankedOrders[q.questionId]; track val; let ri = $index) {
+                <div class="ranked-item">
+                  <span class="rank-badge">{{ ri + 1 }}</span>
+                  <span class="flex-grow-1 small">{{ optionLabel(q, val) }}</span>
+                  <div class="rank-controls">
+                    <button type="button" class="btn btn-sm btn-link p-0" [disabled]="ri === 0 || disabled"
+                            (click)="moveRanked(q, ri, -1)" aria-label="Move up">▲</button>
+                    <button type="button" class="btn btn-sm btn-link p-0" [disabled]="ri === (rankedOrders[q.questionId]?.length ?? 0) - 1 || disabled"
+                            (click)="moveRanked(q, ri, 1)" aria-label="Move down">▼</button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @default {
+            <!-- single_select / multi_select -->
+            @for (opt of normalizedOptions(q); track opt.value) {
+              <div
+                class="option-row"
+                [class.selected]="isSelected(q, opt.value)"
+                [class.disabled]="disabled"
+                (click)="toggleSelect(q, opt.value)"
+              >
+                <span class="option-indicator" [class.multi]="uiTypeOf(q) === 'multi_select'">
+                  @if (isSelected(q, opt.value)) {
+                    <span class="option-check">✓</span>
+                  }
+                </span>
+                <div class="flex-grow-1 min-w-0">
+                  <p class="option-label mb-0">{{ opt.label ?? opt.value }}</p>
+                  @if (opt.description) {
+                    <p class="option-desc mb-0">{{ opt.description }}</p>
+                  }
+                </div>
+              </div>
+            }
+            @if (allowSelfInputFor(q)) {
+              <input
+                type="text"
+                class="form-control form-control-sm mt-1 self-input"
+                [ngModel]="answers[q.questionId]?.selfInput"
+                (ngModelChange)="onSelfInputChange(q, $event)"
+                [disabled]="disabled"
+                [placeholder]="q.selfInputLabel || 'Something else — type my answer'"
+              />
+            }
+          }
+        }
+      </div>
+    </div>
+  }
+
+  <div class="d-flex justify-content-end pt-1">
+    <button type="button" class="btn btn-purple btn-sm" [disabled]="!allRequiredAnswered || disabled" (click)="submit()">
+      Submit answers
+    </button>
+  </div>
+</div>

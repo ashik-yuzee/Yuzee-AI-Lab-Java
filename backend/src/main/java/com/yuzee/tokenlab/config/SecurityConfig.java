@@ -1,6 +1,7 @@
 package com.yuzee.tokenlab.config;
 
 import com.yuzee.tokenlab.auth.HmacTokenFilter;
+import com.yuzee.tokenlab.filter.RateLimitFilter;
 import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,9 +16,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final HmacTokenFilter hmacTokenFilter;
+    private final RateLimitFilter rateLimitFilter;
 
-    public SecurityConfig(HmacTokenFilter hmacTokenFilter) {
+    public SecurityConfig(HmacTokenFilter hmacTokenFilter, RateLimitFilter rateLimitFilter) {
         this.hmacTokenFilter = hmacTokenFilter;
+        this.rateLimitFilter = rateLimitFilter;
     }
 
     @Bean
@@ -31,7 +34,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
-            .addFilterBefore(hmacTokenFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(hmacTokenFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(rateLimitFilter, HmacTokenFilter.class);
         return http.build();
     }
 }

@@ -1,0 +1,32 @@
+<div class="modal-backdrop" (click)="closed.emit()">
+  <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+
+    <div class="modal-header d-flex align-items-center justify-content-between px-4 py-3">
+      <div>
+        <h5 class="mb-0 fw-semibold">A few quick questions</h5>
+        <p class="text-muted small mb-0">Your answers help Oala give much better guidance</p>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" (click)="closed.emit()" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body px-4 py-3">
+      <app-clarification-questions-card
+        [questions]="questions"
+        [bridgeMessage]="bridgeMessage"
+        [disabled]="disabled"
+        (answered)="onAnswered($event)"
+      />
+    </div>
+
+    <div class="modal-footer px-4 py-3">
+      <div class="d-flex flex-wrap gap-2">
+        @for (label of quickReplies; track label) {
+          <button type="button" class="btn btn-sm btn-outline-secondary quick-reply" (click)="onQuickReply(label)">
+            {{ label }}
+          </button>
+        }
+      </div>
+    </div>
+
+  </div>
+</div>

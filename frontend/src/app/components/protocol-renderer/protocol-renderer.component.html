@@ -1,67 +1,465 @@
 <div class="protocol-output">
-  @for (block of response.content_blocks; track $index) {
-    @switch (block.type) {
-      @case ('text') {
-        <div class="content-block text-block" [innerHTML]="renderText(block.text ?? '')"></div>
-      }
-      @case ('steps') {
-        <div class="content-block steps-block">
-          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
-          <ol class="steps-list">
-            @for (item of blockItems(block); track $index) {
-              <li class="step-item">
-                @if (itemLabel(item)) { <strong>{{ itemLabel(item) }}</strong> }
-                @if (itemText(item)) { <span> {{ itemText(item) }}</span> }
-              </li>
-            }
-          </ol>
-        </div>
-      }
-      @case ('cards') {
-        <div class="content-block cards-block">
-          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
-          <div class="cards-grid">
-            @for (item of blockItems(block); track $index) {
-              <div class="info-card">
-                @if (itemLabel(item)) { <div class="card-label">{{ itemLabel(item) }}</div> }
-                @if (itemText(item)) { <div class="card-text">{{ itemText(item) }}</div> }
-              </div>
-            }
-          </div>
-        </div>
-      }
-      @case ('list') {
-        <div class="content-block list-block">
-          @if (blockTitle(block)) { <h4 class="block-title">{{ blockTitle(block) }}</h4> }
-          <ul class="info-list">
-            @for (item of blockItems(block); track $index) {
-              <li>@if (itemLabel(item)) { <strong>{{ itemLabel(item) }}: </strong> }{{ itemText(item) }}</li>
-            }
-          </ul>
-        </div>
-      }
-      @default {
-        <div class="content-block">
-          <div class="response-prose" [innerHTML]="renderText(block.text ?? '')"></div>
-        </div>
-      }
-    }
-  }
 
-  @if (response.interaction && response.interaction.kind !== 'none') {
-    <div class="interaction-block mt-3">
-      @if (response.interaction.question) {
-        <p class="interaction-question fw-semibold">{{ response.interaction.question }}</p>
-      }
-      @if (response.interaction.options?.length) {
-        <div class="options-list">
-          @for (opt of response.interaction.options!; track opt.value) {
-            <button class="btn btn-outline-primary btn-sm me-2 mb-2" (click)="onOption(opt.value)">
-              {{ opt.label }}
-            </button>
+  @if (semanticValid === false && validationErrors.length > 0) {
+    <div class="validation-error" role="alert">
+      <p class="fw-semibold mb-1">Response validation failed — content not rendered.</p>
+      <ul class="mb-0 ps-3">
+        @for (e of validationErrors; track $index) { <li>{{ e }}</li> }
+      </ul>
+    </div>
+  } @else {
+
+    @if (careText) {
+      <p class="care-text">{{ careText }}</p>
+    }
+
+    @if (showSectionNav) {
+      <nav aria-label="In this answer" class="section-nav">
+        <p class="section-nav-title">In this answer</p>
+        <ul class="section-nav-list">
+          @for (section of readableSections; track section.index) {
+            <li><a [href]="'#' + sectionAnchor(section.index)">{{ section.title }}</a></li>
+          }
+        </ul>
+      </nav>
+    }
+
+    <div class="content-blocks">
+      @for (block of response.content_blocks; track trackBlock(block, $index); let i = $index) {
+        <div class="content-block-wrapper" [id]="sectionAnchor(i)" [attr.data-output-type]="block.type">
+
+          @if (block.type === 'list' || block.type === 'steps') {
+            <section class="guidance-section">
+              @if (block.title) { <h4 class="guidance-section-title">{{ block.title }}</h4> }
+              @if (block.text) { <p class="guidance-intro">{{ block.text }}</p> }
+              <ul role="list" class="guidance-rows" [class.guidance-rows-ordered]="guidanceOrdered(block)">
+                @for (row of guidanceRows(block); track row.id) {
+                  <li class="guidance-row" [ngClass]="'guidance-tone-' + row.tone">
+                    <div class="guidance-row-content">
+                      <div class="guidance-row-heading">
+                        @if (guidanceOrdered(block)) { <span class="guidance-ordinal">{{ row.ordinal }}.</span> }
+                        @if (row.title) { <p class="guidance-row-title">{{ row.title }}</p> }
+                        @if (row.statusLabel) {
+                          <span class="guidance-status">
+                            @if (row.statusIcon === 'warning') { <span aria-hidden="true">&#9888;&#65039;</span> }
+                            @if (row.statusIcon === 'check') { <span aria-hidden="true">&#10003;</span> }
+                            {{ row.statusLabel }}
+                          </span>
+                        }
+                      </div>
+                      @if (row.sideLabel) { <p class="guidance-side-label">{{ row.sideLabel }}</p> }
+                      @for (line of row.description; track $index) { <p class="guidance-description">{{ line }}</p> }
+                      @if (row.sideText) { <p class="guidance-description">{{ row.sideText }}</p> }
+                    </div>
+                  </li>
+                }
+              </ul>
+            </section>
+          } @else {
+            @switch (block.type) {
+
+              @case ('heading') {
+                <div class="content-block heading-block">
+                  @if (block.text && block.title) { <span class="eyebrow">{{ block.text }}</span> }
+                  @if (block.level === 'h2') {
+                    <h2 class="block-h2">{{ block.title || block.text }}</h2>
+                  } @else {
+                    <h3 class="block-h3">{{ block.title || block.text }}</h3>
+                  }
+                </div>
+              }
+
+              @case ('text') {
+                <div class="content-block text-block">
+                  @if (block.title) { <h3 class="block-h3">{{ block.title }}</h3> }
+                  <div class="response-prose" [innerHTML]="renderMarkdown(block.text)"></div>
+                </div>
+              }
+
+              @case ('table') {
+                <div class="content-block table-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="table-responsive response-table-scroll">
+                    <table class="table table-bordered align-top mb-0 response-data-table">
+                      <thead>
+                        <tr>
+                          @for (col of block.columns; track col.key) { <th scope="col">{{ col.label }}</th> }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of block.rows; track row.id) {
+                          <tr>
+                            @for (col of block.columns; track col.key; let ci = $index) {
+                              <td [class.fw-semibold]="ci === 0" [attr.data-label]="col.label">{{ cellValue(row, col.key) }}</td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              }
+
+              @case ('comparison') {
+                <div class="content-block table-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="table-responsive response-table-scroll">
+                    <table class="table table-bordered align-top mb-0 response-data-table">
+                      <thead>
+                        <tr>
+                          @if (comparisonHasCriteria(block)) { <th scope="col" class="factor-col">Factor</th> }
+                          @for (col of block.columns; track col.key) { <th scope="col">{{ col.label }}</th> }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of block.rows; track row.id) {
+                          <tr>
+                            @if (comparisonHasCriteria(block)) { <td class="fw-semibold" data-label="Factor">{{ row.criteria || row.id }}</td> }
+                            @for (col of block.columns; track col.key) {
+                              <td [attr.data-label]="col.label">{{ cellValue(row, col.key) }}</td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              }
+
+              @case ('callout') {
+                <div class="content-block callout" [ngClass]="calloutMeta(block).cls"
+                     [attr.role]="(block.variant === 'danger' || block.variant === 'warning') ? 'alert' : null">
+                  @if (block.title) {
+                    <div class="callout-heading">
+                      <span aria-hidden="true">{{ calloutMeta(block).icon }}</span>
+                      <span class="callout-label">{{ block.title }}</span>
+                    </div>
+                  }
+                  <p class="callout-text">{{ block.text }}</p>
+                </div>
+              }
+
+              @case ('key_value') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="row g-2">
+                    @for (item of block.items; track item.id) {
+                      <div class="col-12 col-sm-6">
+                        <div class="kv-card">
+                          <span class="kv-label">{{ item.title }}</span>
+                          <span class="kv-value">{{ item.value || item.text }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('cards') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
+                  <div class="row g-2">
+                    @for (card of cardsOf(block); track card.id) {
+                      <div class="col-12 col-sm-6">
+                        <div class="info-card" [ngClass]="cardStatusClass(card.status)">
+                          <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                              <div class="info-card-title">{{ card.title }}</div>
+                              @if (card.subtitle) { <div class="info-card-subtitle">{{ card.subtitle }}</div> }
+                            </div>
+                            @if (card.badge) { <span class="badge text-bg-light">{{ card.badge }}</span> }
+                          </div>
+                          @if (card.description) { <p class="info-card-desc">{{ card.description }}</p> }
+                          @if (card.facts.length) {
+                            <div class="info-card-facts">
+                              @for (f of card.facts; track f.label) {
+                                <div class="info-card-fact">
+                                  <span class="fact-label">{{ f.label }}</span>
+                                  <span class="fact-value">{{ f.value }}</span>
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('timeline') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="timeline">
+                    @for (m of milestonesOf(block); track m.id) {
+                      <div class="timeline-row">
+                        <span class="timeline-dot" [ngClass]="timelineDotClass(m.status)"></span>
+                        <div class="timeline-body">
+                          <div class="timeline-heading">
+                            <span class="timeline-label">{{ m.label }}</span>
+                            @if (m.time_label) { <span class="timeline-time">{{ m.time_label }}</span> }
+                            @if (m.optional) { <span class="timeline-optional">optional</span> }
+                            <span class="timeline-status" [ngClass]="'timeline-status-' + m.status">{{ m.status }}</span>
+                          </div>
+                          @if (m.description) { <p class="timeline-desc">{{ m.description }}</p> }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('flow') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
+                  <div class="row g-2">
+                    @for (node of nodesOf(block); track node.id) {
+                      <div class="col-12 col-sm-6 col-lg-4">
+                        <div class="flow-node" [ngClass]="flowNodeClass(node.status)">
+                          <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
+                            <span class="flow-node-label">{{ node.label }}</span>
+                            <span class="flow-node-type">{{ node.node_type }}</span>
+                          </div>
+                          @if (node.description) { <p class="flow-node-desc">{{ node.description }}</p> }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                  @if (edgesOf(block).length) {
+                    <div class="flow-edges">
+                      @for (e of edgesOf(block); track $index) {
+                        <div class="flow-edge">
+                          <span class="fw-medium">{{ flowNodeLabel(block, e.from) }}</span>
+                          <span aria-hidden="true">&rarr;</span>
+                          <span class="fw-medium">{{ flowNodeLabel(block, e.to) }}</span>
+                          @if (e.label) { <span class="text-muted">&middot; {{ e.label }}</span> }
+                          @if (e.condition) { <span class="fst-italic text-muted">({{ e.condition }})</span> }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              @case ('pathway_map') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  @if (pathwayGoal(block)) { <p class="block-subtext fw-medium">Goal: {{ pathwayGoal(block) }}</p> }
+                  <div class="d-flex flex-column gap-2">
+                    @for (lane of lanesOf(block); track lane.id) {
+                      <div class="pathway-lane" [class.is-recommended]="lane.recommended">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                          <div>
+                            <div class="pathway-lane-title">{{ lane.title }}</div>
+                            @if (lane.summary) { <p class="pathway-lane-summary">{{ lane.summary }}</p> }
+                          </div>
+                          @if (lane.recommended) { <span class="pathway-recommended-badge">Recommended</span> }
+                        </div>
+                        <div class="d-flex flex-column gap-1">
+                          @for (step of lane.steps; track step.id; let si = $index) {
+                            <div class="pathway-step">
+                              <span class="pathway-step-index">{{ si + 1 }}</span>
+                              <div class="flex-1 min-w-0">
+                                <span class="fw-semibold">{{ step.label }}</span>
+                                @if (step.description) { <span class="text-muted"> &mdash; {{ step.description }}</span> }
+                                @if (step.status && step.status !== 'upcoming') {
+                                  <span class="pathway-step-status" [ngClass]="laneStepStatusClass(step.status)">{{ step.status }}</span>
+                                }
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('scorecard') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="row g-2">
+                    @for (m of metricsOf(block); track m.id) {
+                      <div class="col-6 col-sm-4">
+                        <div class="metric-card">
+                          <div class="metric-label">{{ m.label }}</div>
+                          <div class="metric-value" [ngClass]="metricStatusClass(m.status)">
+                            <span>{{ metricDisplay(m) }}</span>
+                            @if (trendGlyph(m.trend)) { <span aria-hidden="true">{{ trendGlyph(m.trend) }}</span> }
+                          </div>
+                          @if (m.description) { <p class="metric-desc">{{ m.description }}</p> }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('chart') {
+                <section class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
+                  <p class="chart-source-note">{{ chartSourceLabel(block) }} &middot; Values shown as a table so every series can be compared.</p>
+                  <div class="table-responsive response-table-scroll">
+                    <table class="table table-bordered mb-0 response-data-table">
+                      <caption class="visually-hidden">{{ block.title || 'Data comparison' }}</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Category</th>
+                          @for (s of chartSeries(block); track s.id) { <th scope="col">{{ s.label }}{{ s.unit ? ' (' + s.unit + ')' : '' }}</th> }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (category of chartCategories(block); track $index; let ci = $index) {
+                          <tr>
+                            <td class="fw-medium" data-label="Category">{{ category }}</td>
+                            @for (s of chartSeries(block); track s.id) {
+                              <td [attr.data-label]="s.label + (s.unit ? ' (' + s.unit + ')' : '')">{{ chartCellValue(s, ci) }}</td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              }
+
+              @case ('progress') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="progress-stepper">
+                    @for (stage of stagesOf(block); track stage.id; let si = $index) {
+                      <div class="progress-stage">
+                        <div class="progress-ring" [ngClass]="stageStatusClass(stage.status)">{{ stageGlyph(stage, si) }}</div>
+                        <div class="progress-stage-label" [ngClass]="stageStatusClass(stage.status) + '-label'">{{ stage.label }}</div>
+                        @if (stage.description) { <div class="progress-stage-desc">{{ stage.description }}</div> }
+                      </div>
+                      @if (si < stagesOf(block).length - 1) { <div class="progress-connector"></div> }
+                    }
+                  </div>
+                </div>
+              }
+
+              @case ('checklist') {
+                <div class="content-block">
+                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
+                  <div class="row g-2">
+                    @for (item of block.items; track item.id) {
+                      <div class="col-12 col-sm-6">
+                        <div class="checklist-row">
+                          <span class="checklist-check">{{ (item.status === 'complete' || item.status === 'completed') ? '✓' : '○' }}</span>
+                          <div class="min-w-0">
+                            <p class="checklist-title">{{ item.title }}</p>
+                            @if (item.text || item.value) { <p class="checklist-text">{{ item.text || item.value }}</p> }
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @default {
+                <div class="content-block fallback-card">
+                  @if (fallbackCardHeading(block)) { <div class="fallback-card-heading">{{ fallbackCardHeading(block) }}</div> }
+                  @if (block.text) { <p class="fallback-card-text">{{ block.text }}</p> }
+                  @if (block.items?.length) {
+                    <ul class="fallback-card-list">
+                      @for (item of block.items; track item.id) {
+                        <li>
+                          <span class="fallback-dot" aria-hidden="true"></span>
+                          <span>
+                            @if (item.title) { <strong>{{ item.title }}</strong> }
+                            @if (item.text) { <span>{{ item.title ? ' — ' + item.text : item.text }}</span> }
+                            @if (!item.title && !item.text && item.value) { <span>{{ item.value }}</span> }
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  @if (fallbackBodyRows(block).length) {
+                    <div>
+                      @for (row of fallbackBodyRows(block); track $index) {
+                        <div class="fallback-card-row">
+                          @if (fallbackRowLabel(row)) { <div class="fallback-row-label">{{ fallbackRowLabel(row) }}</div> }
+                          <div class="fallback-row-value">{{ fallbackRowValue(row) }}</div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            }
           }
         </div>
       }
     </div>
+
+    <app-interaction
+      [interaction]="response.interaction"
+      [initialFields]="initialFields"
+      [readOnly]="readOnly"
+      (interact)="onInteractionSubmit($event)">
+    </app-interaction>
+
+    @if (showRecommendedActions) {
+      <div class="recommended-actions">
+        @for (act of response.interaction.recommended_actions; track act.id) {
+          <button type="button" class="btn btn-outline-secondary btn-sm recommended-chip" (click)="handleActionClick(act.id, act.message)">
+            {{ act.label }}
+          </button>
+        }
+      </div>
+    }
+
+    @if (showDraftOnly) {
+      <p class="draft-only-note" title="This is a draft in the conversation. Provider requests are not connected.">Draft only &middot; Not sent</p>
+    }
+
+    @if (showServiceHandoff) {
+      <div class="service-handoff">
+        <div class="service-handoff-header">
+          <span class="service-handoff-title">Request options</span>
+          <span class="service-handoff-badge">Draft only</span>
+        </div>
+        <div class="row g-2">
+          @for (act of service!.actions; track actionId(act)) {
+            <div class="col-12 col-sm-6">
+              <div class="service-action-card">
+                <div class="d-flex align-items-center justify-content-between">
+                  <span class="fw-semibold">{{ act.title || 'Service Action' }}</span>
+                  @if (act.requires_confirmation) { <span class="confirm-badge">Confirm</span> }
+                </div>
+                <p class="service-action-desc">{{ act.description || 'Connect with authorized pathway providers.' }}</p>
+                <button type="button" class="btn btn-purple w-100 btn-sm"
+                        [disabled]="!!statusOf(actionId(act)) || readOnly"
+                        (click)="triggerServiceAction(act)">
+                  @if (statusOf(actionId(act))?.executed) {
+                    <span>&#10003; Action Initiated</span>
+                  } @else if (statusOf(actionId(act))) {
+                    <span>{{ statusOf(actionId(act))?.message }}</span>
+                  } @else {
+                    <span>Continue &rarr;</span>
+                  }
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <app-confirm-dialog
+      [isOpen]="!!pendingAction"
+      title="Confirm Service Connection"
+      [message]="'Are you sure you want to initiate \'' + (pendingAction?.title || 'Service Action') + '\'? Review the details before continuing.'"
+      confirmLabel="Confirm &amp; Connect"
+      cancelLabel="Cancel"
+      (confirmed)="confirmPendingAction()"
+      (cancelled)="cancelPendingAction()">
+    </app-confirm-dialog>
+
   }
 </div>

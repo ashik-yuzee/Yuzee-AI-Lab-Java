@@ -1,0 +1,19 @@
+<label [attr.for]="id" class="toggle-switch-row" [class.disabled]="disabled">
+  @if (label || description) {
+    <div class="toggle-switch-text flex-1 min-w-0">
+      @if (label) { <div class="toggle-switch-label">{{ label }}</div> }
+      @if (description) { <div class="toggle-switch-desc">{{ description }}</div> }
+    </div>
+  }
+
+  <span class="form-check form-switch toggle-switch-control m-0">
+    <input
+      [id]="id"
+      class="form-check-input"
+      type="checkbox"
+      role="switch"
+      [checked]="checked"
+      [disabled]="disabled"
+      (change)="onToggle($event)" />
+  </span>
+</label>

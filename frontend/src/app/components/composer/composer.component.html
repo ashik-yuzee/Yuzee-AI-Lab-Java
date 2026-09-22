@@ -1,0 +1,69 @@
+<div class="composer-wrap px-2 px-sm-3 pb-3 pt-2 bg-white">
+
+  @if (showOalaSuggestion() && !disabled) {
+    <div id="oala-suggestion" class="oala-suggestion mb-2 rounded-3 border p-2">
+      <button type="button" class="btn w-100 text-start p-2" (click)="selectOala()">
+        <span class="d-block fw-semibold">&#64;Oala &middot; Yuzee guidance</span>
+        <span class="d-block small text-muted">Understand our services and find a useful next step.</span>
+      </button>
+    </div>
+  }
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2 px-1 small">
+    @if (oala().active) {
+      <span class="oala-chip d-inline-flex align-items-center gap-2">
+        &#64;Oala &middot; Yuzee help
+        <button type="button" class="chip-remove" [disabled]="disabled" (click)="clearOalaMention()" aria-label="Remove Oala mention">&#10005;</button>
+      </span>
+      @if (routing.status() === 'loading') {
+        <span class="router-status">Warming up guidance&hellip;</span>
+      }
+    } @else {
+      <button type="button" class="btn btn-link p-0 addressed-oala-btn" [disabled]="disabled" (click)="selectOala()">
+        Ask <span class="fw-semibold text-accent">&#64;Oala</span> about Yuzee services
+      </button>
+    }
+  </div>
+
+  @if (attachments().length) {
+    <div class="d-flex flex-wrap gap-2 mb-2 px-1">
+      @for (att of attachments(); track att.name + $index) {
+        <div class="attachment-chip d-inline-flex align-items-center gap-1">
+          @if (att.previewUrl) {
+            <img [src]="att.previewUrl" alt="" class="attachment-thumb">
+          } @else {
+            <span class="attachment-icon">&#128206;</span>
+          }
+          <span class="text-truncate">{{ att.name }}</span>
+          <button type="button" class="chip-remove" (click)="removeAttachment($index)" aria-label="Remove attachment">&#10005;</button>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="composer-pill d-flex align-items-center gap-1" [class.listening]="listening()">
+    <input #fileInput type="file" class="visually-hidden" tabindex="-1"
+           [accept]="acceptedFileTypes" multiple (change)="onFiles($event)">
+
+    <button type="button" class="icon-btn" [disabled]="disabled" (click)="fileInput.click()"
+            title="Attach file (image, PDF, text)" aria-label="Attach file">+</button>
+
+    <textarea #textarea class="composer-textarea" rows="1"
+              [value]="text()"
+              [disabled]="disabled"
+              [attr.aria-describedby]="showOalaSuggestion() ? 'oala-suggestion' : null"
+              aria-label="Your message"
+              placeholder="Tell me what you'd like help with&hellip;"
+              (input)="onInput($event)"
+              (keydown)="onKeydown($event)"></textarea>
+
+    @if (micSupported) {
+      <button type="button" class="icon-btn" [class.listening-btn]="listening()" [disabled]="disabled"
+              (click)="toggleMic()" [title]="listening() ? 'Stop listening' : 'Voice input'"
+              [attr.aria-label]="listening() ? 'Stop listening' : 'Voice input'">{{ listening() ? '■' : '🎤' }}</button>
+    }
+
+    <button type="button" class="send-btn" [class.has-content]="hasContent()"
+            [disabled]="!hasContent() || disabled" (click)="onSend()" title="Send (Enter)" aria-label="Send message">&#8593;</button>
+  </div>
+</div>

@@ -1,0 +1,737 @@
+[
+  {
+    "id": "CORE_001",
+    "profile": "internal",
+    "required_inputs": "user_message",
+    "information": "user_type; current_state; goal; decision_stage; location; constraints; unresolved_unknowns; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_002",
+    "profile": "internal",
+    "required_inputs": "user_message",
+    "information": "intent; entity_type; entity_ids; requested_depth; operation; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_003",
+    "profile": "navigation",
+    "required_inputs": "entity_type; entity_id; current_depth",
+    "information": "parent; children; why_each_matters; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_004",
+    "profile": "navigation",
+    "required_inputs": "entity_type; entity_id",
+    "information": "parent; broader_parent; adjacent_branches; relationship",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_005",
+    "profile": "navigation",
+    "required_inputs": "entity_type; entity_id",
+    "information": "related_entities; relationship_type; strength; rationale; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_006",
+    "profile": "comparison",
+    "required_inputs": "entity_ids; entity_type; user_goal",
+    "information": "decision_snapshot; comparison_factors; tradeoffs; closer_fit; unresolved_question; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_007",
+    "profile": "navigation",
+    "required_inputs": "concept_or_entity",
+    "information": "plain_explanation; why_it_matters; example; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_008",
+    "profile": "navigation",
+    "required_inputs": "finding; user_or_org_context",
+    "information": "immediate_impact; future_impact; action_needed; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_009",
+    "profile": "navigation",
+    "required_inputs": "current_state; goal; latest_findings",
+    "information": "primary_action; alternatives; reason; expected_outcome",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CORE_010",
+    "profile": "evidence",
+    "required_inputs": "claims",
+    "information": "claim; source; date; geography; evidence_state; confidence; caveat",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_001",
+    "profile": "course",
+    "required_inputs": "course_id",
+    "information": "snapshot; qualification; duration; delivery; structure; specialisations; entry; cost_funding; skills; WIL; outcomes; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_002",
+    "profile": "comparison",
+    "required_inputs": "course_ids; user_goal",
+    "information": "closer_fit; factors; tradeoffs; unresolved_question; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_003",
+    "profile": "course",
+    "required_inputs": "course_id or qualification_type",
+    "information": "qualification_type; aqf_level; level_meaning; progression; caveats",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_004",
+    "profile": "course",
+    "required_inputs": "course_id",
+    "information": "core; specialisations; electives; capstone; WIL; sequence; goal_relevance",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_005",
+    "profile": "course",
+    "required_inputs": "course_id",
+    "information": "unit_id; title; status; stage; skills; tools; prerequisites; relevance",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_006",
+    "profile": "course",
+    "required_inputs": "course_id",
+    "information": "specialisations; focus; unique_units; skills; likely_roles; fit; tradeoffs",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_007",
+    "profile": "skill_map",
+    "required_inputs": "course_id",
+    "information": "skill; evidence_location; depth; core_optional; learning_mode; role_relevance",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_008",
+    "profile": "role",
+    "required_inputs": "course_id",
+    "information": "direct_roles; adjacent_roles; later_roles; sufficiency; extra_requirements",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_009",
+    "profile": "organisation",
+    "required_inputs": "course_id; location",
+    "information": "company; matched_roles; matched_skills; evidence_state; why_relevant",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COURSE_010",
+    "profile": "requirements",
+    "required_inputs": "course_id; applicant_profile",
+    "information": "requirements; met; gaps; unclear; alternatives; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_011",
+    "profile": "cost",
+    "required_inputs": "course_id; student_status; location",
+    "information": "published_fee; funding_programs; eligibility_conditions; estimated_user_cost_if_supported; caveats",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_012",
+    "profile": "course",
+    "required_inputs": "course_id",
+    "information": "delivery; assessment; practical_theory; schedule; group_work; placements; fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_013",
+    "profile": "plan",
+    "required_inputs": "course_id; target_role",
+    "information": "covered; partial; missing_skills; experience_gaps; credential_gaps; priority",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_014",
+    "profile": "market",
+    "required_inputs": "course_id; target_roles",
+    "information": "durable_foundations; current_alignment; stale_areas; emerging_gaps; evidence_dates",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COURSE_015",
+    "profile": "comparison",
+    "required_inputs": "goal; current_course_or_gap",
+    "information": "alternatives; type; time; depth; recognition; tradeoffs; pathway",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COURSE_016",
+    "profile": "course",
+    "required_inputs": "learning_type",
+    "information": "definition; formal_status; typical_depth; recognition; duration; evidence; best_for; limitations",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "MICRO_001",
+    "profile": "course",
+    "required_inputs": "microcredential_id",
+    "information": "outcomes; workload; assessment; provider; recognition; credit; skill_gap_fit; limitations",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAREER_001",
+    "profile": "role",
+    "required_inputs": "occupation_id",
+    "information": "snapshot; tasks; environment; skill_level; qualifications; skills; tools; demand; industries; progression; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "CAREER_002",
+    "profile": "role",
+    "required_inputs": "occupation_id",
+    "information": "levels; responsibility; autonomy; complexity; skills; evidence; next_level",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAREER_003",
+    "profile": "role",
+    "required_inputs": "occupation_id or field_id",
+    "information": "specialisations; distinguishing_work; skills; tools; employers; entry; adjacency; fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAREER_004",
+    "profile": "plan",
+    "required_inputs": "current_role; target_direction",
+    "information": "routes; next_roles; capability_changes; evidence; gaps; branch_type",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAREER_005",
+    "profile": "plan",
+    "required_inputs": "current_role; target_role; current_profile",
+    "information": "transferable; missing; experience_gaps; credentials; bridge_options; adjacent_roles; stages",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "JOB_001",
+    "profile": "role",
+    "required_inputs": "job_id",
+    "information": "employer; role; seniority; responsibilities; required_skills; preferred_skills; tools; qualifications; experience; location; fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "JOB_002",
+    "profile": "requirements",
+    "required_inputs": "job_id or occupation_id",
+    "information": "essential; preferred; licences; employer_specific; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "JOB_003",
+    "profile": "role",
+    "required_inputs": "job_id or occupation_id",
+    "information": "tasks; frequency_or_importance; skills; tools; decision_scope",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "JOB_004",
+    "profile": "skill_map",
+    "required_inputs": "job_id or occupation_id",
+    "information": "skill; category; depth; scope; evidence_state; importance",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "JOB_005",
+    "profile": "role",
+    "required_inputs": "job_id or occupation_id",
+    "information": "tool; status; related_task; underlying_skill; priority",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "JOB_006",
+    "profile": "market",
+    "required_inputs": "occupation_id; location",
+    "information": "current_demand; shortage_status; projected_growth; geography; period; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "JOB_007",
+    "profile": "market",
+    "required_inputs": "occupation_id; location_or_region_set",
+    "information": "regions; demand_signal; evidence_volume; relative_strength; caveats",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "JOB_008",
+    "profile": "market",
+    "required_inputs": "occupation_id",
+    "information": "task; impact_type; rationale; emerging_skills; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "SKILL_001",
+    "profile": "skill",
+    "required_inputs": "skill_id",
+    "information": "definition; subskills; tasks; roles; industries; tools; prerequisites; learning_routes; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_002",
+    "profile": "skill",
+    "required_inputs": "skill_id; context_role",
+    "information": "levels; observable_behaviour; task_complexity; autonomy; evidence; mapping",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_003",
+    "profile": "plan",
+    "required_inputs": "current_skill_profile; target_skill_profile",
+    "information": "strong; adequate; partial; missing; evidence_missing; target_depth; priority",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_004",
+    "profile": "skill_map",
+    "required_inputs": "current_role; target_role; user_skill_profile",
+    "information": "direct_transfer; partial_transfer; context_shift; evidence_needed; gaps",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_005",
+    "profile": "plan",
+    "required_inputs": "current_profile; target",
+    "information": "skill; priority; impact; effort; market_relevance; why_now",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "SKILL_006",
+    "profile": "market",
+    "required_inputs": "skill_id; location",
+    "information": "direction; evidence_period; affected_roles; industries; drivers; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "SKILL_007",
+    "profile": "skill_map",
+    "required_inputs": "skill_or_tool_id",
+    "information": "status; replacement_or_complement; relationship; affected_roles; migration_advice",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "SKILL_008",
+    "profile": "skill_map",
+    "required_inputs": "skill_id",
+    "information": "related_skill; adjacency_type; rationale; value; learning_order",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_009",
+    "profile": "skill",
+    "required_inputs": "skill_id; target_depth",
+    "information": "learning_options; type; depth; time; recognition; cost_if_known; fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_010",
+    "profile": "skill_map",
+    "required_inputs": "skill_id; target_depth",
+    "information": "course; depth; core_optional; evidence; recognition; constraints_fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "SKILL_011",
+    "profile": "skill_map",
+    "required_inputs": "skill_id; location",
+    "information": "roles; relationship_strength; required_depth; companion_skills; demand",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "SKILL_012",
+    "profile": "skill_map",
+    "required_inputs": "skill_id; location",
+    "information": "company; matched_roles; signal; recency; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "IND_001",
+    "profile": "organisation",
+    "required_inputs": "industry_id",
+    "information": "classification; subindustries; occupations; companies; skills; shortages; technologies; outlook; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_002",
+    "profile": "organisation",
+    "required_inputs": "industry_id; current_level",
+    "information": "official_children; yuzee_segments; classification_codes; descriptions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "IND_003",
+    "profile": "organisation",
+    "required_inputs": "industry_id",
+    "information": "specialisation; parent_industry; distinguishing_activity; roles; skills; technologies",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "IND_004",
+    "profile": "organisation",
+    "required_inputs": "industry_id; location",
+    "information": "occupation; category; relationship; employment_or_demand; emerging_flag",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_005",
+    "profile": "organisation",
+    "required_inputs": "industry_id; location",
+    "information": "companies; segment; location; company_type; hiring_signal; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "IND_006",
+    "profile": "skill_map",
+    "required_inputs": "industry_id; location",
+    "information": "skill; category; driving_roles; breadth; demand_signal; emerging_flag",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_007",
+    "profile": "market",
+    "required_inputs": "industry_id; location",
+    "information": "occupation; shortage_status; driver; implication; evidence_date",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_008",
+    "profile": "market",
+    "required_inputs": "industry_id; region_set",
+    "information": "region; employment; growth; demand_signal; concentration; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_009",
+    "profile": "market",
+    "required_inputs": "industry_id",
+    "information": "technology; adoption_state; affected_functions; roles; skills; impact_type",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_010",
+    "profile": "market",
+    "required_inputs": "industry_id",
+    "information": "functions; task_impacts; affected_roles; emerging_skills; new_roles; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "IND_011",
+    "profile": "organisation",
+    "required_inputs": "industry_id; location",
+    "information": "occupation; skills; courses; institutions; qualification_type; pipeline_type",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "IND_012",
+    "profile": "plan",
+    "required_inputs": "industry_id; location; time_horizon",
+    "information": "demand; supply; gap_type; affected_roles; affected_skills; confidence; actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COMP_001",
+    "profile": "organisation",
+    "required_inputs": "company_id",
+    "information": "overview; industries; locations; functions; roles; hiring_signal; skills; technologies; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_002",
+    "profile": "organisation",
+    "required_inputs": "company_id",
+    "information": "roles; function; seniority; current_or_recent; location; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_003",
+    "profile": "skill_map",
+    "required_inputs": "company_id",
+    "information": "skill; frequency_signal; recency; roles; breadth; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_004",
+    "profile": "organisation",
+    "required_inputs": "company_id",
+    "information": "technology; evidence_state; source_context; roles; recency",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_005",
+    "profile": "market",
+    "required_inputs": "company_id; time_period",
+    "information": "current_openings; role_mix; trend_if_supported; locations; evidence_coverage",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COMP_006",
+    "profile": "market",
+    "required_inputs": "company_id; location; time_period",
+    "information": "role; signals; shortage_context; likely_driver; evidence_state; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_007",
+    "profile": "plan",
+    "required_inputs": "company_id; location; time_period",
+    "information": "skill; need_type; driving_roles; signal; evidence_state; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "COMP_008",
+    "profile": "comparison",
+    "required_inputs": "candidate_profile; company_id",
+    "information": "fit; strong_matches; partial; gaps; evidence_gaps; improvements",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COMP_009",
+    "profile": "organisation",
+    "required_inputs": "role_or_skill_need; location",
+    "information": "supply_indicator; candidate_pool_signal; constraints; geography; coverage; confidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COMP_010",
+    "profile": "comparison",
+    "required_inputs": "required_roles_or_skills; timeframe; current_workforce_profile",
+    "information": "need; recommendation; rationale; time; risk; internal_adjacency; external_supply",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "COMP_011",
+    "profile": "plan",
+    "required_inputs": "team_skill_profile; target_skills; timeframe",
+    "information": "skill_clusters; cohorts; learning_interventions; practice; milestones; evidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COMP_012",
+    "profile": "plan",
+    "required_inputs": "workforce_profiles; target_roles",
+    "information": "source_role_or_candidate; transferable_skills; gaps; readiness; development",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COMP_013",
+    "profile": "opportunity",
+    "required_inputs": "required_skills; location; learner_level",
+    "information": "provider; course; matched_skills; depth; delivery; recognition; gaps",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "COMP_014",
+    "profile": "plan",
+    "required_inputs": "future_roles; skills; hiring_volume; timeframe; location",
+    "information": "roles; skills; providers; courses; experience_stage; candidate_stage; hiring_stage; risks",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "INST_001",
+    "profile": "organisation",
+    "required_inputs": "institution_id",
+    "information": "provider_type; locations; modes; fields; levels; courses; partnerships_if_confirmed; outcomes; next_actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "INST_002",
+    "profile": "organisation",
+    "required_inputs": "institution_id",
+    "information": "course; level; type; focus; delivery; goal_fit",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "INST_003",
+    "profile": "organisation",
+    "required_inputs": "institution_id; field_id",
+    "information": "discipline; specialisations; evidence_type; courses; units; facilities_or_research",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "INST_004",
+    "profile": "skill_map",
+    "required_inputs": "course_or_program_id",
+    "information": "skill; unit_evidence; depth; practice; assessment; core_optional; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "INST_005",
+    "profile": "skill_map",
+    "required_inputs": "course_id; target_role",
+    "information": "strong; partial; missing; non_curriculum_requirements; overall_alignment",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "INST_006",
+    "profile": "skill_map",
+    "required_inputs": "course_id; target_industry; location",
+    "information": "foundations; current_alignment; emerging_gaps; legacy_risk; affected_roles; evidence_dates",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "INST_007",
+    "profile": "plan",
+    "required_inputs": "curriculum_gap_output",
+    "information": "gap; intervention_type; priority; rationale; implementation_level; evidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "INST_008",
+    "profile": "opportunity",
+    "required_inputs": "course_or_skill_supply; location",
+    "information": "company; matched_skills; roles; partnership_use_case; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "INST_009",
+    "profile": "opportunity",
+    "required_inputs": "course_id; student_skill_level; location",
+    "information": "company; role_area; matched_learning_outcomes; prerequisites; suitability; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Job-ad frequency is an OBSERVED signal, not proof of a company-wide skills shortage unless directly supported."
+  },
+  {
+    "id": "INST_010",
+    "profile": "market",
+    "required_inputs": "course_or_program_id; location",
+    "information": "target_roles; current_demand; shortages; projections; education_supply; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "CAND_001",
+    "profile": "skill_map",
+    "required_inputs": "user_profile",
+    "information": "education; experience; skills; tools; credentials; constraints; goals; unknowns",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAND_002",
+    "profile": "plan",
+    "required_inputs": "candidate_profile; target",
+    "information": "eligibility; skills; experience; evidence; credentials; application_readiness; blockers",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "CAND_003",
+    "profile": "plan",
+    "required_inputs": "readiness_or_gap_output; target",
+    "information": "priority_gaps; actions; sequence; time; evidence_of_completion; alternative_route",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "PROVE_001",
+    "profile": "evidence",
+    "required_inputs": "skill_id; target_context",
+    "information": "evidence_options; expected_standard; verification; effort; target_relevance",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "RPL_001",
+    "profile": "evidence",
+    "required_inputs": "current_evidence; target_course_or_credential",
+    "information": "potential_matches; evidence; missing_evidence; provider_process; caveats",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED."
+  },
+  {
+    "id": "EXPERIENCE_001",
+    "profile": "opportunity",
+    "required_inputs": "target_role_or_skill; current_profile; location",
+    "information": "experience_type; target_tasks; skills_proven; duration; organisations_or_opportunities; gap_closed",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "APP_001",
+    "profile": "opportunity",
+    "required_inputs": "goal; location; eligibility_profile",
+    "information": "pathway; occupation; qualification; employer_or_GTO; duration; eligibility; opportunities",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TECH_001",
+    "profile": "skill",
+    "required_inputs": "technology_id",
+    "information": "definition; tasks; underlying_skills; roles; industries; alternatives; target_depth",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TECH_002",
+    "profile": "market",
+    "required_inputs": "technology_id; location",
+    "information": "status; trend; evidence_period; roles; industries; alternatives; durable_skills",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_001",
+    "profile": "market",
+    "required_inputs": "trend_scope; location; time_period",
+    "information": "trend; direction; strength; affected_entities; driver; evidence_date; confidence; implication",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_002",
+    "profile": "market",
+    "required_inputs": "industry_or_skill_scope; location",
+    "information": "role; emergence_type; driver; skills; entry_routes; evidence_state",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_003",
+    "profile": "market",
+    "required_inputs": "occupation_id_or_scope; location",
+    "information": "change_type; evidence; affected_tasks; transferable_skills; adjacent_roles; actions",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_004",
+    "profile": "market",
+    "required_inputs": "role_or_industry; location; time_period",
+    "information": "credential; trend; regulated_or_preference; affected_roles; skills_first_signal; evidence",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_005",
+    "profile": "market",
+    "required_inputs": "industry_or_role; location; time_period",
+    "information": "skill_cluster; trend; driver; roles; foundational_skills; tool_skills",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_006",
+    "profile": "market",
+    "required_inputs": "scope; location; time_period",
+    "information": "trend; vacancy_signal; role_mix; location_mix; breadth; caveat",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_007",
+    "profile": "market",
+    "required_inputs": "scope; location; time_period",
+    "information": "pay_range_or_metric; trend; conditions; period; source; comparability_caveat",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  },
+  {
+    "id": "TREND_008",
+    "profile": "market",
+    "required_inputs": "scope; region_set; time_period",
+    "information": "region; change; indicator; period; concentration; uncertainty",
+    "evidence": "Label each material claim CONFIRMED, OBSERVED, DERIVED or PROJECTED. Never upgrade an inferred claim to CONFIRMED. Time-sensitive demand, hiring, salary, trend and shortage claims require dated current data."
+  }
+]

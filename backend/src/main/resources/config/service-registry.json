@@ -1,0 +1,207 @@
+{
+  "version": "1.0",
+  "protocol_ids": [
+    "NONE",
+    "EDU_OFFER_RMO",
+    "JOB_MATCH_RMO",
+    "APPRENTICESHIP_RMO",
+    "TRAINEESHIP_RMO",
+    "INTERNSHIP_RMO",
+    "WORK_PLACEMENT_RMO",
+    "RPL_RMO",
+    "EARN_AND_LEARN_RMO",
+    "GRAD_PROGRAM_RMO",
+    "PATHWAY_RMO",
+    "OTHER_YUZEE_SERVICE"
+  ],
+  "products": [
+    {
+      "id": "general_yuzee_support",
+      "icon": "🤝",
+      "name": "Need help with Yuzee",
+      "benefit": "Get clear on the right next step.",
+      "delivery": "General support when the user's need is not yet specific.",
+      "protocol_ids": [
+        "OTHER_YUZEE_SERVICE"
+      ]
+    },
+    {
+      "id": "career_pathway_rmo",
+      "icon": "🗺️",
+      "name": "Career Pathway",
+      "benefit": "Turn your goal into a clear plan.",
+      "delivery": "Map roles, skills, study/experience routes, milestones and next actions.",
+      "protocol_ids": [
+        "PATHWAY_RMO"
+      ]
+    },
+    {
+      "id": "get_a_course_offer",
+      "icon": "🎓",
+      "name": "Get a course offer",
+      "benefit": "Find study options aligned to your outcome.",
+      "delivery": "Support course/provider matching and tailored course-offer pathways.",
+      "protocol_ids": [
+        "EDU_OFFER_RMO"
+      ]
+    },
+    {
+      "id": "jobs_rmo",
+      "icon": "💼",
+      "name": "Jobs",
+      "benefit": "Move from job goal to relevant opportunities.",
+      "delivery": "Support job matching, preparation and employment progression.",
+      "protocol_ids": [
+        "JOB_MATCH_RMO"
+      ]
+    },
+    {
+      "id": "apprenticeship_and_traineeship",
+      "icon": "🛠️",
+      "name": "Apprenticeship & Traineeship",
+      "benefit": "Combine paid work with structured training.",
+      "delivery": "Support apprenticeship/traineeship search, training coordination and readiness.",
+      "protocol_ids": [
+        "APPRENTICESHIP_RMO",
+        "TRAINEESHIP_RMO"
+      ]
+    },
+    {
+      "id": "internship_and_work_placement",
+      "icon": "💼",
+      "name": "Internship & Work placement",
+      "benefit": "Build relevant experience while progressing your pathway.",
+      "delivery": "Support placements aligned to study/career goals.",
+      "protocol_ids": [
+        "INTERNSHIP_RMO",
+        "WORK_PLACEMENT_RMO"
+      ]
+    },
+    {
+      "id": "fresh_grad_job",
+      "icon": "🚀",
+      "name": "Fresh-grad job",
+      "benefit": "Move from study into your first relevant role.",
+      "delivery": "Support near-completion/recent graduates with job readiness and matching.",
+      "protocol_ids": [
+        "JOB_MATCH_RMO",
+        "GRAD_PROGRAM_RMO"
+      ]
+    },
+    {
+      "id": "earn_and_learn",
+      "icon": "🗺️",
+      "name": "Earn & Learn",
+      "benefit": "Build skills while earning.",
+      "delivery": "Pair work and learning when income plus progression matters.",
+      "protocol_ids": [
+        "EARN_AND_LEARN_RMO"
+      ]
+    },
+    {
+      "id": "upskilling",
+      "icon": "🧩",
+      "name": "Upskilling",
+      "benefit": "Close the skills that are actually holding you back.",
+      "delivery": "Target specific skill/credential gaps rather than unnecessary retraining.",
+      "protocol_ids": [
+        "EDU_OFFER_RMO"
+      ]
+    },
+    {
+      "id": "rpl",
+      "icon": "🧾",
+      "name": "Recognition of Prior Learning (RPL)",
+      "benefit": "Turn relevant experience into an assessment opportunity.",
+      "delivery": "Help identify potential RPL routes, evidence needs and suitable providers; assessment determines recognition.",
+      "protocol_ids": [
+        "RPL_RMO"
+      ]
+    },
+    {
+      "id": "better_paying_job",
+      "icon": "💼",
+      "name": "Better-paying job",
+      "benefit": "Use your existing capability to target stronger opportunities.",
+      "delivery": "Support experienced users seeking higher-paying roles; add study only for a real gap.",
+      "protocol_ids": [
+        "JOB_MATCH_RMO"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "intent": "find_or_compare_courses",
+      "product_id": "get_a_course_offer",
+      "protocol_id": "EDU_OFFER_RMO"
+    },
+    {
+      "intent": "explore_or_compare_career_routes",
+      "product_id": "career_pathway_rmo",
+      "protocol_id": "PATHWAY_RMO"
+    },
+    {
+      "intent": "find_jobs",
+      "product_id": "jobs_rmo",
+      "protocol_id": "JOB_MATCH_RMO"
+    },
+    {
+      "intent": "entry_level_graduate_job",
+      "product_id": "fresh_grad_job",
+      "protocol_id": "JOB_MATCH_RMO"
+    },
+    {
+      "intent": "structured_graduate_program",
+      "product_id": "fresh_grad_job",
+      "protocol_id": "GRAD_PROGRAM_RMO"
+    },
+    {
+      "intent": "apprenticeship",
+      "product_id": "apprenticeship_and_traineeship",
+      "protocol_id": "APPRENTICESHIP_RMO"
+    },
+    {
+      "intent": "traineeship",
+      "product_id": "apprenticeship_and_traineeship",
+      "protocol_id": "TRAINEESHIP_RMO"
+    },
+    {
+      "intent": "internship",
+      "product_id": "internship_and_work_placement",
+      "protocol_id": "INTERNSHIP_RMO"
+    },
+    {
+      "intent": "required_work_placement",
+      "product_id": "internship_and_work_placement",
+      "protocol_id": "WORK_PLACEMENT_RMO"
+    },
+    {
+      "intent": "earn_while_learning",
+      "product_id": "earn_and_learn",
+      "protocol_id": "EARN_AND_LEARN_RMO"
+    },
+    {
+      "intent": "recognise_prior_learning",
+      "product_id": "rpl",
+      "protocol_id": "RPL_RMO"
+    },
+    {
+      "intent": "known_learning_gap",
+      "product_id": "upskilling",
+      "protocol_id": "EDU_OFFER_RMO"
+    },
+    {
+      "intent": "better_paying_job",
+      "product_id": "better_paying_job",
+      "protocol_id": "JOB_MATCH_RMO"
+    }
+  ],
+  "capabilities": {
+    "conversation_guidance": true,
+    "objective_workspace": "preview_toggle",
+    "conversation_answer_storage": true,
+    "reusable_profile_write": false,
+    "warehouse_retrieval": "course_catalogue_runtime_status",
+    "external_commit": false
+  }
+}

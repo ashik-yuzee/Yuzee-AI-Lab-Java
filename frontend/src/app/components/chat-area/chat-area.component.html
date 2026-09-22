@@ -1,28 +1,7 @@
 <div class="chat-layout d-flex h-100 overflow-hidden">
 
   <!-- Sidebar -->
-  <aside class="sidebar d-flex flex-column border-end bg-white">
-    <div class="sidebar-header d-flex align-items-center justify-content-between p-3 border-bottom">
-      <span class="fw-semibold text-dark" style="font-size:13px">Conversations</span>
-      <button class="btn btn-sm btn-purple" (click)="newConv()">＋ New</button>
-    </div>
-    <div class="sidebar-list flex-1 overflow-auto py-2">
-      @for (conv of lab.conversations(); track conv.id) {
-        <div class="sidebar-item d-flex align-items-center px-3 py-2 gap-2"
-             [class.active]="conv.id === lab.activeConversationId()"
-             (click)="selectConv(conv.id)">
-          <div class="flex-1 min-w-0">
-            <div class="text-truncate fw-medium" style="font-size:13px">{{ conv.title }}</div>
-            <div class="text-muted" style="font-size:11px">{{ conv.messages.length }} messages</div>
-          </div>
-          <button class="btn btn-sm text-muted p-0 ms-1 del-btn" (click)="deleteConv($event, conv.id)">✕</button>
-        </div>
-      }
-      @if (!lab.conversations().length) {
-        <div class="text-center text-muted py-4" style="font-size:13px">No conversations yet</div>
-      }
-    </div>
-  </aside>
+  <app-sidebar />
 
   <!-- Main chat -->
   <div class="chat-main d-flex flex-column flex-1 overflow-hidden">
@@ -40,7 +19,11 @@
       <!-- Messages -->
       <div class="messages-area flex-1 overflow-auto p-4" #messagesArea>
 
-        @for (msg of lab.activeConversation()!.messages; track msg.id) {
+        @for (msg of lab.activeConversation()!.messages; track msg.id; let i = $index) {
+
+          @if (showDividerBefore(lab.activeConversation()!.messages, i)) {
+            <app-chat-turn-divider [createdAt]="toEpoch(msg.timestamp)" />
+          }
 
           @if (msg.role === 'user') {
             <div class="message d-flex justify-content-end mb-4">
@@ -66,7 +49,11 @@
 
               @if (!msg.streaming && isValidProtocol(msg.parsedResponse)) {
                 <div class="assistant-content card border-0 shadow-sm p-3">
-                  <app-protocol-renderer [response]="asProtocol(msg.parsedResponse)" />
+                  <app-protocol-renderer #renderer
+                    [response]="asProtocol(msg.parsedResponse)"
+                    [conversationId]="lab.activeConversation()!.id"
+                    [readOnly]="msg.id !== lab.activeConversation()!.messages[lab.activeConversation()!.messages.length - 1].id"
+                    (interact)="onInteract($event, renderer)" />
                 </div>
               }
 
@@ -92,25 +79,11 @@
       </div>
 
       <!-- Composer -->
-      <div class="composer-area border-top bg-white p-3">
-        <div class="composer-inner d-flex gap-2 align-items-end">
-          <textarea class="form-control composer-input"
-                    [(ngModel)]="draftMessage"
-                    [disabled]="lab.isStreaming()"
-                    placeholder="Message Yuzee AI…"
-                    rows="1"
-                    (keydown)="onKeydown($event)"
-                    (input)="autoResize($event)">
-          </textarea>
-          <button class="btn btn-purple send-btn"
-                  [disabled]="!draftMessage.trim() || lab.isStreaming()"
-                  (click)="send()">
-            @if (lab.isStreaming()) { ↺ } @else { ➤ }
-          </button>
-        </div>
-        <div class="text-muted text-center mt-1" style="font-size:11px">
-          Enter to send · Shift+Enter for new line
-        </div>
+      <div class="composer-area border-top bg-white">
+        <app-composer
+          [conversationId]="lab.activeConversation()!.id"
+          [disabled]="lab.isStreaming()"
+          (send)="onComposerSend($event)" />
       </div>
     }
   </div>

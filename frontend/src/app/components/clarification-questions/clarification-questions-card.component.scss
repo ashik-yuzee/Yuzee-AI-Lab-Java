@@ -1,0 +1,173 @@
+.bridge-message {
+  font-size: 14px;
+  color: #344054;
+  line-height: 1.5;
+}
+
+.question-block {
+  border: 1px solid #e4e9f2;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.question-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1f6;
+}
+
+.question-index {
+  font-size: 11px;
+  font-weight: 700;
+  color: #98a2b3;
+}
+
+.question-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #101828;
+  flex: 1;
+}
+
+.ui-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(121, 87, 198, .12);
+  color: #7957c6;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.question-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e4e9f2;
+  background: #f8f9fc;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.option-row:hover:not(.disabled) {
+  border-color: #c9bced;
+}
+.option-row.selected {
+  background: rgba(121, 87, 198, .08);
+  border-color: #7957c6;
+}
+.option-row.disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.option-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #98a2b3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.option-indicator.multi {
+  border-radius: 4px;
+}
+.option-row.selected .option-indicator {
+  border-color: #7957c6;
+  background: #7957c6;
+}
+.option-check {
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.option-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #101828;
+}
+
+.option-desc {
+  font-size: 11px;
+  color: #667085;
+}
+
+.self-input {
+  border-style: dashed;
+}
+
+.ranked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ranked-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e4e9f2;
+  background: #f8f9fc;
+}
+
+.rank-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #7957c6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rank-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rank-controls button {
+  color: #98a2b3;
+  font-size: 10px;
+  line-height: 1;
+}
+.rank-controls button:hover:not(:disabled) {
+  color: #344054;
+}
+.rank-controls button:disabled {
+  opacity: .3;
+}
+
+.btn-purple {
+  background: #7957c6;
+  color: #fff;
+  border: none;
+}
+.btn-purple:hover {
+  background: #6744b5;
+  color: #fff;
+}
+.btn-purple:disabled {
+  background: #c9bced;
+}

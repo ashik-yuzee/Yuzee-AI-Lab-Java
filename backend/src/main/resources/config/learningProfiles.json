@@ -1,0 +1,353 @@
+{
+  "skill": [
+    [
+      "What it means and why it matters",
+      "Define the skill plainly, translate it into an observable capability and explain its importance to the workplace and stated goal."
+    ],
+    [
+      "How you actually do it",
+      "Ordered process, decisions, tools, reasons for important steps and when to stop to obtain more information."
+    ],
+    [
+      "A simple example",
+      "A familiar everyday example to introduce the idea; explain where the analogy stops applying."
+    ],
+    [
+      "A workplace example",
+      "A separate realistic, explicitly illustrative scenario: person/task, problem, evidence, decisions, actions and plausible result. Connect it to workplace responsibilities. Do not claim an actual event."
+    ],
+    [
+      "What good work looks like",
+      "Observable performance criteria and common mistakes with consequences; software operation alone is not competent judgement."
+    ],
+    [
+      "How to practise and improve",
+      "A concrete exercise with an invitation to try, followed by a sample answer or worked check in the same response. Explain why it works and where another answer could be justified; no compulsory quiz or claim the learner passed."
+    ],
+    [
+      "How to check a course teaches it",
+      "Only when selecting or evaluating training is relevant: explain how learning outcomes, realistic practice and feedback could be checked. Omit this section from a stand-alone skill lesson unless requested."
+    ],
+    [
+      "What completion does and does not prove",
+      "Only when completion or capability evidence matters to the question: briefly explain what the available record supports. Never infer attendance, understanding, assessment or competence from a course label or unspecified completion. Observed work and assessment may support specific performance; formal assessment is not the only evidence. Usually one sentence is sufficient."
+    ]
+  ],
+  "course": [
+    [
+      "What you would be learning",
+      "Explain unfamiliar unit/qualification terms and supported content, not a title catalogue. State source, version and missing details."
+    ],
+    [
+      "How the learning fits together",
+      "Explain core/elective choice, sequence and prerequisites only when supported; a required number of electives may have to be completed. Distinguish an illustrative connection from verified sequence."
+    ],
+    [
+      "A simple example",
+      "Make the central unfamiliar idea understandable with a clearly illustrative everyday example."
+    ],
+    [
+      "What it could look like in practice",
+      "A labelled worked example with small visible inputs, what to inspect, why a decision follows and how to check the result. Teach the concept without claiming this is an actual course activity."
+    ],
+    [
+      "Practice, assessment and feedback",
+      "Separate exposure, practice, assessment and feedback; provide evidence or explicitly identify each unknown."
+    ],
+    [
+      "How to judge whether it fits",
+      "Observable good work, common mistakes, goal relevance, constraints and trade-offs. Never infer workload fit from available hours alone."
+    ],
+    [
+      "What the evidence can establish",
+      "Briefly state what the excerpt supports and what remains unknown for this decision. Course content is not evidence of a learner completing or mastering it. Observed work, supervised tasks or assessment can support specific performance; avoid an unnecessary generic evidence lecture."
+    ],
+    [
+      "What to check next",
+      "Identify the unresolved fact that changes the decision and how to obtain it. Still teach useful general concepts if the provider is unknown."
+    ]
+  ],
+  "comparison": [
+    [
+      "What you are choosing between",
+      "Explain alternatives and the actual decision in plain language."
+    ],
+    [
+      "What matters for this decision",
+      "Define criteria and why each matters to the stated goal; do not assume weights."
+    ],
+    [
+      "Compare the evidence",
+      "Same criteria, scope, dates and units across all requested options; keep unknown cells explicit."
+    ],
+    [
+      "What the difference means in practice",
+      "A labelled worked scenario showing how alternatives change tasks, learning, effort or outcomes."
+    ],
+    [
+      "Trade-offs and possible mistakes",
+      "What each option gives up, what changes the conclusion and misleading comparisons to avoid."
+    ],
+    [
+      "What you can reasonably decide",
+      "Conditional evidence-based conclusion, uncertainty and the most useful next check. Never rank unavailable facts."
+    ]
+  ],
+  "requirements": [
+    [
+      "What the requirement means",
+      "Translate entry/job conditions; separate mandatory, preferred and unknown."
+    ],
+    [
+      "What would count as evidence",
+      "Concrete documents, work samples or demonstrations the source accepts; do not collect sensitive identifiers."
+    ],
+    [
+      "How your information compares",
+      "Compare stated facts with requirements. Absent evidence is unknown, not failure."
+    ],
+    [
+      "A practical example",
+      "Explain an unfamiliar requirement with a short conceptual example only if useful. A work sample is a piece of work showing what someone can do; accepted formats depend on the provider. Omit a redundant fictional admissions story."
+    ],
+    [
+      "Gaps and possible routes",
+      "Explain gaps, consequences and source-supported routes or checks."
+    ],
+    [
+      "What to confirm before acting",
+      "Exact unresolved check; the provider/employer makes the actual decision. No guarantee."
+    ]
+  ],
+  "cost": [
+    [
+      "What the costs mean",
+      "Explain tuition, other charges and total/annual/per-unit bases using relevant published or supplied figures."
+    ],
+    [
+      "How the total is worked out",
+      "Arithmetic, currency, period, included items and assumptions; unknown charges stay unknown."
+    ],
+    [
+      "An example you can follow",
+      "Use the supplied calculation as the worked example. If figures are missing, use a formula with named unknowns. Never invent subsidy rates, fee amounts or alternative totals to make an example."
+    ],
+    [
+      "Funding and payment conditions",
+      "Separate scheme availability, eligibility, payment timing and repayment; current rules require sources."
+    ],
+    [
+      "What changes the decision",
+      "Trade-offs, common budgeting omissions and stated constraints."
+    ],
+    [
+      "What to confirm",
+      "Evidence limits and next source/input needed before relying on a total."
+    ]
+  ],
+  "role": [
+    [
+      "What this role involves",
+      "Purpose, responsibilities and context; distinguish occupation from a specific vacancy."
+    ],
+    [
+      "What a task looks like",
+      "Illustrative workplace input, problem, decisions, actions and useful output; not a fabricated job ad."
+    ],
+    [
+      "Skills and tools in use",
+      "Connect skills to tasks and explain unfamiliar tools instead of listing labels."
+    ],
+    [
+      "What good performance looks like",
+      "Observable work quality, judgement, common mistakes and boundaries of responsibility."
+    ],
+    [
+      "How to develop the capability",
+      "Practice, feedback and evidence; do not infer competence from previous titles."
+    ],
+    [
+      "How to assess your next step",
+      "Stated goals and constraints; verify actual entry, location, shifts, pay and availability."
+    ]
+  ],
+  "skill_map": [
+    [
+      "What the skills mean",
+      "Use everyday capability names and explain each: for example understanding customer feedback or presenting information visually. Do not inflate a short outcome into specialist terminology."
+    ],
+    [
+      "How they connect to tasks",
+      "Map each to a concrete responsibility or activity and explain the connection."
+    ],
+    [
+      "An example of using them together",
+      "Illustrative scenario showing different contributions, judgement and observable result."
+    ],
+    [
+      "What the evidence shows",
+      "Use Explicitly stated, Reasonably derived, and Not enough information as plain text where useful, not status enums. Explain the inference. Keep required/elective status separate from depth, practice, assessment and individual performance."
+    ],
+    [
+      "What to develop or check",
+      "Prioritise only against stated goals and evidence. Concrete practice and feedback criteria."
+    ],
+    [
+      "What this means for your decision",
+      "Trade-offs, unknowns and feasible next step; no invented aptitude scores."
+    ]
+  ],
+  "plan": [
+    [
+      "Your goal and starting point",
+      "Reuse known facts, explain terms and identify the gap without inferring ability from a title."
+    ],
+    [
+      "What needs to change and why",
+      "Gap-to-goal connection, dependencies and unknowns."
+    ],
+    [
+      "A practical sequence",
+      "Each step: action, concrete output and checkpoint; dates/workloads supported or explicitly proposed."
+    ],
+    [
+      "An example of one step",
+      "Labelled task, decisions, result and quality check."
+    ],
+    [
+      "How to demonstrate progress",
+      "Observable evidence, practice, feedback and when to adapt; no invented readiness score."
+    ],
+    [
+      "Trade-offs and next decision",
+      "Options, stated constraints, common failure points and useful next action; no promised employment or completed actions."
+    ]
+  ],
+  "market": [
+    [
+      "What the signal means",
+      "Explain metrics; distinguish shortage, growth, vacancies, ads and forecasts."
+    ],
+    [
+      "What the evidence covers",
+      "Source/date/geography/occupation, method and scope; absent current data means unverified trend."
+    ],
+    [
+      "How to interpret it",
+      "Reasoning and alternative explanations; correlation is not causation."
+    ],
+    [
+      "A simple worked example",
+      "An example of interpreting the supplied evidence, when it helps. For salary comparisons use comparable base hourly rate times agreed paid hours; never invent paid hours, loadings or benefits."
+    ],
+    [
+      "What this could mean for you",
+      "Cautious link to stated decision; market signals are not personal opportunity or guaranteed demand."
+    ],
+    [
+      "Uncertainty and next checks",
+      "Conflicts, limitations, misleading comparisons and what changes the conclusion."
+    ]
+  ],
+  "organisation": [
+    [
+      "What this organisation or sector does",
+      "Explain entity and requested focus using sourced facts; a name does not establish culture or opportunity."
+    ],
+    [
+      "How the relevant activity works",
+      "Task-level explanation of operations or relationships; never fabricate private internal details."
+    ],
+    [
+      "A practical illustration",
+      "Labelled scenario, decisions and result; not an actual company event."
+    ],
+    [
+      "People, skills and learning connections",
+      "Evidence for roles, capabilities and provider relationships; separate observations from inferences."
+    ],
+    [
+      "What matters for your decision",
+      "Relevant fit factors, trade-offs and stated constraints; no profiling or hiring decisions."
+    ],
+    [
+      "What is known and what to verify",
+      "Gaps, freshness and useful next check; no claimed partnership, outreach or availability without evidence."
+    ]
+  ],
+  "opportunity": [
+    [
+      "What this route means",
+      "Define the opportunity, distinguish work/training types and explain the actual task."
+    ],
+    [
+      "How it works in practice",
+      "Responsibilities, supervision, learning and evidence-supported process."
+    ],
+    [
+      "A realistic illustration",
+      "Labelled scenario showing decisions and output; not a real vacancy or offer."
+    ],
+    [
+      "What it could develop",
+      "Connect tasks to practice and feedback; separate exposure from assessed competence."
+    ],
+    [
+      "Fit, conditions and trade-offs",
+      "Stated constraints and verified requirements; payment, hours, eligibility and availability unknown unless supported."
+    ],
+    [
+      "How to investigate or prepare",
+      "Concrete next action, output and checks; never claim application, booking or contact occurred."
+    ]
+  ],
+  "evidence": [
+    [
+      "What is being checked",
+      "Define the claim/capability and assessment scope plainly."
+    ],
+    [
+      "What useful evidence looks like",
+      "Relevance, authenticity, recency, scope and how an artefact supports the claim."
+    ],
+    [
+      "Work through an example",
+      "Labelled claim, artefact, judgement and what remains unproven."
+    ],
+    [
+      "What available evidence supports",
+      "Separate facts, user reports and assumptions; course content is not individual completion."
+    ],
+    [
+      "Gaps and misleading conclusions",
+      "Missing evidence, limitations and common overclaims without treating absence as failure."
+    ],
+    [
+      "How to strengthen the evidence",
+      "Concrete preparation and feedback; an authorised assessor decides recognition."
+    ]
+  ],
+  "navigation": [
+    [
+      "What this means",
+      "Resolve the current subject and requested layer without restarting intake."
+    ],
+    [
+      "How it connects",
+      "Explain why each relevant branch matters to the stated goal, not a menu of names."
+    ],
+    [
+      "An example to make it concrete",
+      "Illustrative situation, decision and consequence."
+    ],
+    [
+      "How to judge the options",
+      "Criteria, trade-offs and common misunderstandings."
+    ],
+    [
+      "What is known and what comes next",
+      "Supported implications, unknowns and optional scoped next step; respect closure."
+    ]
+  ],
+  "internal": []
+}

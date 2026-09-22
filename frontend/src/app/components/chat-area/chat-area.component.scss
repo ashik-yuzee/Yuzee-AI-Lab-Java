@@ -56,18 +56,6 @@
   font-family: inherit;
 }
 
-.composer-inner { max-width: 740px; margin: 0 auto; }
-
-.composer-input {
-  resize: none;
-  border-radius: 12px;
-  font-size: 15px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.send-btn { border-radius: 12px; min-width: 44px; min-height: 44px; font-size: 18px; }
-
 .btn-purple { background: #7957c6; color: #fff; border: none; }
 .btn-purple:hover { background: #6744b5; color: #fff; }
 .btn-purple:disabled { background: #b5a3e0; }

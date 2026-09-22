@@ -1,0 +1,24 @@
+<div class="range-slider">
+  <div class="range-slider-head">
+    <label [attr.for]="id" class="range-slider-label">{{ label }}</label>
+    <span class="range-slider-value">{{ displayValue }}</span>
+  </div>
+
+  <input
+    [id]="id"
+    type="range"
+    class="form-range range-slider-input"
+    [min]="min"
+    [max]="max"
+    [step]="step"
+    [value]="value"
+    (input)="onInput($event)" />
+
+  @if (hasFootRow) {
+    <div class="range-slider-foot">
+      <span>{{ minText }}</span>
+      @if (helperText) { <span class="range-slider-helper">{{ helperText }}</span> }
+      <span>{{ maxText }}</span>
+    </div>
+  }
+</div>

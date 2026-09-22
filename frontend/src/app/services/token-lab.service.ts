@@ -51,13 +51,26 @@ export class TokenLabService {
     } catch {}
   }
 
-  async createConversation(modelId?: string): Promise<Conversation> {
+  async createConversation(modelId?: string, title?: string): Promise<Conversation> {
     const conv = await firstValueFrom(
-      this.http.post<Conversation>('/api/conversations', { modelId: modelId ?? this.activeModelId() }, { headers: this.headers })
+      this.http.post<Conversation>('/api/conversations', { modelId: modelId ?? this.activeModelId(), title }, { headers: this.headers })
     );
     this.conversations.update(cs => [conv, ...cs]);
     this.activeConversationId.set(conv.id);
     return conv;
+  }
+
+  /** ponytail: no demo dataset wired up server-side yet (endpoint is a stub) — just starts a
+   * titled conversation so the Sidebar's "Load Demo" button has somewhere to land. */
+  async loadDemoConversation(): Promise<Conversation> {
+    return this.createConversation(undefined, 'Cybersecurity Analyst Pathway (Demo)');
+  }
+
+  async renameConversation(id: string, title: string): Promise<void> {
+    await firstValueFrom(
+      this.http.put(`/api/conversations/${id}`, { title }, { headers: this.headers })
+    );
+    this.conversations.update(cs => cs.map(c => c.id === id ? { ...c, title } : c));
   }
 
   async selectConversation(id: string): Promise<void> {
@@ -236,6 +249,13 @@ export class TokenLabService {
       );
       this.sessionStats.set(stats);
     } catch {}
+  }
+
+  async resetSessionStats(): Promise<void> {
+    await firstValueFrom(
+      this.http.post('/api/tokens/session-reset', {}, { headers: this.headers })
+    );
+    await this.loadSessionStats();
   }
 
   setLocation(location: string): void {

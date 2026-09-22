@@ -1,0 +1,79 @@
+@if (open) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <div class="header-icon">🧩</div>
+          <div>
+            <h2 class="card-title-text mb-0">Context Inspector</h2>
+            <p class="card-subtitle mb-0">What was assembled into the last request sent to Gemini</p>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn" [class.active]="activeTab() === 'included'" (click)="setTab('included')">
+          Retained Context
+        </button>
+        <button class="tab-btn" [class.active]="activeTab() === 'excluded'" (click)="setTab('excluded')">
+          Excluded / Dropped
+        </button>
+      </div>
+
+      <div class="card-body">
+        @if (!compaction) {
+          <div class="empty-state">No active prompt payload to inspect yet. Send a turn first.</div>
+        } @else if (activeTab() === 'included') {
+          <div class="metric-card">
+            <div class="metric-row">
+              <span>Strategy</span>
+              <span class="badge-pill">{{ compaction.strategy }}</span>
+            </div>
+            <div class="metric-row">
+              <span>Turns retained</span>
+              <span class="fw-semibold">{{ compaction.turnsKept }}</span>
+            </div>
+            <div class="metric-row">
+              <span>Tokens used of budget</span>
+              <span class="fw-semibold">{{ compaction.tokensUsed | number }} / {{ compaction.tokenBudget | number }}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill"
+                   [style.width.%]="compaction.tokenBudget > 0 ? (compaction.tokensUsed / compaction.tokenBudget) * 100 : 0">
+              </div>
+            </div>
+          </div>
+          <p class="footnote">
+            Section-level breakdown (system prompt vs. summary vs. recent turns, each with its own token count) is
+            not exposed by the backend today — only the aggregate figures above are available.
+          </p>
+        } @else {
+          @if (compaction.turnsDropped === 0) {
+            <div class="empty-state">No turns were excluded in the latest request — everything fit within budget.</div>
+          } @else {
+            <div class="metric-card metric-card-warn">
+              <div class="metric-row">
+                <span>Turns dropped this request</span>
+                <span class="fw-semibold">{{ compaction.turnsDropped }}</span>
+              </div>
+            </div>
+            <p class="footnote">
+              The backend only reports <em>how many</em> turns were evicted, not their content or reason — that would
+              require RequestAssemblerService / ConversationMemoryService to expose the individual dropped turns,
+              which isn't wired up yet. Per-turn previews and per-section "saved tokens" shown in the old app are
+              not fabricated here.
+            </p>
+          }
+        }
+      </div>
+
+      <div class="card-footer d-flex align-items-center justify-content-between">
+        <span class="text-muted small">
+          Total assembled: <strong>{{ compaction?.tokensUsed ?? 0 | number }} tokens</strong>
+        </span>
+        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+      </div>
+    </div>
+  </div>
+}
