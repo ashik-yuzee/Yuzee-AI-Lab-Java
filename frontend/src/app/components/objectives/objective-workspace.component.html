@@ -1,0 +1,229 @@
+<aside
+  class="objective-workspace-panel"
+  [class.is-open]="open"
+  [class.is-expanded]="expanded()"
+  [class.is-resizing]="resize.resizing()"
+  [style.width.px]="expanded() ? null : resize.width()"
+  aria-label="Activity workspace"
+>
+  @if (!expanded()) {
+    <div
+      class="resize-handle"
+      role="separator"
+      tabindex="0"
+      aria-orientation="vertical"
+      aria-label="Resize activity workspace"
+      [attr.aria-valuenow]="resize.width()"
+      title="Drag left or right to resize. Use arrow keys, or double-click to reset."
+      (pointerdown)="resize.onPointerDown($event)"
+      (pointermove)="resize.onPointerMove($event)"
+      (pointerup)="resize.onPointerUp($event)"
+      (pointercancel)="resize.onPointerUp($event)"
+      (dblclick)="resize.reset()"
+      (keydown)="resize.onKeyDown($event)"
+    ></div>
+  }
+
+  <header class="panel-header">
+    <div class="d-flex align-items-center gap-2">
+      <span class="header-icon">&#128506;</span>
+      <div>
+        <small class="panel-eyebrow">YOUR WORKSPACE &middot; PREVIEW</small>
+        <h2 class="panel-title" #heading tabindex="-1">
+          {{ catalogueOpen() ? 'Explore activities' : activityTitle(objectives.selected()) }}
+        </h2>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button
+        type="button"
+        class="btn btn-sm btn-icon"
+        [attr.aria-label]="expanded() ? 'Restore activity panel' : 'Expand activity panel'"
+        (click)="toggleExpanded()"
+      >{{ expanded() ? '⤤' : '⤢' }}</button>
+      <button type="button" class="btn btn-sm btn-icon" aria-label="Close activity workspace" (click)="close()">&#10005;</button>
+    </div>
+  </header>
+
+  <div class="objective-workspace-nav">
+    <button type="button" [disabled]="objectives.busy()" (click)="openCatalogue()">
+      {{ catalogueOpen() && objectives.selected() ? 'Back to my activity' : 'Browse activities' }}
+    </button>
+    @if (objectives.sessions().length > 0) {
+      <select
+        aria-label="Saved activities"
+        [disabled]="objectives.busy()"
+        [ngModel]="objectives.selectedId()"
+        (ngModelChange)="selectSession($event)"
+      >
+        @for (s of objectives.sessions(); track s.id) {
+          <option [value]="s.id">{{ activityTitle(s) }} &middot; {{ stateLabel[s.state] }}</option>
+        }
+      </select>
+    }
+  </div>
+
+  <div class="objective-body" [attr.aria-busy]="objectives.busy()">
+    @if (objectives.error()) {
+      <div class="objective-error" role="alert">
+        {{ objectives.error() }}
+        <button type="button" (click)="objectives.dismissError()">Dismiss</button>
+      </div>
+    }
+
+    @if (objectives.busy()) {
+      <div class="objective-loading" role="status">
+        <strong>Preparing your next useful step&hellip;</strong>
+        <p>Your answers stay visible while we prepare the next step.</p>
+        <i></i><i></i><i></i>
+        <button type="button" (click)="objectives.stop()">Stop</button>
+      </div>
+    }
+
+    @if (catalogueOpen() && !objectives.busy()) {
+      <p>Choose one question to work through. We will use what you have already shared and ask only for details that matter.</p>
+      <p class="objective-muted">
+        Preview: this connects to Oala's real objective-workspace engine. Course/career/regional data and external
+        profile saving are not connected in this preview.
+      </p>
+      <label class="objective-search">
+        <input
+          type="search"
+          [(ngModel)]="search"
+          placeholder="Search interests, courses, skills, jobs&hellip;"
+          aria-label="Search activities"
+        />
+      </label>
+      <p class="objective-muted">
+        {{ filteredCatalogue().length }} {{ filteredCatalogue().length === 1 ? 'activity' : 'activities' }}
+      </p>
+      <div class="objective-catalogue">
+        @for (item of filteredCatalogue(); track item.tool_id) {
+          <button type="button" [disabled]="objectives.busy()" (click)="startObjective(item.tool_id)">
+            <small>{{ item.primary_category }}</small>
+            <strong>{{ item.button_label }}</strong>
+            <span>{{ item.clear_purpose }}</span>
+            <small>Up to {{ item.max_interactions }} steps</small>
+          </button>
+        }
+      </div>
+    } @else if (plan()) {
+      @if (plan(); as p) {
+      @if (objectives.selected()?.state === 'CANCELLED') {
+        <p class="objective-progress">Activity closed</p>
+      }
+
+      @if (isComparisonResult(p.result)) {
+        <app-workspace-result [result]="p.result" />
+      } @else {
+        @for (c of nonRequiredComponents(p); track trackPrimitive(c)) {
+          <app-primitive-renderer
+            [component]="c"
+            [plan]="p"
+            [disabled]="objectives.busy()"
+            [hideKnown]="true"
+            (answer)="onAnswer($event)"
+          />
+        }
+        @if (!hasNonRequiredComponents(p)) {
+          <app-workspace-result [result]="p.result" />
+        } @else if (p.result?.summary) {
+          <p class="objective-summary">{{ p.result.summary }}</p>
+        }
+      }
+
+      <!-- TODO(integration): <app-warehouse-courses>/<app-warehouse-connections> render here when
+           context.warehouse_data is present. This backend port never populates warehouse_data
+           (see ObjectiveService.java's class javadoc), so there is nothing to show yet — wire the
+           two components in once they exist and the backend starts returning that data. -->
+
+      @if (objectives.selected(); as s) {
+        <app-answer-history [session]="s" />
+      }
+
+      @if (objectives.selected()?.pendingAnswer && !objectives.busy()) {
+        <div class="objective-saved-pending">
+          <p>Your answer is saved. We still need to prepare the result.</p>
+          <button type="button" class="objective-primary" (click)="objectives.retry()">Retry with saved answer</button>
+        </div>
+      }
+
+      @if (pending(p) && !objectives.selected()?.pendingAnswer) {
+        <section class="objective-refinement">
+          <h3>Explore this further</h3>
+          @for (c of requiredComponents(p); track trackPrimitive(c)) {
+            <app-primitive-renderer
+              [component]="c"
+              [plan]="p"
+              [disabled]="objectives.busy() || !!objectives.selected()?.pendingCorrection || objectives.selected()?.state !== 'ACTIVE'"
+              [hideKnown]="true"
+              (answer)="onAnswer($event)"
+            />
+          }
+        </section>
+      }
+
+      @if (objectives.selected(); as s2) {
+        <app-context-details
+          [session]="s2"
+          [disabled]="objectives.busy() || !!s2.pendingAnswer || s2.state === 'CANCELLED'"
+          (correct)="objectives.correct($event)"
+          (retry)="objectives.retryCorrection()"
+        />
+      }
+
+      @if (derivedSignals(p).length > 0) {
+        <details>
+          <summary>How this was interpreted</summary>
+          @for (d of derivedSignals(p); track $index) {
+            <p><strong>{{ d.signal }}</strong> &mdash; {{ d.basis }} <small>(AI interpretation)</small></p>
+          }
+        </details>
+      }
+
+      @if (p.unknowns?.length) {
+        <div class="objective-gaps">
+          <strong>Still to check</strong>
+          <ul>
+            @for (u of p.unknowns; track $index) {
+              <li>{{ u }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (readinessBlockers(p).length > 0) {
+        <div class="objective-gaps">
+          <strong>Before the next step</strong>
+          <ul>
+            @for (b of readinessBlockers(p); track $index) {
+              <li>{{ b }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (p.status === 'NEEDS_RESEARCH') {
+        <p class="objective-gaps">Some information needed for this activity is not in the current results. Your work stays saved here.</p>
+      }
+
+      @if (objectives.selected(); as s3) {
+        @if (isResultReady(s3)) {
+          <div class="objective-result-ready">
+            <p class="objective-muted" role="status">Saved here. Oala can use these details when you next send a message.</p>
+            <button type="button" class="objective-primary" [disabled]="objectives.busy()" (click)="useResult()">Use this result</button>
+          </div>
+        }
+      }
+
+      @if (objectives.selected()?.state === 'ACTIVE') {
+        <button type="button" class="objective-cancel" [disabled]="objectives.busy()" (click)="objectives.cancel()">End this activity</button>
+      }
+
+      <p class="objective-muted">Your answers are saved with this conversation. They do not change your profile or submit applications.</p>
+      }
+    } @else if (!objectives.busy()) {
+      <p class="objective-muted">Browse activities to get started.</p>
+    }
+  </div>
+</aside>

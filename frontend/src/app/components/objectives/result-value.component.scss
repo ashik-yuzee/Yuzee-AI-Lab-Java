@@ -1,0 +1,54 @@
+.objective-unknown {
+  color: #8a94a6;
+  font-style: italic;
+}
+
+.objective-value-list {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.objective-result-fields {
+  margin: 0;
+
+  dt {
+    font-weight: 600;
+    text-transform: capitalize;
+    color: #27364a;
+    margin-top: 10px;
+    font-size: 12.5px;
+  }
+
+  dd {
+    margin: 2px 0 8px;
+    font-size: 13px;
+    color: #4b5768;
+  }
+}
+
+.objective-note {
+  padding: 8px 0;
+  font-size: 13px;
+
+  .note-source {
+    display: block;
+    font-size: 10.5px;
+    color: #8a6fc9;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .note-label {
+    display: block;
+    color: #27364a;
+  }
+
+  .note-detail {
+    margin: 2px 0 0;
+    color: #4b5768;
+  }
+
+  &.note-unknown .note-source { color: #94742f; }
+  &.note-ai_inferred .note-source { color: #7045a4; }
+}

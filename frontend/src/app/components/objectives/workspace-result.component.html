@@ -1,0 +1,60 @@
+@if (table(); as t) {
+  <section class="objective-readable-result" aria-label="Your comparison">
+    @if (result?.summary) {
+      <p>{{ result.summary }}</p>
+    }
+    <div class="objective-table" tabindex="0" role="region" aria-label="Compare tasks, skills and requirements">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">What to compare</th>
+            @for (job of t.jobs; track $index) {
+              <th scope="col">{{ job.occupation_or_vacancy }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (label of t.labels; track label) {
+            <tr>
+              <th scope="row">{{ label }}</th>
+              @for (job of t.jobs; track $index) {
+                <td>
+                  {{ criterionFor(job, label)?.value_or_status || 'Not yet known' }}
+                  @if (criterionFor(job, label)?.unknowns?.length) {
+                    <p class="objective-muted">Still to check: {{ criterionFor(job, label).unknowns.join('; ') }}</p>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="objective-muted">
+      {{ hasStableConceptual(t.jobs)
+        ? 'General comparison. Details vary by specialisation and location.'
+        : 'Read this comparison alongside the supporting evidence and unknowns below.' }}
+    </p>
+    @if (result.job_comparison.tradeoffs?.length) {
+      <h3>What these differences mean</h3>
+      @for (note of result.job_comparison.tradeoffs; track $index) {
+        <app-result-value [value]="note" />
+      }
+    }
+    @if (result.job_comparison.decision_sensitive_unknowns?.length) {
+      <details>
+        <summary>Details that could change the comparison</summary>
+        @for (note of result.job_comparison.decision_sensitive_unknowns; track $index) {
+          <app-result-value [value]="note" />
+        }
+      </details>
+    }
+  </section>
+} @else {
+  <section class="objective-readable-result">
+    @if (result?.summary) {
+      <p>{{ result.summary }}</p>
+    }
+    <app-result-value [value]="fallbackResult()" />
+  </section>
+}

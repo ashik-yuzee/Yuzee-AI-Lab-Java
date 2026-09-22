@@ -1,0 +1,92 @@
+// Visual intent ported from yuzee-ai-token-lab/src/warehouse/warehouse.css's role/skill/learning/
+// job rules, re-expressed with this app's purple-accent design tokens.
+
+.warehouse-explorer {
+  color: #293449;
+
+  h4 { display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; font-weight: 650; margin: 0 0 0.5rem; }
+  h5 { font: inherit; font-weight: 650; margin: 0.3rem 0; }
+  p { line-height: 1.65; margin: 0.4rem 0 0.75rem; }
+  ul { padding-left: 1.25rem; line-height: 1.7; }
+  summary { cursor: pointer; color: var(--accent, #7957c6); font-weight: 550; line-height: 1.6; }
+  .warehouse-muted { font-size: 0.86rem; color: #667085; }
+  .warehouse-linked-section { margin-top: 1.5rem; }
+}
+
+.warehouse-role, .warehouse-learning, .warehouse-job {
+  padding: 1rem 0;
+  border-bottom: 1px solid #eee8f6;
+
+  > label { display: flex; align-items: center; gap: 0.6rem; cursor: pointer; }
+  input { width: 18px; height: 18px; accent-color: var(--accent, #7957c6); flex-shrink: 0; }
+  > p, > details { margin-left: 1.7rem; }
+}
+
+.warehouse-skill-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #eee8f6;
+
+  > div { flex: 1; min-width: 0; }
+  label { font-weight: 550; }
+  select {
+    width: 165px;
+    max-width: 48%;
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.55rem 0.4rem;
+    border: 1px solid var(--accent-border, #b9a6df);
+    border-radius: 0.4rem;
+    background: #fff;
+    color: #4c316b;
+
+    &:focus-visible { outline: 3px solid var(--accent-border, #b9a6df); outline-offset: 2px; }
+  }
+  details p { font-size: 0.85rem; }
+}
+
+@media (max-width: 480px) {
+  .warehouse-skill-row { flex-direction: column; }
+  .warehouse-skill-row select { max-width: 100%; width: 100%; }
+}
+
+.warehouse-course-link {
+  display: block;
+  background: none;
+  border: 0;
+  color: var(--accent, #7957c6);
+  text-align: left;
+  padding: 0.5rem 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.warehouse-job a { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--accent, #7957c6); }
+
+.warehouse-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 1.5rem;
+
+  span { color: #667085; font-size: 0.9rem; }
+
+  button {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.65rem 0.9rem;
+    background: var(--accent, #7957c6);
+    color: #fff;
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+    font: inherit;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.6; cursor: default; }
+  }
+}

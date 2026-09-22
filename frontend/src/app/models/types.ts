@@ -1,4 +1,5 @@
 import { CompactionInfo } from './token-lab-inspector.types';
+import { ResearchOffer } from '../components/research-details/research-details.types';
 
 export type ModelId = string;
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'adaptive';
@@ -210,6 +211,7 @@ export interface ChatMessage {
   parsedResponse?: YuzeeResponseV13;
   tokenUsage?: TokenUsage;
   compaction?: CompactionInfo;
+  researchOffer?: ResearchOffer;
   streamStopped?: boolean;
   validationFailed?: boolean;
   streaming?: boolean;

@@ -1,0 +1,15 @@
+@if (sessions().length > 0) {
+  <div class="objective-chat-history">
+    @for (s of sessions(); track s.id) {
+      <section class="objective-chat-receipt">
+        <div class="receipt-header">
+          <span class="receipt-icon">&#128214;</span>
+          <strong>{{ s.label }}</strong>
+          <span class="receipt-state">{{ stateLabel[s.state] }}</span>
+        </div>
+        <app-answer-history [session]="s" />
+        <button type="button" (click)="viewSession(s.id)">View saved activity &#8599;</button>
+      </section>
+    }
+  </div>
+}

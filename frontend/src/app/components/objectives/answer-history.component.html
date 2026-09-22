@@ -1,0 +1,31 @@
+@if (hasContent()) {
+  <section class="objective-answer-history" aria-label="Saved answers">
+    <h3>Your answers</h3>
+    @for (entry of entries(); track entry.id) {
+      <details class="objective-entered">
+        <summary>
+          <span class="entered-icon">&#10003;</span>
+          <span>{{ entry.question }}</span>
+          <small>{{ entryStatus(entry, false) }}</small>
+        </summary>
+        <div class="objective-answer-value">{{ answerText(entry.answer) }}</div>
+        @if (entry.submittedAt) {
+          <time>{{ submittedAt(entry) }}</time>
+        }
+      </details>
+    }
+    @if (session.pendingAnswer; as pending) {
+      <details class="objective-entered">
+        <summary>
+          <span class="entered-icon">&#10003;</span>
+          <span>{{ pending.question }}</span>
+          <small>{{ entryStatus(pending, true) }}</small>
+        </summary>
+        <div class="objective-answer-value">{{ answerText(pending.answer) }}</div>
+        @if (pending.submittedAt) {
+          <time>{{ submittedAt(pending) }}</time>
+        }
+      </details>
+    }
+  </section>
+}

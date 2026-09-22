@@ -8,7 +8,7 @@ import { Conversation } from '../../models/types';
 export type ToolMenuKey =
   | 'settings' | 'profile' | 'career-context' | 'token-inspector'
   | 'context-inspector' | 'memory-timeline' | 'analytics' | 'benchmark'
-  | 'mini-pathway' | 'pathway-whiteboard';
+  | 'mini-pathway' | 'pathway-whiteboard' | 'objectives' | 'advanced-lab' | 'export';
 
 @Component({
   selector: 'app-navbar',

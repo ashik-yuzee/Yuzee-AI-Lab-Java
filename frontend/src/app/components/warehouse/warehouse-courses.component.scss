@@ -1,0 +1,92 @@
+// Visual intent ported from yuzee-ai-token-lab/src/warehouse/warehouse.css's .warehouse-courses
+// rules, re-expressed with this app's purple-accent design tokens.
+
+.warehouse-courses {
+  margin: 1.5rem 0 2rem;
+  color: #293449;
+
+  > header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 0 0 1rem;
+    color: var(--accent, #7957c6);
+  }
+  h3, h4 { margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 650; line-height: 1.5; }
+  h4 { display: flex; align-items: center; gap: 0.4rem; }
+  p { margin: 0.35rem 0 0.75rem; line-height: 1.65; }
+  header p { color: #667085; font-size: 0.9rem; }
+}
+
+.warehouse-provider, .warehouse-location { color: #667085; font-size: 0.9rem; }
+.warehouse-location { display: flex; align-items: flex-start; gap: 0.35rem; }
+
+.warehouse-table-scroll {
+  overflow: auto;
+  max-width: 100%;
+  border-block: 1px solid #e7dff4;
+
+  table { border-collapse: collapse; table-layout: auto; min-width: 680px; width: 100%; font-size: 0.9rem; text-align: left; }
+  td { min-width: 130px; }
+  th, td { padding: 0.9rem 0.7rem; vertical-align: top; border-bottom: 1px solid #eee8f6; line-height: 1.55; }
+  thead { background: var(--accent-8, #f2edff); color: var(--accent, #7957c6); }
+  tbody th { font-weight: normal; min-width: 220px; }
+  label { display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; }
+  input { margin-top: 0.35rem; accent-color: var(--accent, #7957c6); width: 17px; height: 17px; flex-shrink: 0; }
+  small { display: block; font-size: 0.8rem; font-weight: normal; color: #667085; margin-top: 0.2rem; }
+  .warehouse-level { color: var(--accent, #7957c6); }
+  tr[data-selected="true"] { background: var(--accent-8, #f2edff); }
+}
+
+.warehouse-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0 1.5rem;
+
+  span { color: #667085; font-size: 0.9rem; }
+
+  button {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.65rem 0.9rem;
+    background: var(--accent, #7957c6);
+    color: #fff;
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+    font: inherit;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.6; cursor: default; }
+    &:focus-visible { outline: 3px solid var(--accent-border, #b9a6df); outline-offset: 3px; }
+  }
+}
+
+.warehouse-course { border-bottom: 1px solid #eee8f6; padding: 1rem 0; }
+
+.warehouse-course-details {
+  summary { cursor: pointer; color: var(--accent, #7957c6); font-weight: 600; line-height: 1.7; }
+  &:focus-visible, summary:focus-visible { outline: 3px solid var(--accent-border, #b9a6df); outline-offset: 3px; }
+  > h4, > section { margin-top: 1.2rem; }
+  ul { padding-left: 1.25rem; line-height: 1.7; margin: 0.4rem 0 1rem; }
+}
+
+.warehouse-quality {
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent-border, #b9a6df);
+
+  &-row { margin: 1rem 0; > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; } p { font-size: 0.85rem; color: #667085; } }
+  meter { width: 100%; height: 0.55rem; display: block; margin: 0.4rem 0; appearance: none; border: 0; border-radius: 1rem; background: var(--accent-8, #f2edff); }
+  meter::-webkit-meter-bar { background: var(--accent-8, #f2edff); border: 0; height: 0.55rem; }
+  meter::-webkit-meter-optimum-value { background: var(--accent, #7957c6); }
+  meter::-moz-meter-bar { background: var(--accent, #7957c6); }
+}
+
+.warehouse-status { color: #667085; border-left: 3px solid var(--accent-border, #b9a6df); padding-left: 0.8rem; line-height: 1.6; }
+
+@media (max-width: 640px) {
+  .warehouse-courses h3 { font-size: 1rem; }
+  .warehouse-choice button { width: 100%; justify-content: center; }
+}

@@ -1,0 +1,185 @@
+@if (evidenceOnlyCase()) {
+  @if (!hideKnown) {
+    <section class="objective-primitive" [class]="'primitive-' + kind">
+      <details class="objective-known-details">
+        <summary>Details I'm using</summary>
+        <ul class="objective-notes">
+          @for (note of knownNotes(); track $index) {
+            <li><app-result-value [value]="note" /></li>
+          }
+        </ul>
+        <p class="objective-muted">If something is incorrect, tell Oala in the chat.</p>
+      </details>
+    </section>
+  }
+} @else {
+  <section class="objective-primitive" [class]="'primitive-' + kind">
+    <h3>{{ component.prompt || component.purpose }}</h3>
+    @if (component.prompt && component.purpose && component.prompt !== component.purpose) {
+      <p class="objective-muted">{{ component.purpose }}</p>
+    }
+
+    @if (otherNotes().length > 0) {
+      @if (isOrdered()) {
+        <ol class="objective-sequence">
+          @for (note of otherNotes(); track $index) {
+            <li><app-result-value [value]="note" /></li>
+          }
+        </ol>
+      } @else {
+        <ul class="objective-notes">
+          @for (note of otherNotes(); track $index) {
+            <li><app-result-value [value]="note" /></li>
+          }
+        </ul>
+      }
+    }
+
+    @if (hasTable()) {
+      <div class="objective-table" tabindex="0" role="region" [attr.aria-label]="component.purpose || 'Comparison'">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              @for (col of columns(); track $index) {
+                <th scope="col">{{ col }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track $index) {
+              <tr>
+                <th scope="row">{{ row.label }}</th>
+                @for (cell of row.cells; track $index) {
+                  <td>{{ cell }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (kind === 'hierarchy_explorer' && !required) {
+      @for (o of options(); track o.id) {
+        <details>
+          <summary>{{ o.label }}</summary>
+          <p>{{ o.detail || 'No further detail supplied.' }}</p>
+        </details>
+      }
+    }
+
+    @if (kind === 'readiness_scorecard' && plan.readiness.enabled) {
+      <div class="objective-readiness">
+        <strong>{{ plan.readiness.name }}: {{ plan.readiness.score }}/100</strong>
+        <p class="objective-muted">How much information supports the next step. This is not a prediction of success.</p>
+        @for (d of readinessDimensions(); track d.name) {
+          <p>{{ d.name }}: {{ d.score }}/100 — {{ d.reason }}</p>
+        }
+      </div>
+    }
+
+    @if (required) {
+      <form (ngSubmit)="submit()">
+        <fieldset [disabled]="disabled">
+          @if (isChoiceKind()) {
+            <div class="objective-choices">
+              @for (o of options(); track o.id) {
+                <label>
+                  <input
+                    [type]="isMultiSelect() ? 'checkbox' : 'radio'"
+                    [name]="component.id"
+                    [checked]="isChecked(o.id)"
+                    (change)="selectChoice(o.id)"
+                  />
+                  <span>
+                    <strong>{{ o.label }}</strong>
+                    @if (o.detail) { <small>{{ o.detail }}</small> }
+                  </span>
+                </label>
+              }
+            </div>
+            @if (kind === 'entity_picker' && entityShowsFreeText()) {
+              <label class="objective-text-answer">
+                Or enter names, links or details
+                <textarea rows="3" maxlength="4000" [(ngModel)]="entityFreeText" name="entityFreeText"
+                          placeholder="You can add your own details instead of choosing an option."></textarea>
+              </label>
+            }
+          } @else if (kind === 'spectrum') {
+            <div class="objective-spectrum">
+              <div>
+                <span>{{ component.settings?.min_label }}</span>
+                <span>{{ component.settings?.max_label }}</span>
+              </div>
+              <input
+                type="range"
+                [attr.aria-label]="component.prompt || component.purpose"
+                [attr.min]="component.settings?.min"
+                [attr.max]="component.settings?.max"
+                [value]="spectrumRangeValue()"
+                (input)="onSpectrumRangeInput($event)"
+              />
+              <label>Your value
+                <input type="number" [attr.min]="component.settings?.min" [attr.max]="component.settings?.max"
+                       [(ngModel)]="spectrumValue" name="spectrumNumber" />
+              </label>
+            </div>
+          } @else if (kind === 'ranking') {
+            <ol class="objective-ranking">
+              @for (id of rankingValue; track id; let i = $index) {
+                <li>
+                  <span>{{ optionLabel(id) }}</span>
+                  <button type="button" [attr.aria-label]="'Move up'" [disabled]="i === 0" (click)="reorder(i, -1)">&#8593;</button>
+                  <button type="button" [attr.aria-label]="'Move down'" [disabled]="i === rankingValue.length - 1" (click)="reorder(i, 1)">&#8595;</button>
+                </li>
+              }
+            </ol>
+          } @else if (kind === 'card_sort') {
+            <div>
+              @for (o of options(); track o.id) {
+                <label class="objective-sort">
+                  <span>{{ o.label }}</span>
+                  <select [ngModel]="cardSortOf(o.id)" (ngModelChange)="setCardSort(o.id, $event)" [name]="'sort-' + o.id">
+                    <option value="">Choose a group</option>
+                    @for (b of buckets(); track b) {
+                      <option [value]="b">{{ b }}</option>
+                    }
+                  </select>
+                </label>
+              }
+            </div>
+          } @else {
+            <label class="objective-text-answer">
+              {{ textLabel() }}
+              <textarea rows="3" maxlength="4000" [(ngModel)]="textValue" name="textValue" placeholder="A short answer is fine."></textarea>
+            </label>
+          }
+
+          @if (errorMessage) {
+            <p role="alert" class="objective-error-text">{{ errorMessage }}</p>
+          }
+
+          <div class="objective-actions">
+            <button class="objective-primary" type="submit">Save answer</button>
+            @if (component.settings?.allow_unsure) {
+              <button type="button" (click)="submit(true)">I'm not sure</button>
+            }
+          </div>
+        </fieldset>
+      </form>
+    }
+
+    @if (showKnownDetails()) {
+      <details class="objective-known-details">
+        <summary>Details I'm using</summary>
+        <ul class="objective-notes">
+          @for (note of knownNotes(); track $index) {
+            <li><app-result-value [value]="note" /></li>
+          }
+        </ul>
+        <p class="objective-muted">If something is incorrect, tell Oala in the chat.</p>
+      </details>
+    }
+  </section>
+}

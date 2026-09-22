@@ -7,11 +7,12 @@ import { ChatProgressComponent } from '../chat-progress/chat-progress.component'
 import { ComposerComponent, ComposerSendEvent } from '../composer/composer.component';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { ChatTurnDividerComponent } from '../chat-turn-divider/chat-turn-divider.component';
+import { ResearchDetailsComponent } from '../research-details/research-details.component';
 
 @Component({
   selector: 'chat-area',
   standalone: true,
-  imports: [CommonModule, ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, SidebarComponent, ChatTurnDividerComponent],
+  imports: [CommonModule, ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, SidebarComponent, ChatTurnDividerComponent, ResearchDetailsComponent],
   templateUrl: './chat-area.component.html',
   styleUrl: './chat-area.component.scss'
 })
@@ -66,6 +67,11 @@ export class ChatAreaComponent implements AfterViewChecked {
   async deleteConv(e: Event, id: string): Promise<void> {
     e.stopPropagation();
     await this.lab.deleteConversation(id);
+  }
+
+  onUseResearch(text: string): void {
+    if (this.lab.isStreaming()) return;
+    this.lab.sendMessage(text);
   }
 
   onComposerSend(event: ComposerSendEvent): void {

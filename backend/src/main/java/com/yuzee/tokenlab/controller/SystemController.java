@@ -315,8 +315,139 @@ public class SystemController {
         return ResponseEntity.ok(Map.of("answer", pathwayWhiteboardService.explain(node, question, modelId)));
     }
 
+    /**
+     * Seeds and returns a fully-populated demo conversation -- Java port of the old app's
+     * POST /api/conversations/load-demo (server.ts lines 901-1056). Same "Cybersecurity Analyst
+     * Pathway" scenario: a career-context capsule, one real user/assistant turn pair with a
+     * genuine v1.3 protocol envelope (steps block + a single_select interaction), so the Sidebar's
+     * "Load Demo Pathway" button has real, inspectable content instead of an empty conversation.
+     */
     @PostMapping("/api/conversations/load-demo")
     public ResponseEntity<?> loadDemo() {
-        return ResponseEntity.ok(Map.of("message", "Demo not available"));
+        Conversation conv = conversationService.create(GeminiModelRegistry.DEFAULT_MODEL_ID,
+            "Cybersecurity Analyst Pathway (Demo)");
+        conv.setOptimizationMode("AUTO");
+        conv.setResponseMode("standard");
+        conv.setStrategy("ADAPTIVE_HYBRID");
+        conv.setCareerContext(new LinkedHashMap<>(Map.of(
+            "facts", "2 years IT Support, CompTIA Network+ certified, hands-on Linux experience",
+            "goals", "Transition into Junior SOC Analyst / Tier 1 Security Analyst within 6-9 months",
+            "constraints", "Under $1,000 learning budget, 12 hrs/week study time",
+            "decisions", "Will pursue CompTIA Security+ first before CySA+",
+            "openThreads", "Evaluating TryHackMe SOC Level 1 vs BTL1 certification"
+        )));
+
+        Map<String, Object> interaction = new LinkedHashMap<>();
+        interaction.put("kind", "question");
+        interaction.put("input_type", "single_select");
+        interaction.put("question_id", "q_priority_focus");
+        interaction.put("question", "Which milestone would you like to plan out first?");
+        interaction.put("options", List.of(
+            demoOption("opt_siem", "SIEM & Practical Lab Setup", "Configuring free local lab environments", "siem_lab"),
+            demoOption("opt_cert", "Security+ Study Schedule", "Budget-friendly prep resources and exam tips", "sec_plus"),
+            demoOption("opt_portfolio", "Incident Walkthrough Portfolio", "Structuring public GitHub investigation reports", "portfolio")
+        ));
+        interaction.put("allow_other_input", false);
+        interaction.put("other_input_label", "");
+        interaction.put("fields", List.of());
+        interaction.put("recommended_actions", List.of());
+
+        Map<String, Object> block1 = new LinkedHashMap<>();
+        block1.put("id", "b1");
+        block1.put("type", "text");
+        block1.put("level", "none");
+        block1.put("variant", "default");
+        block1.put("title", "");
+        block1.put("text", "Your 2 years in IT support and Network+ foundation give you an immediate "
+            + "advantage in packet analysis and system diagnostics. Here is your targeted transition plan.");
+        block1.put("items", List.of());
+        block1.put("columns", List.of());
+        block1.put("rows", List.of());
+
+        Map<String, Object> block2 = new LinkedHashMap<>();
+        block2.put("id", "b2");
+        block2.put("type", "steps");
+        block2.put("level", "h2");
+        block2.put("variant", "info");
+        block2.put("title", "SOC Analyst Transition Blueprint");
+        block2.put("text", "Key milestones to reach Tier-1 SOC readiness within 6 months:");
+        block2.put("items", List.of(
+            demoStep("s1", "Month 1-2: SIEM & Log Interpretation",
+                "Master Splunk Free and Elastic Security log queries for Windows Event IDs and Linux auth logs.",
+                "Foundational"),
+            demoStep("s2", "Month 3-4: Credential Milestone",
+                "Prepare and clear CompTIA Security+ to pass automated HR filters.", "Certification"),
+            demoStep("s3", "Month 5-6: Hands-On Portfolio",
+                "Complete TryHackMe SOC Level 1 exercises and write up 2 incident walkthroughs in GitHub.", "Proof")
+        ));
+        block2.put("columns", List.of());
+        block2.put("rows", List.of());
+
+        Map<String, Object> parsedResponse = new LinkedHashMap<>();
+        parsedResponse.put("schema_version", "1.3");
+        parsedResponse.put("current_mode", "A_CONVERSATION");
+        parsedResponse.put("response_intent", "ACTION_PLAN");
+        parsedResponse.put("content_blocks", List.of(block1, block2));
+        parsedResponse.put("interaction", interaction);
+        parsedResponse.put("service", Map.of(
+            "flow", "NONE", "intent_detected", false, "goal_summary", "Junior SOC Analyst transition",
+            "trigger", "", "confidence", "", "selected_rmo", "", "offer_target", "",
+            "missing_inputs", List.of(), "actions", List.of()
+        ));
+        parsedResponse.put("state", Map.of(
+            "active_response_mode", "standard", "effective_response_mode", "standard",
+            "mode_source", "default", "safety_override_applied", false,
+            "user_confidence", Map.of("score", 65, "band", "medium", "evidence_strength", "moderate",
+                "trend", "stable", "reason_codes", List.of("GOAL_CLEAR", "ROUTE_UNRESOLVED")),
+            "progress", Map.of("explained", List.of("transition_overview"), "failed_attempts", 0,
+                "loop_count_same_issue", 0)
+        ));
+        parsedResponse.put("followups", Map.of(
+            "enabled", true, "cancel_on_user_message", true, "topic_lock", true, "topic_key", "soc_pathway",
+            "triggers", List.of(Map.of(
+                "after_seconds", 10,
+                "message", "Would you like me to recommend free SIEM lab guides or Security+ study schedules?",
+                "suggested_replies", List.of("Show free SIEM guides", "Security+ study schedule", "Portfolio template")
+            ))
+        ));
+
+        // ponytail: no fixed "user-demo-1"/"asst-demo-1" ids (the old app's file-per-conversation
+        // store tolerated repeated literals; this app's messages.id is a single global primary
+        // key, so a second demo load would collide) -- ChatMessage's default ctor already assigns
+        // a fresh random UUID, so just leave id unset here.
+        com.yuzee.tokenlab.model.ChatMessage userMsg = new com.yuzee.tokenlab.model.ChatMessage();
+        userMsg.setRole("user");
+        userMsg.setContent("What are the essential skills and certifications I need to transition "
+            + "from IT support to a junior SOC analyst?");
+
+        com.yuzee.tokenlab.model.ChatMessage assistantMsg = new com.yuzee.tokenlab.model.ChatMessage();
+        assistantMsg.setRole("assistant");
+        assistantMsg.setContent(parsedResponse);
+        assistantMsg.setParsedResponse(parsedResponse);
+        assistantMsg.setValidationFailed(false);
+
+        conv.getMessages().add(userMsg);
+        conv.getMessages().add(assistantMsg);
+        conv = conversationService.save(conv);
+        return ResponseEntity.ok(conv);
+    }
+
+    private static Map<String, Object> demoOption(String id, String label, String description, String value) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("label", label);
+        m.put("description", description);
+        m.put("value", value);
+        return m;
+    }
+
+    private static Map<String, Object> demoStep(String id, String title, String text, String value) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("title", title);
+        m.put("text", text);
+        m.put("value", value);
+        m.put("status", "planned");
+        return m;
     }
 }

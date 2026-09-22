@@ -1,0 +1,134 @@
+@if (pack) {
+  @if (pack.status === 'NOT_NEEDED') {
+    <!-- Nothing to show: the session explicitly decided courses aren't relevant here. -->
+  } @else if (pack.status !== 'READY') {
+    <p class="warehouse-status" role="status">{{ pack.message || 'Course data could not be loaded.' }}</p>
+  } @else if (!pack.courses.length) {
+    @if (pack.comparison) {
+      <app-provider-comparison [data]="pack.comparison" [selectionIds]="selected()" [selectionDisabled]="disabled" (toggleOption)="toggle($event)" />
+    }
+  } @else {
+    <section class="warehouse-courses" aria-label="Courses from the Yuzee catalogue">
+      @if (pack.comparison) {
+        <app-provider-comparison [data]="pack.comparison" [selectionIds]="selected()" [selectionDisabled]="disabled" (toggleOption)="toggle($event)" />
+      } @else {
+        <header>
+          <span class="warehouse-icon" aria-hidden="true">🎓</span>
+          <div>
+            <h3>Explore these courses</h3>
+            <p>Compare the details, then choose what to explore together.</p>
+          </div>
+        </header>
+
+        <div class="warehouse-table-scroll" tabindex="0" role="region" aria-label="Course comparison">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Course</th>
+                <th scope="col">Duration</th>
+                <th scope="col">Study options</th>
+                <th scope="col">Tuition</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of pack.courses; track trackCourse(c)) {
+                <tr [attr.data-selected]="isSelected(c.id)">
+                  <th scope="row">
+                    <label>
+                      <input type="checkbox" [attr.aria-label]="'Select ' + c.name + ' at ' + c.provider"
+                        [checked]="isSelected(c.id)" [disabled]="checkboxDisabled(c.id)" (change)="toggle(c.id)" />
+                      <span>
+                        <strong>{{ c.name }}</strong>
+                        <small>{{ c.provider }}</small>
+                        @if (c.level) { <small class="warehouse-level">AQF level {{ c.level }}</small> }
+                      </span>
+                    </label>
+                  </th>
+                  <td>{{ display(c.duration) }}</td>
+                  <td>{{ c.delivery.join(', ') || 'Not supplied' }}</td>
+                  <td>
+                    {{ c.fees.domestic !== null ? 'Domestic: ' + c.fees.domestic : 'Fee not supplied' }}
+                    @if (c.fees.international !== null) { <small>International: {{ c.fees.international }}</small> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="warehouse-choice">
+        <button type="button" [disabled]="disabled || !selected().length || saved" (click)="submit()">
+          <span aria-hidden="true">{{ saved ? '✓' : '→' }}</span>
+          {{ saved ? 'Saved to this conversation' : (selected().length > 1 ? 'Compare selected courses' : 'Explore selected course') }}
+        </button>
+        <span>Select up to three. You can change your mind.</span>
+      </div>
+
+      @for (c of pack.courses; track trackCourse(c)) {
+        <article class="warehouse-course">
+          <h4>{{ c.name }}</h4>
+          <p class="warehouse-provider">{{ c.provider }}</p>
+          @if (c.locations.length) {
+            <p class="warehouse-location"><span aria-hidden="true">📍</span>{{ locationsPreview(c) }}</p>
+          }
+          <details class="warehouse-course-details">
+            <summary>Learning, outcomes and quality</summary>
+
+            @if (c.description) { <p>{{ c.description }}</p> }
+
+            @if (c.skills.length) {
+              <h4>What you can learn</h4>
+              <ul>@for (x of c.skills; track trackText(x)) { <li>{{ x }}</li> }</ul>
+            }
+            @if (c.assessments.length) {
+              <h4>How learning is assessed</h4>
+              <p>{{ c.assessments.join(' · ') }}</p>
+            }
+            @if (c.outcomes.length) {
+              <h4>Where it can lead</h4>
+              <ul>@for (x of c.outcomes; track trackText(x)) { <li>{{ x }}</li> }</ul>
+            }
+            @if (c.bestFor.length) {
+              <h4>Who it may suit</h4>
+              <ul>@for (x of c.bestFor; track trackText(x)) { <li>{{ x }}</li> }</ul>
+            }
+            @if (c.quality.length) {
+              <section class="warehouse-quality">
+                <h4>Course quality indicators</h4>
+                <p>These describe the course, rather than your own readiness.</p>
+                @for (q of c.quality; track q.key) {
+                  <div class="warehouse-quality-row">
+                    <div><strong>{{ q.label }}</strong><span>{{ q.value }}/100</span></div>
+                    <meter min="0" max="100" [attr.value]="q.value" [attr.aria-label]="q.label + ': ' + q.value + ' out of 100'"></meter>
+                    <p>{{ q.explanation }}</p>
+                  </div>
+                }
+                @if (c.qualityExplanation) { <p>{{ c.qualityExplanation }}</p> }
+              </section>
+            }
+            @if (c.considerations.length) {
+              <h4>What to weigh up</h4>
+              <ul>@for (x of c.considerations; track trackText(x)) { <li>{{ x }}</li> }</ul>
+            }
+            @if (c.entry.length) {
+              <h4>Entry information</h4>
+              <ul>@for (x of c.entry; track trackText(x)) { <li>{{ x }}</li> }</ul>
+            }
+            @for (section of (c.intelligence ?? []); track section.key) {
+              <section>
+                <h4>{{ section.label }}</h4>
+                <ul>@for (item of section.items; track trackText(item)) { <li>{{ item }}</li> }</ul>
+              </section>
+            }
+            @if (c.source.url) {
+              <a [href]="c.source.url" target="_blank" rel="noreferrer">View course source ↗</a>
+            }
+          </details>
+        </article>
+      }
+    </section>
+  }
+} @else {
+  <p class="warehouse-status" role="status">{{ statusMessage() }}</p>
+}

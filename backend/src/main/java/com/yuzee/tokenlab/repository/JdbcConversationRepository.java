@@ -107,7 +107,7 @@ public class JdbcConversationRepository implements ConversationRepository {
               id, title, model_id, created_at, updated_at, expires_at,
               optimization_mode, response_mode, strategy, career_context, summary_text,
               profile_facts, mini_pathways, details, objectives
-            ) VALUES (?,?,?,?,?, NOW() + INTERVAL '30 days', ?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?, NOW() + INTERVAL '30 days', ?,?,?,?::jsonb,?,?,?,?,?)
             ON CONFLICT (id) DO UPDATE SET
               title              = EXCLUDED.title,
               model_id           = EXCLUDED.model_id,

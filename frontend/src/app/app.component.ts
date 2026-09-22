@@ -16,6 +16,10 @@ import { AnalyticsDashboardModalComponent } from './components/modals/analytics-
 import { BenchmarkModalComponent } from './components/modals/benchmark/benchmark-modal.component';
 import { MiniPathwayExperienceComponent } from './components/mini-pathway/mini-pathway-experience.component';
 import { PathwayWhiteboardComponent } from './components/pathway-whiteboard/pathway-whiteboard.component';
+import { ObjectiveWorkspaceComponent } from './components/objectives/objective-workspace.component';
+import { ObjectiveHandoffResult } from './components/objectives/objectives.types';
+import { AdvancedLabModalComponent } from './components/modals/advanced-lab/advanced-lab-modal.component';
+import { ExportModalComponent } from './components/modals/export/export-modal.component';
 
 @Component({
   selector: 'app-root',
@@ -35,7 +39,10 @@ import { PathwayWhiteboardComponent } from './components/pathway-whiteboard/path
     AnalyticsDashboardModalComponent,
     BenchmarkModalComponent,
     MiniPathwayExperienceComponent,
-    PathwayWhiteboardComponent
+    PathwayWhiteboardComponent,
+    ObjectiveWorkspaceComponent,
+    AdvancedLabModalComponent,
+    ExportModalComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -52,6 +59,12 @@ export class AppComponent implements OnInit {
 
   onOpenTool(key: ToolMenuKey): void { this.activeTool.set(key); }
   closeTool(): void { this.activeTool.set(null); }
+
+  onObjectiveHandoff(result: ObjectiveHandoffResult): void {
+    this.closeTool();
+    const message = result.summary?.trim() || `Objective "${result.objective}" complete — use this result to continue planning.`;
+    this.lab.sendMessage(message);
+  }
 
   /** Last assistant message's own token/compaction figures, for the tools that inspect the active turn. */
   get lastAssistantTokenUsage() {

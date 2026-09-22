@@ -1,0 +1,140 @@
+@if (offer) {
+  <section class="research-panel" [class.is-open]="open">
+    <button type="button" class="panel-toggle" [attr.aria-expanded]="open" (click)="toggle()">
+      <span class="toggle-icon">&#128269;</span>
+      <span class="toggle-text">
+        <strong>{{ offer.research?.title || 'Check course details' }}</strong>
+        <span>{{ offer.research?.description }}</span>
+      </span>
+      <span class="toggle-chevron" [class.is-open]="open">&#9660;</span>
+    </button>
+
+    @if (open) {
+      <div class="panel-body">
+        @if (results.length > 1) {
+          <details class="research-history">
+            <summary>
+              <span>Saved answers</span>
+              <span class="count-pill">{{ results.length }}</span>
+            </summary>
+            <div class="history-list">
+              @for (result of savedAnswersReversed; track result.id) {
+                <button type="button" class="history-item" [attr.aria-pressed]="isSelected(result)"
+                        [disabled]="active || disabled" (click)="selectResult(result)">
+                  <span>{{ historyLabel($index, result) }}</span>
+                  <strong>{{ result.request.question }}</strong>
+                  @if (isSelected(result)) {
+                    <span class="history-current">Viewing</span>
+                  }
+                </button>
+              }
+            </div>
+          </details>
+        }
+
+        @if (selected; as sel) {
+          <div #answerAnchor class="answer-anchor">
+            <app-research-answer-card
+              [result]="sel"
+              [disabled]="active || disabled"
+              (askQuestion)="onAskQuestion($event)"
+              (use)="onUse()" />
+          </div>
+        }
+
+        <form class="question-form" (ngSubmit)="submit($event)">
+          <div class="form-heading">
+            <h3>{{ replyTo ? 'Your answer' : results.length ? 'Ask another question' : 'Review your question' }}</h3>
+          </div>
+
+          @if (!results.length) {
+            <p class="help-text">Your question and known details are ready. Check them before looking up sources.</p>
+          }
+
+          @if (!editingScope && target) {
+            <div class="scope-summary">
+              <div>
+                <strong>{{ target }}</strong>
+                <span class="scope-meta">{{ scopeSummaryText }}</span>
+              </div>
+              <button type="button" class="text-button" [disabled]="active || disabled" (click)="setEditingScope(true)">
+                Edit details
+              </button>
+            </div>
+          }
+
+          @if (editingScope) {
+            <fieldset class="scope-fields" [disabled]="active || disabled || loadingSaved">
+              <legend class="visually-hidden">Course and location details</legend>
+              <label>
+                Course or option
+                <input type="text" [(ngModel)]="target" name="target" required maxlength="350" placeholder="Course name and provider" />
+              </label>
+              <div class="field-pair">
+                <label>
+                  Study year <span class="optional-tag">Optional</span>
+                  <input type="text" [(ngModel)]="studyYear" name="studyYear" maxlength="20" placeholder="For example, 2027" />
+                </label>
+                <label>
+                  Location <span class="optional-tag">Optional</span>
+                  <input type="text" [(ngModel)]="location" name="location" maxlength="150" placeholder="Enter a city or country" />
+                </label>
+              </div>
+              @if (results.length > 0) {
+                <button type="button" class="text-button" [disabled]="!target.trim()" (click)="setEditingScope(false)">
+                  Done editing
+                </button>
+              }
+            </fieldset>
+          }
+
+          @if (replyTo) {
+            <div class="reply-context">
+              <p>{{ replyTo }}</p>
+              <button type="button" class="icon-button" [disabled]="active" (click)="cancelReply()" aria-label="Cancel clarification reply">
+                &times;
+              </button>
+            </div>
+          }
+
+          <label class="visually-hidden" for="research-question">
+            {{ replyTo ? 'Your answer to the clarification' : 'Your follow-up question' }}
+          </label>
+          <textarea #questionInput id="research-question" rows="3" required [maxlength]="questionLimit"
+                    [(ngModel)]="question" name="question" [disabled]="active || disabled || loadingSaved"
+                    [placeholder]="replyTo ? 'Type your answer. “I’m not sure” is fine too.' : 'For example, can I study part-time while working?'">
+          </textarea>
+
+          @if (error) {
+            <p class="error-text" role="alert">{{ error }}</p>
+          }
+
+          <div class="progress-row" role="status" aria-live="polite">
+            @if (loadingSaved) {
+              <span>Loading your saved answers…</span>
+            }
+            @if (active) {
+              <span><span class="progress-dot"></span>{{ stageLabel }}</span>
+            }
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary" [disabled]="active || disabled || loadingSaved || !question.trim() || !target.trim()">
+              {{ replyTo ? 'Continue with my answer' : 'Find my answer' }}
+            </button>
+            @if (active) {
+              <button type="button" class="text-button" (click)="stopSearch()">Stop search</button>
+            }
+            <details class="search-options">
+              <summary>Search options</summary>
+              <label>
+                <input type="checkbox" [(ngModel)]="refresh" name="refresh" [disabled]="active || disabled" />
+                Check for updates instead of reusing a recent answer
+              </label>
+            </details>
+          </div>
+        </form>
+      </div>
+    }
+  </section>
+}

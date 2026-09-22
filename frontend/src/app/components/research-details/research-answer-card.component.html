@@ -1,0 +1,108 @@
+<article class="answer-card">
+  <header class="answer-header">
+    <span class="status-badge" [class.is-supported]="result.status === 'answered'">
+      {{ statusLabel }}
+    </span>
+    <span class="answer-date">Checked {{ result.retrievedAt | date: 'd MMM y' }}</span>
+  </header>
+
+  <p class="answer-course">{{ result.request.target }}</p>
+  @if (scopeNote) {
+    <p class="answer-scope-note">{{ scopeNote }}</p>
+  }
+
+  <h3 class="answer-title">{{ titleText }}</h3>
+  <p class="answer-summary">{{ result.summary }}</p>
+
+  <details class="answer-original-question">
+    <summary>View your question</summary>
+    <p>{{ result.request.question }}</p>
+  </details>
+
+  @if (result.gaps.length > 0) {
+    <section class="answer-gaps">
+      <div class="section-heading">
+        <h4>Still to confirm</h4>
+        <span class="count-pill">{{ result.gaps.length }} {{ result.gaps.length === 1 ? 'item' : 'items' }}</span>
+      </div>
+      <ul>
+        @for (gap of result.gaps; track $index) {
+          <li>{{ gap }}</li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (result.facts.length > 0) {
+    <details class="answer-evidence">
+      <summary>
+        <span class="disclosure-label">Details &amp; sources <span class="count-pill">{{ result.facts.length }} findings</span></span>
+      </summary>
+      <div class="evidence-content">
+        <p class="help-text">Source-based findings are AI summaries. Interpretations and general career expectations are labelled separately.</p>
+        <ol class="findings-list">
+          @for (fact of result.facts; track $index) {
+            <li>
+              <span class="finding-kind">{{ factKindLabels[fact.kind] }}</span>
+              <p>{{ fact.text }}</p>
+              <div class="citations">
+                @for (source of factSources(fact); track source.id) {
+                  <a [href]="source.url" target="_blank" rel="noopener noreferrer">
+                    <span class="citation-number">{{ sourceNumber(source.id) }}</span>{{ source.title }}
+                  </a>
+                }
+              </div>
+              <details class="passages">
+                <summary>Read supporting passages</summary>
+                @for (evidence of factEvidence(fact); track evidence.id) {
+                  <blockquote>{{ evidence.text }}</blockquote>
+                }
+              </details>
+            </li>
+          }
+        </ol>
+      </div>
+    </details>
+  }
+
+  @if (clarifications.length > 0) {
+    <section class="answer-clarifications">
+      <h4>Help us make this more useful</h4>
+      @for (q of clarifications; track $index) {
+        <div class="clarification-row">
+          <p>{{ q.text }}</p>
+          <button type="button" class="text-button" [disabled]="disabled" (click)="onAskQuestion(q.text, 'ask_user')">
+            Answer
+          </button>
+        </div>
+      }
+    </section>
+  }
+
+  @if (result.facts.length > 0) {
+    <div class="plan-action">
+      <button type="button" class="btn-primary" [disabled]="disabled" (click)="onUse()">
+        Use this in my plan
+      </button>
+      <p>Continue in your conversation with these findings.</p>
+    </div>
+  }
+
+  @if (suggested.length > 0) {
+    <section class="answer-next">
+      <h4>Explore next</h4>
+      @for (q of suggested; track $index) {
+        <button type="button" class="next-question" [disabled]="disabled" (click)="onAskQuestion(q.text, 'suggested_question')">
+          {{ q.text }}
+        </button>
+      }
+    </section>
+  }
+
+  <footer class="answer-footer">
+    <p>AI summary &middot; Details can change. Check the sources before deciding.</p>
+    @if (result.searchSuggestionsHtml) {
+      <p class="search-suggestions-fallback">Google Search suggestions unavailable.</p>
+    }
+  </footer>
+</article>

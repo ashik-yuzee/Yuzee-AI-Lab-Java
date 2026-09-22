@@ -15,6 +15,9 @@ public class ChatMessage {
     private Map<String, Object> tokenUsage;
     private Boolean streamStopped;
     private Boolean validationFailed;
+    /** The server's research-offer classification for this turn (TurnNeedsService), when it
+     *  decided a scoped "explore more" lookup is relevant -- null for every ordinary turn. */
+    private TurnNeeds turnNeeds;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -32,4 +35,6 @@ public class ChatMessage {
     public void setStreamStopped(Boolean streamStopped) { this.streamStopped = streamStopped; }
     public Boolean getValidationFailed() { return validationFailed; }
     public void setValidationFailed(Boolean validationFailed) { this.validationFailed = validationFailed; }
+    public TurnNeeds getTurnNeeds() { return turnNeeds; }
+    public void setTurnNeeds(TurnNeeds turnNeeds) { this.turnNeeds = turnNeeds; }
 }

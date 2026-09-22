@@ -1,0 +1,114 @@
+<section class="warehouse-comparison" aria-label="RTO and course intelligence comparison">
+  <header>
+    <span class="warehouse-icon" aria-hidden="true">⇄</span>
+    <h3>{{ data.title }}</h3>
+  </header>
+  <p>{{ data.baseline }}</p>
+
+  @for (m of unmatchedProviderMatches(); track m.query) {
+    <p class="warehouse-status">
+      {{ m.status === 'NOT_FOUND'
+        ? 'No provider match was returned for “' + m.query + '”.'
+        : 'More than one provider matches “' + m.query + '”. Use the full name or RTO code to make the comparison specific.' }}
+    </p>
+  }
+
+  @for (n of (data.notes ?? []); track n) {
+    <p class="warehouse-status">{{ n }}</p>
+  }
+
+  @if (data.options.length) {
+    <label class="warehouse-comparison-toggle">
+      <input type="checkbox" [(ngModel)]="showAll" /> Show all comparison details
+    </label>
+
+    @if (!visibleRows().length) {
+      <p>The supplied details do not establish a meaningful difference between these options. The shared learning is still useful; your preferred study setup can guide what to explore next.</p>
+    }
+
+    <div class="warehouse-table-scroll" tabindex="0" role="region" aria-label="Provider differences">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">What matters</th>
+            @for (o of data.options; track o.id) {
+              <th scope="col">
+                @if (selectionIds !== null) {
+                  <label>
+                    <input type="checkbox" [attr.aria-label]="'Select ' + o.subtitle + ' at ' + o.title"
+                      [checked]="isSelected(o.id)" [disabled]="selectionCheckboxDisabled(o.id)" (change)="toggle(o.id)" />
+                    {{ o.title }}
+                  </label>
+                } @else {
+                  {{ o.title }}
+                }
+                <small>{{ o.subtitle }}</small>
+              </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of visibleRows(); track trackByKey(r)) {
+            <tr>
+              <th scope="row">
+                {{ r.label }}
+                <small>{{ basisLabel(r.basis) }}</small>
+                <details class="warehouse-row-meaning">
+                  <summary>Why it matters</summary>
+                  <p>{{ r.meaning }}</p>
+                </details>
+              </th>
+              @for (cell of r.values; track $index) {
+                <td>
+                  @if (cell.length) {
+                    <ul>@for (v of cell; track $index) { <li>{{ v }}</li> }</ul>
+                  } @else {
+                    <span class="warehouse-muted">Not supplied</span>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (sharedRows().length) {
+      <details>
+        <summary>What the records have in common</summary>
+        @for (r of sharedRows(); track trackByKey(r)) {
+          <div>
+            <h4>{{ r.label }}</h4>
+            <p>{{ r.values[0].join(' · ') }}</p>
+          </div>
+        }
+      </details>
+    }
+
+    @if (unknownRows().length) {
+      <details>
+        <summary>Details not supplied</summary>
+        <p>{{ unknownLabels() }}. These do not establish an advantage or disadvantage.</p>
+      </details>
+    }
+  }
+
+  @if (hasQualificationUnits()) {
+    <details>
+      <summary><span aria-hidden="true">📘</span> Shared qualification content</summary>
+      @for (q of data.qualifications; track trackByCode(q)) {
+        <section>
+          <h4>{{ q.code }}</h4>
+          <p>{{ q.scope }}</p>
+          <ul>
+            @for (u of q.units; track u.code) {
+              <li>{{ u.title }} <small>{{ u.code }} · {{ unitTypeLabel(u.type) }}</small></li>
+            }
+          </ul>
+        </section>
+      }
+    </details>
+  }
+
+  <p class="warehouse-muted">Yuzee analysis explains the learning and trade-offs. Differences in wording or course scores alone do not establish which RTO teaches better.</p>
+</section>

@@ -29,6 +29,9 @@ import com.yuzee.tokenlab.service.SystemPromptCacheManager;
 import com.yuzee.tokenlab.service.SystemPromptService;
 import com.yuzee.tokenlab.service.TeachingAnswerReviewService;
 import com.yuzee.tokenlab.service.TokenService;
+import com.yuzee.tokenlab.service.TurnNeedsService;
+import com.yuzee.tokenlab.model.HistoryTurn;
+import com.yuzee.tokenlab.model.TurnNeeds;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -63,6 +66,7 @@ public class ChatController {
     private final MiniPathwayService miniPathwayService;
     private final DetailResearchService detailResearchService;
     private final ObjectiveService objectiveService;
+    private final TurnNeedsService turnNeedsService;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ExecutorService executor = Executors.newCachedThreadPool();
@@ -86,7 +90,8 @@ public class ChatController {
                           OalaService oalaService,
                           MiniPathwayService miniPathwayService,
                           DetailResearchService detailResearchService,
-                          ObjectiveService objectiveService) {
+                          ObjectiveService objectiveService,
+                          TurnNeedsService turnNeedsService) {
         this.conversationService = conversationService;
         this.geminiService = geminiService;
         this.systemPromptService = systemPromptService;
@@ -104,6 +109,7 @@ public class ChatController {
         this.miniPathwayService = miniPathwayService;
         this.detailResearchService = detailResearchService;
         this.objectiveService = objectiveService;
+        this.turnNeedsService = turnNeedsService;
     }
 
     @PostMapping(value = "/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -205,6 +211,24 @@ public class ChatController {
                 }
             }
             compactionMetrics = assembled.compactionMetrics;
+
+            // Advisory-only research-need classification (TurnNeedsService), read by the frontend's
+            // "explore more" panel. Never lets a classifier failure break the actual turn.
+            TurnNeeds preflight = null;
+            try {
+                List<HistoryTurn> historyTurns = new ArrayList<>();
+                for (ChatMessage m : conv.getMessages()) {
+                    HistoryTurn ht = new HistoryTurn(m.getRole(),
+                        m.getContent() instanceof String s ? s : "");
+                    if ("assistant".equals(m.getRole())) ht.setPreflight(m.getTurnNeeds());
+                    historyTurns.add(ht);
+                }
+                boolean structuredTurn = !(currentUserInput instanceof String);
+                String turnText = currentUserInput instanceof String s ? s : "";
+                preflight = turnNeedsService.assessTurnNeeds(turnText, historyTurns, structuredTurn, null, null);
+            } catch (Exception ignored) {
+                // classification is advisory only
+            }
 
             // Persist the user's turn now — after classification/history assembly has already
             // run against the conversation's prior state, but before anything downstream can
@@ -315,6 +339,7 @@ public class ChatController {
                 assistantMsg.setParsedResponse(mapper.convertValue(finalParsed, Map.class));
             }
             assistantMsg.setValidationFailed(validationFailed);
+            assistantMsg.setTurnNeeds(preflight);
             Map<String, Object> usageMap = Map.of(
                 "promptTokens", promptTokens,
                 "outputTokens", outputTokens,
@@ -337,6 +362,8 @@ public class ChatController {
             finalPayload.put("validationFailed", validationFailed);
             finalPayload.put("tokenUsage", usageMap);
             if (compactionMetrics != null) finalPayload.put("compaction", compactionMetrics);
+            TurnNeeds offer = preflight != null ? turnNeedsService.researchOffer(preflight) : null;
+            if (offer != null) finalPayload.put("researchOffer", offer);
             sendQuiet(emitter, finalPayload);
             emitter.complete();
         } catch (Exception e) {

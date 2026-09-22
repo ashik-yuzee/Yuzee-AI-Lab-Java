@@ -1,0 +1,27 @@
+<section class="router-model-selector" aria-label="Routing model">
+  <div class="rms-head">
+    <span class="rms-label">Routing Model</span>
+    <span class="rms-badge"
+          [class.is-ready]="status === 'ready'"
+          [class.is-loading]="status === 'loading'"
+          [class.is-error]="status === 'error'">
+      {{ status }}
+    </span>
+  </div>
+
+  <p class="rms-model-name">BGE-small <span class="rms-model-id">Xenova/bge-small-en-v1.5</span></p>
+
+  <p class="rms-desc">
+    A small embedding model that runs locally in the browser to decide which skill or pathway a
+    message routes to — Gemini still writes the actual answer. One model is shared across skills,
+    questions and pathways, each with its own matching rules. There is nothing to pick here: when
+    the local model can't load, routing falls back to a server-side call automatically.
+  </p>
+
+  <p class="rms-status" role="status">
+    {{ statusText[status] }}
+    @if (status === 'error') {
+      <button type="button" class="rms-retry" (click)="retry()">Retry</button>
+    }
+  </p>
+</section>

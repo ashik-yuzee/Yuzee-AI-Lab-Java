@@ -63,6 +63,15 @@
                 </div>
               }
 
+              @if (!msg.streaming && msg.researchOffer) {
+                <app-research-details
+                  [offer]="msg.researchOffer"
+                  [conversationId]="lab.activeConversation()!.id"
+                  [parentMessageId]="msg.id"
+                  [disabled]="lab.isStreaming()"
+                  (useInPlan)="onUseResearch($event)" />
+              }
+
               @if (msg.streamStopped) {
                 <div class="text-muted mt-1" style="font-size:12px">⏹ Stream stopped</div>
               }

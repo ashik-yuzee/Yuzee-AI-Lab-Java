@@ -60,10 +60,13 @@ export class TokenLabService {
     return conv;
   }
 
-  /** ponytail: no demo dataset wired up server-side yet (endpoint is a stub) — just starts a
-   * titled conversation so the Sidebar's "Load Demo" button has somewhere to land. */
   async loadDemoConversation(): Promise<Conversation> {
-    return this.createConversation(undefined, 'Cybersecurity Analyst Pathway (Demo)');
+    const conv = await firstValueFrom(
+      this.http.post<Conversation>('/api/conversations/load-demo', {}, { headers: this.headers })
+    );
+    this.conversations.update(cs => [conv, ...cs]);
+    this.activeConversationId.set(conv.id);
+    return conv;
   }
 
   async renameConversation(id: string, title: string): Promise<void> {
@@ -232,6 +235,7 @@ export class TokenLabService {
       parsedResponse: data?.parsedResponse,
       tokenUsage: data?.tokenUsage,
       compaction: data?.compaction,
+      researchOffer: data?.researchOffer,
       validationFailed: data?.validationFailed || !!error,
       streaming: false
     };

@@ -1,0 +1,149 @@
+@if (pack && pack.status === 'READY') {
+  @if (pack.connected; as connected) {
+    @if (hasContent(connected)) {
+      <section class="warehouse-connections" [class.is-local-first]="localFirst" aria-label="Connected career and local information">
+        @if (!localFirst) {
+          <header>
+            <span class="warehouse-icon" aria-hidden="true">🔗</span>
+            <div>
+              <h3>How the options connect</h3>
+              <p>Explore the work, the places and what matters for your area.</p>
+            </div>
+          </header>
+        }
+
+        <div class="warehouse-area">
+          <span class="warehouse-icon" aria-hidden="true">📍</span>
+          <div>
+            <strong>{{ regionHeading(connected) }}</strong>
+            @if (!localFirst) { <p>{{ areaSubtext(connected) }}</p> }
+          </div>
+          <button type="button" class="warehouse-text-button" (click)="toggleEditing()" [disabled]="disabled">
+            {{ connected.location.region ? 'Change area' : 'Add area' }}
+          </button>
+        </div>
+
+        @if (editing()) {
+          <form class="warehouse-area-form" (ngSubmit)="submitArea()">
+            <label for="warehouse-area">Suburb and state, or postcode</label>
+            <div>
+              <input id="warehouse-area" [ngModel]="area()" (ngModelChange)="area.set($event)" name="area"
+                placeholder="For example, Ringwood, VIC" maxlength="120" [disabled]="disabled" />
+              <button type="submit" [disabled]="disabled || !area().trim()">
+                <span aria-hidden="true">✓</span> Save area
+              </button>
+            </div>
+            <p>Saved in this conversation and used in your next answers.</p>
+          </form>
+        }
+
+        @if (localFirst && connected.location.region) {
+          <app-local-area-guide [data]="connected" />
+        }
+
+        @if (connected.exploration; as exploration) {
+          @if (localFirst) {
+            <details class="local-skills-disclosure">
+              <summary>Explore roles and skills that connect with your interests</summary>
+              <app-skills-explorer [data]="exploration" [saved]="savedExploration" [disabled]="disabled"
+                (save)="saveExploration.emit($event)" (course)="course.emit($event)" />
+            </details>
+          } @else {
+            <app-skills-explorer [data]="exploration" [saved]="savedExploration" [disabled]="disabled"
+              (save)="saveExploration.emit($event)" (course)="course.emit($event)" />
+          }
+        }
+
+        @if (showCareersSection(connected)) {
+          <section class="warehouse-linked-section">
+            <h4><span aria-hidden="true">💼</span> Careers connected to your options</h4>
+            <p class="warehouse-muted">These are related roles to explore. Some need further study, experience or registration.</p>
+            @for (c of connected.careers; track trackById(c)) {
+              <article class="warehouse-career">
+                <h5>{{ c.title }}</h5>
+                @if (c.courseLinks.length) {
+                  <p class="warehouse-path"><span aria-hidden="true">→</span>{{ courseLinkNames(c) }}</p>
+                }
+                @if (c.description) { <p>{{ c.description }}</p> }
+                @if (c.tasks.length || c.skills.length) {
+                  <details>
+                    <summary>What the work involves</summary>
+                    @if (c.tasks.length) {
+                      <ul>@for (t of c.tasks; track trackText(t)) { <li>{{ t }}</li> }</ul>
+                    }
+                    @if (c.skills.length) { <p><strong>Skills used:</strong> {{ c.skills.join(' · ') }}</p> }
+                    <p class="warehouse-muted">{{ c.profileScope }}. {{ c.profileSource }}.</p>
+                  </details>
+                }
+              </article>
+            }
+          </section>
+        }
+
+        @if (!localFirst && namedIndustries(connected).length) {
+          <section class="warehouse-linked-section">
+            <h4><span aria-hidden="true">🔗</span> Industries these options connect to</h4>
+            <p>{{ namedIndustries(connected).join(' · ') }}</p>
+          </section>
+        }
+
+        @if (!localFirst && connected.signals.length) {
+          <section class="warehouse-linked-section">
+            <h4><span aria-hidden="true">📍</span> Your area and the wider outlook</h4>
+            <p class="warehouse-muted">Dates and areas matter: these are stored signals, not a list of jobs currently open.</p>
+            <div class="warehouse-signal-list">
+              @for (s of connected.signals; track trackById(s)) {
+                <article>
+                  <div class="warehouse-signal-meta">
+                    <span [attr.data-local]="s.localMatch">{{ scopeLabel(s.scope) }}</span>
+                    <span>{{ s.region }}</span>
+                    @if (s.period) { <span>{{ s.period }}</span> }
+                  </div>
+                  <h5>{{ s.title }}</h5>
+                  <p>{{ s.text }}</p>
+                  @if (s.kind === 'PROJECTION') { <small>A forecast, not a guaranteed outcome.</small> }
+                  @if (s.kind === 'EMPLOYER_SIGNAL') { <small>A recorded employer link; a current vacancy is not confirmed.</small> }
+                  <details>
+                    <summary>About this information</summary>
+                    <p>{{ s.source }}{{ s.updatedAt ? ' · Updated ' + s.updatedAt.slice(0, 10) : '' }}</p>
+                    @if (s.method) { <p>{{ readable(s.method) }}</p> }
+                  </details>
+                </article>
+              }
+            </div>
+          </section>
+        }
+
+        @if (!localFirst && connected.providers.length) {
+          <section class="warehouse-linked-section">
+            <h4><span aria-hidden="true">🏫</span> Places and support</h4>
+            @for (p of connected.providers; track trackById(p)) {
+              <details class="warehouse-provider-details">
+                <summary>{{ p.name }}</summary>
+                @if (p.support.length) { <p>{{ p.support.join(' · ') }}</p> }
+                @if (p.campuses.length) {
+                  <p>Provider locations. Confirm which location delivers your selected course.</p>
+                  <ul>@for (c of p.campuses; track trackCampus(c)) { <li>{{ campusLine(c) }}</li> }</ul>
+                }
+                @if (p.higherEducationFunding) {
+                  <p><strong>Higher education funding recorded for this provider</strong></p>
+                  <ul>@for (label of fundingLabels(p.higherEducationFunding); track label) { <li>{{ label }}</li> }</ul>
+                  <p class="warehouse-muted">{{ fundingPeriodNote(p.higherEducationFunding) }}</p>
+                }
+                @for (f of p.funding; track $index) {
+                  <p>
+                    <strong>{{ f.courseName }} — {{ f.scheme }}</strong><br />
+                    {{ fundingRowSummary(f) }}<br />
+                    <small>Subject to the course, scheme and your eligibility.</small>
+                  </p>
+                }
+              </details>
+            }
+          </section>
+        }
+      </section>
+    }
+  }
+} @else if (!pack) {
+  <p class="warehouse-status" role="status">{{ statusMessage() }}</p>
+}

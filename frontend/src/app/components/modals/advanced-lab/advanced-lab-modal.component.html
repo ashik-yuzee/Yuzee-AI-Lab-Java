@@ -1,0 +1,208 @@
+@if (open) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <div class="header-icon">🧪</div>
+          <div>
+            <h2 class="card-title-text mb-0">Advanced Research Lab</h2>
+            <p class="card-subtitle mb-0">Memory strategy, prompt &amp; response, routing, and session telemetry</p>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+      </div>
+
+      <nav class="tab-nav">
+        @for (tab of tabs; track tab.id) {
+          <button type="button" class="tab-btn" [class.active]="activeTab() === tab.id" (click)="setActiveTab(tab.id)">
+            {{ tab.label }}
+          </button>
+        }
+      </nav>
+
+      <div class="card-body">
+        @if (!conversation()) {
+          <div class="alert-box alert-info mb-3">
+            No active conversation — per-conversation settings (strategy, response mode, reset memory,
+            export) are unavailable until a conversation is selected. Routing status and session
+            telemetry below aren't conversation-scoped and still work.
+          </div>
+        }
+
+        @switch (activeTab()) {
+          @case ('memory') {
+            <div class="lab-section">
+              <h3 class="section-label">Memory Management Strategy</h3>
+              <div class="option-grid">
+                @for (s of strategies; track s.id) {
+                  <button type="button" class="option-card"
+                          [class.selected]="conversation()?.strategy === s.id"
+                          [disabled]="!conversation() || savingStrategy()"
+                          (click)="selectStrategy(s.id)">
+                    <div class="option-title">{{ s.title }}</div>
+                    <div class="option-desc">{{ s.desc }}</div>
+                  </button>
+                }
+              </div>
+
+              <div class="info-card mt-3">
+                <strong>Thinking level</strong> is chosen automatically per turn by a local classifier on
+                the server (RequestAssemblerService), based on the message content — it isn't a
+                per-conversation setting this build lets you override.
+              </div>
+
+              <div class="d-flex align-items-center justify-content-between mt-3">
+                <div>
+                  <h3 class="section-label mb-0">Reset Conversation Memory</h3>
+                  <p class="hint-text mb-0">Clears the semantic summary and compaction history for this conversation.</p>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                        [disabled]="!conversation() || resettingMemory()"
+                        (click)="openResetMemoryConfirm()">
+                  Reset Memory
+                </button>
+              </div>
+              @if (resetMemoryStatus()) {
+                <p class="status-line">{{ resetMemoryStatus() }}</p>
+              }
+
+              <p class="hint-text mt-3">
+                Structured career-context facts (goals, constraints, decisions) are edited from the
+                dedicated Career Context tool, not here.
+              </p>
+            </div>
+          }
+
+          @case ('prompt') {
+            <div class="lab-section">
+              <div class="d-flex align-items-start justify-content-between gap-2">
+                <div>
+                  <h3 class="section-label mb-0">Active System Prompt</h3>
+                  <p class="hint-text mb-0">Shared across all users and sessions.</p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        [disabled]="reloadingPrompt()" (click)="reloadPrompt()">
+                  {{ reloadingPrompt() ? 'Reloading…' : 'Reload Prompt' }}
+                </button>
+              </div>
+
+              @if (loadingPromptInfo()) {
+                <p class="hint-text">Loading…</p>
+              } @else {
+                @if (promptInfo(); as info) {
+                  <div class="prompt-meta">
+                    <span>{{ info.label }}</span>
+                    <span>v{{ info.version }}</span>
+                    <span>{{ info.byteSize | number }} bytes</span>
+                    <span>hash {{ info.hash }}</span>
+                  </div>
+                  <p class="hint-text">
+                    The backend only exposes prompt metadata (version / hash / size), not the full text,
+                    so there is no content preview here.
+                  </p>
+                } @else {
+                  <p class="hint-text">Prompt info unavailable.</p>
+                }
+              }
+
+              @if (reloadStatus()) {
+                <p class="status-line" [class.status-error]="reloadStatusIsError()">{{ reloadStatus() }}</p>
+              }
+
+              <div class="mt-4">
+                <h3 class="section-label">Response Mode <span class="hint-text">(per conversation)</span></h3>
+                <div class="option-grid option-grid-modes">
+                  @for (m of responseModes; track m.id) {
+                    <button type="button" class="option-card option-card-compact"
+                            [class.selected]="conversation()?.responseMode === m.id"
+                            [disabled]="!conversation() || savingResponseMode()"
+                            (click)="selectResponseMode(m.id)">
+                      <div class="option-title">{{ m.label }}</div>
+                      <div class="option-desc">{{ m.desc }}</div>
+                    </button>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+
+          @case ('routing') {
+            <div class="lab-section">
+              <app-router-model-selector></app-router-model-selector>
+              <p class="hint-text mt-3">
+                Optimization mode (Auto / Save Tokens / Full Context / Vanilla) is set from Settings, not
+                here — this tab only covers the client-side routing model used for skill/pathway
+                matching.
+              </p>
+            </div>
+          }
+
+          @case ('benchmark') {
+            <div class="lab-section">
+              <h3 class="section-label">Strategy Benchmark Matrix</h3>
+              <p class="hint-text">
+                Benchmarking (modelled estimate or live run, compared across strategies) lives in its own
+                dedicated Benchmark tool, using model <strong>{{ modelId }}</strong>.
+              </p>
+              <button type="button" class="btn btn-run btn-sm" (click)="triggerBenchmark()">Open Benchmark</button>
+            </div>
+          }
+
+          @case ('analytics') {
+            <div class="lab-section">
+              <div class="d-flex align-items-center justify-content-between">
+                <h3 class="section-label mb-0">Cumulative Session Telemetry</h3>
+                <button type="button" class="btn btn-outline-secondary btn-sm" (click)="openResetStatsConfirm()">
+                  Reset Counters
+                </button>
+              </div>
+
+              @if (sessionStats(); as stats) {
+                <div class="stats-grid">
+                  <div class="stat-card"><span class="stat-k">Prompt Tokens</span><span class="stat-v">{{ stats.promptTokens | number }}</span></div>
+                  <div class="stat-card"><span class="stat-k">Output Tokens</span><span class="stat-v">{{ stats.outputTokens | number }}</span></div>
+                  <div class="stat-card"><span class="stat-k">Total Tokens</span><span class="stat-v">{{ stats.totalTokens | number }}</span></div>
+                  <div class="stat-card"><span class="stat-k">Turns</span><span class="stat-v">{{ stats.turns | number }}</span></div>
+                  <div class="stat-card"><span class="stat-k">Est. Cost (USD)</span><span class="stat-v">{{ stats.estimatedCostUsd | number:'1.4-4' }}</span></div>
+                </div>
+              } @else {
+                <p class="hint-text">No session telemetry yet.</p>
+              }
+
+              <div class="d-flex justify-content-end mt-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        [disabled]="!conversation()" (click)="exportTelemetryJson()">
+                  Export Conversation (JSON)
+                </button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <div class="card-footer d-flex align-items-center justify-content-end">
+        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+      </div>
+    </div>
+  </div>
+}
+
+<app-confirm-dialog
+  [isOpen]="resetMemoryConfirmOpen()"
+  title="Reset Conversation Memory?"
+  description="This clears the semantic conversation summary and compaction history for this conversation. Career context facts are not affected."
+  confirmLabel="Reset Memory"
+  [isDestructive]="true"
+  (confirmed)="confirmResetMemory()"
+  (cancelled)="resetMemoryConfirmOpen.set(false)">
+</app-confirm-dialog>
+
+<app-confirm-dialog
+  [isOpen]="resetStatsConfirmOpen()"
+  title="Reset Cumulative Counters?"
+  description="This resets all session telemetry counters back to zero."
+  confirmLabel="Reset Counters"
+  [isDestructive]="true"
+  (confirmed)="confirmResetStats()"
+  (cancelled)="resetStatsConfirmOpen.set(false)">
+</app-confirm-dialog>

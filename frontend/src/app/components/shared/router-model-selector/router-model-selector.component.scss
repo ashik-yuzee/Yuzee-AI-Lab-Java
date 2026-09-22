@@ -1,0 +1,74 @@
+.router-model-selector {
+  background: #fff;
+  border: 1px solid #e4e9f2;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 12px;
+}
+
+.rms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.rms-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #27364a;
+}
+
+.rms-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #6b7688;
+
+  &.is-ready { background: #eafaf1; color: #14532d; }
+  &.is-loading { background: var(--accent-8); color: var(--accent); }
+  &.is-error { background: #fde8e8; color: #b3261e; }
+}
+
+.rms-model-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #27364a;
+  margin: 4px 0 2px;
+}
+
+.rms-model-id {
+  font-weight: 400;
+  color: #8a94a6;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.rms-desc {
+  color: #6b7688;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.rms-status {
+  font-size: 11px;
+  color: #4b5768;
+  margin: 0;
+}
+
+.rms-retry {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 6px;
+  cursor: pointer;
+  padding: 0;
+}

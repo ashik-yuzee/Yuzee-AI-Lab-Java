@@ -1,6 +1,6 @@
-import { signal, computed, Signal } from '@angular/core';
+import { signal, computed, Signal, WritableSignal } from '@angular/core';
 
-const WIDTH_KEY = 'yuzee-mini-pathway-width';
+const DEFAULT_WIDTH_KEY = 'yuzee-mini-pathway-width';
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 440;
 const DOCK_RESERVE = 360; // leave room to read the chat when the panel is docked
@@ -15,12 +15,18 @@ const DOCK_RESERVE = 360; // leave room to read the chat when the panel is docke
  * width style, and `(pointerdown)="resize.onPointerDown($event)"` etc. on the drag handle.
  */
 export class DrawerResizeController {
+  private readonly widthKey: string;
   private dragging = false;
   private dragStartX = 0;
   private dragStartWidth = 0;
 
-  private preferred = signal<number | null>(this.readStored());
+  private preferred: WritableSignal<number | null>;
   resizing = signal(false);
+
+  constructor(widthKey: string = DEFAULT_WIDTH_KEY) {
+    this.widthKey = widthKey;
+    this.preferred = signal<number | null>(this.readStored());
+  }
 
   width: Signal<number> = computed(() => this.clamp(this.preferred() ?? DEFAULT_WIDTH));
 
@@ -35,7 +41,7 @@ export class DrawerResizeController {
 
   private readStored(): number | null {
     try {
-      const value = Number(localStorage.getItem(WIDTH_KEY));
+      const value = Number(localStorage.getItem(this.widthKey));
       return Number.isFinite(value) && value >= MIN_WIDTH ? value : null;
     } catch {
       return null;
@@ -44,8 +50,8 @@ export class DrawerResizeController {
 
   private store(value: number | null): void {
     try {
-      if (value === null) localStorage.removeItem(WIDTH_KEY);
-      else localStorage.setItem(WIDTH_KEY, String(value));
+      if (value === null) localStorage.removeItem(this.widthKey);
+      else localStorage.setItem(this.widthKey, String(value));
     } catch {
       /* Resizing still works if browser storage is unavailable. */
     }

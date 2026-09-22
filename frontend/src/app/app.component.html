@@ -77,5 +77,19 @@
       [open]="activeTool() === 'pathway-whiteboard'"
       [conversationId]="lab.activeConversationId()"
       (closed)="closeTool()" />
+    <app-objective-workspace
+      [open]="activeTool() === 'objectives'"
+      [conversationId]="lab.activeConversationId()"
+      (closed)="closeTool()"
+      (handoffReady)="onObjectiveHandoff($event)" />
+    <app-advanced-lab-modal
+      [open]="activeTool() === 'advanced-lab'"
+      [conversationId]="lab.activeConversationId()"
+      [modelId]="lab.activeModelId()"
+      (closed)="closeTool()"
+      (openBenchmark)="onOpenTool('benchmark')" />
+    <app-export-modal
+      [open]="activeTool() === 'export'"
+      (closed)="closeTool()" />
   }
 </div>

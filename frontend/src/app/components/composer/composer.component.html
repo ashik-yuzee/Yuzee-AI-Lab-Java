@@ -15,8 +15,14 @@
         &#64;Oala &middot; Yuzee help
         <button type="button" class="chip-remove" [disabled]="disabled" (click)="clearOalaMention()" aria-label="Remove Oala mention">&#10005;</button>
       </span>
-      @if (routing.status() === 'loading') {
-        <span class="router-status">Warming up guidance&hellip;</span>
+      @switch (routing.status()) {
+        @case ('loading') { <span class="router-status">Preparing Oala assist&hellip;</span> }
+        @case ('error') {
+          <span class="router-status">
+            Oala can still answer
+            <button type="button" class="btn-link-plain" (click)="routing.startWarmup()">Retry</button>
+          </span>
+        }
       }
     } @else {
       <button type="button" class="btn btn-link p-0 addressed-oala-btn" [disabled]="disabled" (click)="selectOala()">

@@ -1,0 +1,32 @@
+@if (isEmpty(value)) {
+  <span class="objective-unknown">Not yet known</span>
+} @else if (isEvidenceNote(value)) {
+  <div class="objective-note" [class]="'note-' + (value.source_status || '').toLowerCase()">
+    @if (value.source_status !== 'USER_CONFIRMED') {
+      <span class="note-source">{{ sourceLabel(value.source_status) }}</span>
+      @if (value.label) {
+        <strong class="note-label">{{ value.label }}</strong>
+      }
+    }
+    <p class="note-detail">{{ value.detail }}</p>
+  </div>
+} @else if (isArray(value)) {
+  @if (value.length) {
+    <ul class="objective-value-list">
+      @for (item of value; track $index) {
+        <li><app-result-value [value]="item" /></li>
+      }
+    </ul>
+  } @else {
+    <span class="objective-unknown">No details supplied</span>
+  }
+} @else if (isObject(value)) {
+  <dl class="objective-result-fields">
+    @for (entry of entries(value); track entry.k) {
+      <dt>{{ fieldLabel(entry.k) }}</dt>
+      <dd><app-result-value [value]="entry.v" /></dd>
+    }
+  </dl>
+} @else {
+  <span>{{ scalarText(value) }}</span>
+}
