@@ -1,0 +1,201 @@
+<aside class="pathway-whiteboard-panel" [class.is-open]="open" [style.width.px]="panelWidth()">
+  <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
+
+  <div class="panel-header">
+    <div class="header-title">
+      <div class="header-icon">&#x1F5FA;&#xFE0F;</div>
+      <div>
+        <h2 class="panel-title">Career Pathway</h2>
+        <p class="panel-subtitle">{{ nodes().length }} step{{ nodes().length === 1 ? '' : 's' }}</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      @if (ttsAvailable) {
+        <button class="btn btn-sm btn-icon" (click)="readAll()" [disabled]="!nodes().length" title="Read whole pathway aloud" aria-label="Read whole pathway aloud">&#x1F50A;</button>
+      }
+      <button class="btn btn-sm btn-icon" (click)="clearGraph()" [disabled]="!nodes().length" title="Clear pathway" aria-label="Clear pathway">&#x1F5D1;&#xFE0F;</button>
+      <button class="btn btn-sm btn-icon" (click)="close()" title="Close whiteboard" aria-label="Close whiteboard">&#x2715;</button>
+    </div>
+  </div>
+
+  <div class="generate-row">
+    <input
+      class="form-control form-control-sm goal-input"
+      type="text"
+      placeholder="Describe your career goal…"
+      [(ngModel)]="goalText"
+      (keydown.enter)="generate()"
+    />
+    <select class="form-select form-select-sm style-select" [(ngModel)]="style" title="Pathway style">
+      @for (s of styles; track s.id) {
+        <option [value]="s.id">{{ s.label }}</option>
+      }
+    </select>
+    <button class="btn btn-sm btn-generate" (click)="generate()" [disabled]="!goalText.trim() || generating()">
+      @if (generating()) { <span class="spinner"></span> Generating&hellip; } @else { &#x2728; Generate }
+    </button>
+    <button class="btn btn-sm btn-outline-accent" (click)="recommend()" [disabled]="!nodes().length || recommendLoading()">
+      @if (recommendLoading()) { <span class="spinner"></span> } @else { &#x1F4A1; Recommend next }
+    </button>
+  </div>
+
+  @if (stats(); as s) {
+    @if ((s.calls ?? 0) > 0) {
+      <div class="stats-chip">Pathway AI &middot; {{ s.calls }} generation{{ s.calls === 1 ? '' : 's' }} this session</div>
+    }
+  }
+
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  @if (recommendations().length) {
+    <div class="recommend-panel">
+      <div class="recommend-title">Suggested next steps</div>
+      @for (s of recommendations(); track trackSuggestion(s, $index)) {
+        <div class="recommend-item">
+          <div class="recommend-body">
+            <div class="recommend-label">{{ s.label }}</div>
+            @if (s.reason) { <div class="recommend-reason">{{ s.reason }}</div> }
+          </div>
+          <div class="recommend-actions">
+            <button class="btn btn-xs btn-accent" (click)="addRecommendation(s)">Add</button>
+            <button class="btn btn-xs btn-icon" (click)="dismissRecommendation(s)" aria-label="Dismiss suggestion">&#x2715;</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="panel-body">
+    <div class="palette-rail">
+      @for (t of paletteTypes; track t) {
+        @if (typeMetaOf(t); as meta) {
+          <div
+            class="palette-item"
+            cdkDrag
+            [cdkDragData]="t"
+            (cdkDragEnded)="onPaletteDropped(t, $event, canvas)"
+            (click)="addNode(t)"
+            [style.color]="meta.color"
+            [title]="meta.label + ' — click to add, drag onto canvas to place'"
+          >
+            <span class="palette-glyph">{{ meta.glyph }}</span>
+          </div>
+        }
+      }
+    </div>
+
+    <div class="canvas-wrap">
+      <div class="canvas" #canvas (click)="onCanvasClick()">
+        <svg class="edges-overlay">
+          @for (edge of edgePaths(); track trackEdge(edge)) {
+            @if (edge.d) {
+              <path [attr.d]="edge.d" class="edge-path" (click)="removeEdge(edge, $event)">
+                <title>Click to remove connection</title>
+              </path>
+            }
+          }
+        </svg>
+
+        @if (!nodes().length && !generating()) {
+          <div class="canvas-empty">
+            <p>Drag a node type from the left, or describe a goal above and hit Generate.</p>
+          </div>
+        }
+
+        @for (node of nodes(); track trackNode(node)) {
+          <div
+            class="node-card"
+            cdkDrag
+            (cdkDragMoved)="onNodeDragMoved(node.id, $event)"
+            (cdkDragEnded)="onNodeDragEnded(node.id, $event)"
+            [style.left.px]="positions()[node.id]?.x ?? 0"
+            [style.top.px]="positions()[node.id]?.y ?? 0"
+            [class.selected]="selectedNodeId() === node.id"
+            (click)="selectNode(node.id, $event); onSelectNodeForEdit()"
+          >
+            <button
+              class="socket socket-in"
+              [class.connect-target]="!!connectingFrom() && connectingFrom() !== node.id"
+              (click)="onSocketInClick(node.id, $event)"
+              title="Input — click after selecting an output socket to connect"
+              aria-label="Connect to this node's input"
+            ></button>
+
+            <div class="node-drag-handle" cdkDragHandle title="Drag to move">&#x22EE;&#x22EE;</div>
+
+            <div class="node-body">
+              <div class="node-badge-row">
+                <span class="node-type-badge" [style.color]="typeMetaOf(node.type).color">{{ typeMetaOf(node.type).label }}</span>
+                <button class="status-badge" [style.background]="statusColor[node.status] + '1a'" [style.color]="statusColor[node.status]" (click)="cycleStatus(node, $event)">
+                  {{ statusLabel[node.status] ?? node.status }}
+                </button>
+              </div>
+              <div class="node-label">{{ node.label }}</div>
+              @if (node.subtitle) { <div class="node-subtitle">{{ node.subtitle }}</div> }
+              @if (node.description) { <div class="node-desc">{{ node.description }}</div> }
+              @if (ttsAvailable) {
+                <button class="node-read-btn" (click)="readNode(node, $event)" title="Read this step aloud" aria-label="Read this step aloud">&#x1F50A;</button>
+              }
+            </div>
+
+            <button
+              class="socket socket-out"
+              [class.active]="connectingFrom() === node.id"
+              (click)="onSocketOutClick(node.id, $event)"
+              title="Output — click, then click another node's input to connect"
+              aria-label="Start a connection from this node's output"
+            ></button>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (selectedNode(); as sel) {
+    <div class="detail-panel">
+      <div class="detail-header">
+        <span class="detail-title">{{ typeMetaOf(sel.type).label }}</span>
+        <div class="detail-actions">
+          <button class="btn btn-xs btn-danger-outline" (click)="deleteSelected()">&#x1F5D1;&#xFE0F; Delete</button>
+          <button class="btn btn-xs btn-icon" (click)="selectedNodeId.set(null)" aria-label="Close detail panel">&#x2715;</button>
+        </div>
+      </div>
+
+      <div class="detail-body">
+        <label class="field-label">Label</label>
+        <input class="form-control form-control-sm" type="text" [(ngModel)]="editLabel" (ngModelChange)="onEditChange()" />
+
+        <label class="field-label">Description</label>
+        <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="editDesc" (ngModelChange)="onEditChange()" placeholder="Add notes, resources, or details…"></textarea>
+
+        @if (sel.prerequisites?.length) {
+          <label class="field-label">Prerequisites</label>
+          <div class="prereq-tags">
+            @for (p of sel.prerequisites; track p) {
+              <span class="prereq-tag">{{ p }}</span>
+            }
+          </div>
+        }
+
+        <label class="field-label">Ask about this step</label>
+        <div class="explain-row">
+          <input
+            class="form-control form-control-sm"
+            type="text"
+            placeholder="e.g. How long does this take?"
+            [(ngModel)]="explainQuestion"
+            (keydown.enter)="askExplain()"
+          />
+          <button class="btn btn-sm btn-accent" (click)="askExplain()" [disabled]="!explainQuestion.trim() || explainLoading()">
+            @if (explainLoading()) { <span class="spinner"></span> } @else { Ask }
+          </button>
+        </div>
+        @if (explainAnswer()) {
+          <div class="explain-answer">{{ explainAnswer() }}</div>
+        }
+      </div>
+    </div>
+  }
+</aside>

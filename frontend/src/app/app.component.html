@@ -69,5 +69,13 @@
       [conversationId]="lab.activeConversationId()"
       [modelId]="lab.activeModelId()"
       (closed)="closeTool()" />
+    <app-mini-pathway-experience
+      [open]="activeTool() === 'mini-pathway'"
+      [conversationId]="lab.activeConversationId()"
+      (closed)="closeTool()" />
+    <app-pathway-whiteboard
+      [open]="activeTool() === 'pathway-whiteboard'"
+      [conversationId]="lab.activeConversationId()"
+      (closed)="closeTool()" />
   }
 </div>

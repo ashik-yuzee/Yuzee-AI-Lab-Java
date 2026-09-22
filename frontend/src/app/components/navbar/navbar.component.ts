@@ -7,7 +7,8 @@ import { Conversation } from '../../models/types';
 /** Keys the parent (AppComponent) understands for opening a specific tool/modal. */
 export type ToolMenuKey =
   | 'settings' | 'profile' | 'career-context' | 'token-inspector'
-  | 'context-inspector' | 'memory-timeline' | 'analytics' | 'benchmark';
+  | 'context-inspector' | 'memory-timeline' | 'analytics' | 'benchmark'
+  | 'mini-pathway' | 'pathway-whiteboard';
 
 @Component({
   selector: 'app-navbar',

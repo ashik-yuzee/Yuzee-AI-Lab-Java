@@ -63,10 +63,10 @@ export class ApiService {
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith('data:')) {
+            const payload = line.slice(5).startsWith(' ') ? line.slice(6) : line.slice(5);
             try {
-              const data = JSON.parse(line.slice(6));
-              onMessage(data);
+              onMessage(JSON.parse(payload));
             } catch {}
           }
         }

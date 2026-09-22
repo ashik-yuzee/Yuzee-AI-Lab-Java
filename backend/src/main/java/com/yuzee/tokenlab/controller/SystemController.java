@@ -9,6 +9,7 @@ import com.yuzee.tokenlab.service.ConversationLogService;
 import com.yuzee.tokenlab.service.ConversationService;
 import com.yuzee.tokenlab.service.GeminiModelRegistry;
 import com.yuzee.tokenlab.service.ObjectiveCatalogueService;
+import com.yuzee.tokenlab.service.PathwayWhiteboardService;
 import com.yuzee.tokenlab.service.ProfileFactService;
 import com.yuzee.tokenlab.service.SystemPromptService;
 import com.yuzee.tokenlab.service.TokenService;
@@ -36,6 +37,7 @@ public class SystemController {
     private final ConversationLogService conversationLogService;
     private final ObjectiveCatalogueService objectiveCatalogueService;
     private final WarehouseService warehouseService;
+    private final PathwayWhiteboardService pathwayWhiteboardService;
 
     @Value("${spring.datasource.url:}")
     private String datasourceUrl;
@@ -46,7 +48,8 @@ public class SystemController {
                              ConversationService conversationService, BenchmarkService benchmarkService,
                              ConversationLogService conversationLogService,
                              ObjectiveCatalogueService objectiveCatalogueService,
-                             WarehouseService warehouseService) {
+                             WarehouseService warehouseService,
+                             PathwayWhiteboardService pathwayWhiteboardService) {
         this.systemPromptService = systemPromptService;
         this.tokenService = tokenService;
         this.modelRegistry = modelRegistry;
@@ -57,6 +60,7 @@ public class SystemController {
         this.conversationLogService = conversationLogService;
         this.objectiveCatalogueService = objectiveCatalogueService;
         this.warehouseService = warehouseService;
+        this.pathwayWhiteboardService = pathwayWhiteboardService;
     }
 
     @GetMapping("/api/db-status")
@@ -183,7 +187,7 @@ public class SystemController {
 
     @GetMapping("/api/pathway/stats")
     public Map<String, Object> pathwayStats() {
-        return Map.of("calls", 0, "tokens", 0);
+        return pathwayWhiteboardService.stats();
     }
 
     /**
@@ -267,19 +271,48 @@ public class SystemController {
             .orElse(List.of());
     }
 
+    /**
+     * Pathway Whiteboard generation -- Java port of the old app's POST /api/pathway/generate. Body:
+     * {@code {goal, style?, modelId?}}. Response: {@code {nodes: PathwayNode[], edges: PathwayEdge[]}}.
+     */
     @PostMapping("/api/pathway/generate")
     public ResponseEntity<?> generatePathway(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(Map.of("nodes", List.of(), "edges", List.of(), "generated", true));
+        String goal = str(body.get("goal"));
+        String style = str(body.get("style"));
+        String modelId = str(body.get("modelId"));
+        try {
+            return ResponseEntity.ok(pathwayWhiteboardService.generate(goal, style, modelId));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
+    /**
+     * Pathway Whiteboard next-step suggestions -- Java port of POST /api/pathway/recommend. Body:
+     * {@code {nodes: [{id,label,type}], context?, modelId?}}. Response:
+     * {@code {suggestions: [{type,label,subtitle,reason}]}} (exactly 3 on success, [] on failure).
+     */
     @PostMapping("/api/pathway/recommend")
     public ResponseEntity<?> recommendPathway(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(Map.of("recommendations", List.of()));
+        List<Map<String, Object>> nodes = asListOfMaps(body.get("nodes"));
+        String context = str(body.get("context"));
+        String modelId = str(body.get("modelId"));
+        return ResponseEntity.ok(Map.of("suggestions", pathwayWhiteboardService.recommend(nodes, context, modelId)));
     }
 
+    /**
+     * Pathway Whiteboard node Q&A -- Java port of POST /api/pathway/explain. Body:
+     * {@code {node: {label, subtitle?, goalContext?}, question, modelId?}}. Response:
+     * {@code {answer: string}} (a fail-soft apology string on any error, never an HTTP error).
+     */
+    @SuppressWarnings("unchecked")
     @PostMapping("/api/pathway/explain")
     public ResponseEntity<?> explainPathway(@RequestBody Map<String, Object> body) {
-        return ResponseEntity.ok(Map.of("explanation", ""));
+        Object rawNode = body.get("node");
+        Map<String, Object> node = rawNode instanceof Map ? (Map<String, Object>) rawNode : Map.of();
+        String question = str(body.get("question"));
+        String modelId = str(body.get("modelId"));
+        return ResponseEntity.ok(Map.of("answer", pathwayWhiteboardService.explain(node, question, modelId)));
     }
 
     @PostMapping("/api/conversations/load-demo")

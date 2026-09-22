@@ -14,6 +14,8 @@ import { ContextInspectorModalComponent } from './components/modals/context-insp
 import { MemoryTimelineModalComponent } from './components/modals/memory-timeline/memory-timeline-modal.component';
 import { AnalyticsDashboardModalComponent } from './components/modals/analytics-dashboard/analytics-dashboard-modal.component';
 import { BenchmarkModalComponent } from './components/modals/benchmark/benchmark-modal.component';
+import { MiniPathwayExperienceComponent } from './components/mini-pathway/mini-pathway-experience.component';
+import { PathwayWhiteboardComponent } from './components/pathway-whiteboard/pathway-whiteboard.component';
 
 @Component({
   selector: 'app-root',
@@ -31,7 +33,9 @@ import { BenchmarkModalComponent } from './components/modals/benchmark/benchmark
     ContextInspectorModalComponent,
     MemoryTimelineModalComponent,
     AnalyticsDashboardModalComponent,
-    BenchmarkModalComponent
+    BenchmarkModalComponent,
+    MiniPathwayExperienceComponent,
+    PathwayWhiteboardComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
