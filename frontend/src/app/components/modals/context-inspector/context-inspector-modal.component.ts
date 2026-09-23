@@ -1,40 +1,41 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { CompactionInfo } from '../../../models/token-lab-inspector.types';
+import { TokenLabService } from '../../../services/token-lab.service';
+import { ContextBreakdown, ContextSectionDetail, ExcludedSectionDetail } from '../../../models/types';
+import { IconComponent } from '../../shared/icon/icon.component';
 
-type ContextTab = 'included' | 'excluded';
-
-/**
- * Read-only tabbed viewer for the last turn's assembled context. Port of the old React app's
- * ContextInspectorModal.tsx.
- *
- * The old app showed per-section included/excluded prompt fragments with previews and token
- * counts (from a live "excluded content" telemetry feed). That feed doesn't exist in this
- * backend — RequestAssemblerService/ConversationMemoryService only return aggregate counts
- * (turnsKept/turnsDropped/tokensUsed/tokenBudget) via CompactionMetrics, not which turns or
- * prompt sections were dropped or their content. This component shows exactly that aggregate
- * data and labels the gap explicitly instead of fabricating a fake excluded-content list.
- */
+/** 1:1 port of ContextInspectorModal.tsx — reads TokenLabService.activeTurnTelemetry.contextMetrics. */
 @Component({
   selector: 'app-context-inspector-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent],
   templateUrl: './context-inspector-modal.component.html',
   styleUrl: './context-inspector-modal.component.scss'
 })
 export class ContextInspectorModalComponent {
   @Input() open = false;
-  @Input() compaction: CompactionInfo | null = null;
 
   @Output() closed = new EventEmitter<void>();
 
-  activeTab = signal<ContextTab>('included');
+  activeTab = signal<'included' | 'excluded'>('included');
 
-  setTab(tab: ContextTab): void {
-    this.activeTab.set(tab);
+  constructor(private lab: TokenLabService) {}
+
+  get context(): ContextBreakdown | null {
+    return this.lab.activeTurnTelemetry()?.contextMetrics ?? null;
+  }
+
+  get included(): ContextSectionDetail[] {
+    const v = this.context?.includedSections;
+    return Array.isArray(v) ? v : [];
+  }
+
+  get excluded(): ExcludedSectionDetail[] {
+    const v = this.context?.excludedSections;
+    return Array.isArray(v) ? v : [];
   }
 
   close(): void {
+    this.lab.isContextInspectorOpen.set(false);
     this.closed.emit();
   }
 }

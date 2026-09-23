@@ -1,100 +1,90 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
+import { TokenLabService } from '../../../services/token-lab.service';
+import { IconComponent } from '../../shared/icon/icon.component';
 
-/** Loosely typed — the backend endpoint is currently a stub (see below) so the real result
- *  shape isn't settled yet. Known fields are read defensively; anything else just isn't shown. */
-interface BenchmarkResult {
-  strategy?: string;
-  label?: string;
-  mode?: string;
-  totalTokens?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  latencyMs?: number;
-  notes?: string;
-  responsePreview?: string;
+/** The original's BenchmarkResult (types.ts), as rendered. */
+interface BenchmarkResultView {
+  strategy: string;
+  label: string;
+  mode?: 'live' | 'estimated';
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  latencyMs: number;
+  ttftMs?: number | null;
+  generationMs?: number | null;
+  thinkingTokens: number | null;
+  cachedTokens: number | null;
+  notes: string;
+  responsePreview: string;
 }
 
-interface BenchmarkResponse {
-  results: BenchmarkResult[];
-  message?: string;
-}
+const SCENARIO_STEPS = [
+  '1. User wants to become a cybersecurity analyst.',
+  '2. User describes existing IT skills.',
+  '3. User asks for required skills.',
+  '4. User asks for courses.',
+  '5. User changes timeline.',
+  '6. User adds a budget constraint.',
+  '7. User compares two routes.',
+  '8. User asks which previous recommendation still applies.',
+  '9. User changes one constraint.',
+  '10. User asks for the final pathway.',
+];
 
-/**
- * Runs POST /api/benchmark in "modelled" or "live" mode. Port of the old React app's
- * BenchmarkModal.tsx.
- *
- * As of this port, SystemController.benchmark() (backend/src/main/java/com/yuzee/tokenlab/
- * controller/SystemController.java) is still a stub: it always returns
- * `{ results: [], message: "Benchmark not available in Java port" }` regardless of the request
- * body — there is no BenchmarkService implementing real modelled/live runs yet. This component
- * still sends the full request shape (conversationId, prompt, model, strategies, isLive) so it
- * needs no changes once that service is built, and it surfaces the stub's `message` directly to
- * the user instead of pretending results exist. The strategy list is limited to the three
- * strategies MemoryStrategy.java actually implements (BASELINE, SEMANTIC_EVIDENCE,
- * BUDGET_EVICTION) rather than the old app's five, since the other two don't exist server-side.
- */
+/** 1:1 port of BenchmarkModal.tsx: POST /api/benchmark with the original's request fields and result rows. */
 @Component({
   selector: 'app-benchmark-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [IconComponent],
   templateUrl: './benchmark-modal.component.html',
   styleUrl: './benchmark-modal.component.scss'
 })
 export class BenchmarkModalComponent {
   @Input() open = false;
-  @Input() conversationId: string | null = null;
-  @Input() modelId = 'gemini-3.6-flash';
 
   @Output() closed = new EventEmitter<void>();
 
-  readonly strategies: string[] = ['BASELINE', 'SEMANTIC_EVIDENCE', 'BUDGET_EVICTION'];
+  readonly scenarioSteps = SCENARIO_STEPS;
 
   prompt = signal('Help me transition into cybersecurity and build a 6-month study roadmap.');
   isLive = signal(false);
-  running = signal(false);
-  results = signal<BenchmarkResult[] | null>(null);
-  message = signal<string | null>(null);
-  error = signal<string | null>(null);
+  isRunning = signal(false);
+  results = signal<BenchmarkResultView[] | null>(null);
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private lab: TokenLabService) {}
 
-  setPrompt(value: string): void {
-    this.prompt.set(value);
+  liveResults(): boolean {
+    return this.results()?.[0]?.mode === 'live';
   }
 
-  setLive(live: boolean): void {
-    this.isLive.set(live);
-  }
-
-  async run(): Promise<void> {
-    if (!this.prompt().trim() || this.running()) return;
-    this.running.set(true);
-    this.error.set(null);
-    this.message.set(null);
-    try {
-      const res = await firstValueFrom(
-        this.api.post<BenchmarkResponse>('/benchmark', {
-          conversationId: this.conversationId,
-          prompt: this.prompt(),
-          model: this.modelId,
-          strategies: this.strategies,
-          isLive: this.isLive()
-        })
-      );
-      this.results.set(res.results ?? []);
-      this.message.set(res.message ?? null);
-    } catch {
-      this.error.set('Benchmark request failed.');
-    } finally {
-      this.running.set(false);
-    }
+  onPrompt(e: Event): void {
+    this.prompt.set((e.target as HTMLInputElement).value);
   }
 
   close(): void {
+    this.lab.isBenchmarkOpen.set(false);
     this.closed.emit();
+  }
+
+  async run(): Promise<void> {
+    this.isRunning.set(true);
+    const conv = this.lab.currentConversation();
+    try {
+      const res = await firstValueFrom(this.api.post<{ results: BenchmarkResultView[] }>('/benchmark', {
+        conversationId: conv?.id,
+        prompt: this.prompt(),
+        model: conv?.model || 'gemini-3.5-flash-lite',
+        strategies: ['BASELINE', 'SLIDING_WINDOW', 'SUMMARY_RECENT', 'ADAPTIVE_HYBRID', 'SEMANTIC_EVIDENCE'],
+        isLive: this.isLive(),
+      }));
+      this.results.set(res.results);
+    } catch (e) {
+      console.error('Benchmark failed:', e);
+    } finally {
+      this.isRunning.set(false);
+    }
   }
 }

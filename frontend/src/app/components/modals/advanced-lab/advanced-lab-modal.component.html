@@ -1,208 +1,680 @@
 @if (open) {
-  <div class="modal-backdrop" (click)="close()">
-    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-          <div class="header-icon">🧪</div>
+  <div class="lab-overlay">
+    <div class="lab-dialog">
+      <!-- Header -->
+      <div class="lab-header">
+        <div class="lab-header-left">
+          <div class="lab-header-badge">
+            <app-icon name="Sliders" class="icon-4" />
+          </div>
           <div>
-            <h2 class="card-title-text mb-0">Advanced Research Lab</h2>
-            <p class="card-subtitle mb-0">Memory strategy, prompt &amp; response, routing, and session telemetry</p>
+            <h2 class="lab-title">Advanced Research Lab</h2>
+            <p class="lab-subtitle">Fine-tune memory architecture, token economics, and Protocol v1.3 compliance</p>
           </div>
         </div>
-        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+
+        <button
+          type="button"
+          (click)="close()"
+          class="lab-close"
+          title="Close Lab"
+          aria-label="Close Lab">
+          <app-icon name="X" class="icon-5" />
+        </button>
       </div>
 
-      <nav class="tab-nav">
-        @for (tab of tabs; track tab.id) {
-          <button type="button" class="tab-btn" [class.active]="activeTab() === tab.id" (click)="setActiveTab(tab.id)">
-            {{ tab.label }}
+      <!-- Tab Navigation -->
+      <div class="lab-tabs">
+        @for (tab of navTabs; track tab.id) {
+          <button
+            type="button"
+            (click)="setActiveLabTab(tab.id)"
+            class="lab-tab"
+            [class.is-active]="activeLabTab() === tab.id">
+            <app-icon [name]="tab.icon" class="icon-3-5 lab-tab-icon" />
+            <span>{{ tab.label }}</span>
           </button>
         }
-      </nav>
+      </div>
 
-      <div class="card-body">
-        @if (!conversation()) {
-          <div class="alert-box alert-info mb-3">
-            No active conversation — per-conversation settings (strategy, response mode, reset memory,
-            export) are unavailable until a conversation is selected. Routing status and session
-            telemetry below aren't conversation-scoped and still work.
-          </div>
-        }
+      <!-- Tab Content Container -->
+      <div class="lab-content">
+        @switch (effectiveTab()) {
+          <!-- TAB: CONTEXT & MEMORY -->
+          @case ('context') {
+            <div class="tab-pane space-y-6">
+              <!-- Strategy & Budget -->
+              <div class="lab-card space-y-4">
+                <h3 class="section-title">
+                  <app-icon name="Layers" class="icon-4 text-sky-600" />
+                  <span>Memory Management Strategy</span>
+                </h3>
 
-        @switch (activeTab()) {
-          @case ('memory') {
-            <div class="lab-section">
-              <h3 class="section-label">Memory Management Strategy</h3>
-              <div class="option-grid">
-                @for (s of strategies; track s.id) {
-                  <button type="button" class="option-card"
-                          [class.selected]="conversation()?.strategy === s.id"
-                          [disabled]="!conversation() || savingStrategy()"
-                          (click)="selectStrategy(s.id)">
-                    <div class="option-title">{{ s.title }}</div>
-                    <div class="option-desc">{{ s.desc }}</div>
-                  </button>
-                }
-              </div>
-
-              <div class="info-card mt-3">
-                <strong>Thinking level</strong> is chosen automatically per turn by a local classifier on
-                the server (RequestAssemblerService), based on the message content — it isn't a
-                per-conversation setting this build lets you override.
-              </div>
-
-              <div class="d-flex align-items-center justify-content-between mt-3">
-                <div>
-                  <h3 class="section-label mb-0">Reset Conversation Memory</h3>
-                  <p class="hint-text mb-0">Clears the semantic summary and compaction history for this conversation.</p>
+                <div class="strategy-grid">
+                  @for (s of strategies; track s.id) {
+                    <div
+                      (click)="updateCurrentConversationSettings({ strategy: asStrategy(s.id) })"
+                      class="choice-card strategy-card"
+                      [class.is-selected]="conv().strategy === s.id">
+                      <div class="choice-title">{{ s.title }}</div>
+                      <div class="choice-desc">{{ s.desc }}</div>
+                    </div>
+                  }
                 </div>
-                <button type="button" class="btn btn-outline-danger btn-sm"
-                        [disabled]="!conversation() || resettingMemory()"
-                        (click)="openResetMemoryConfirm()">
-                  Reset Memory
-                </button>
-              </div>
-              @if (resetMemoryStatus()) {
-                <p class="status-line">{{ resetMemoryStatus() }}</p>
-              }
 
-              <p class="hint-text mt-3">
-                Structured career-context facts (goals, constraints, decisions) are edited from the
-                dedicated Career Context tool, not here.
-              </p>
-            </div>
-          }
-
-          @case ('prompt') {
-            <div class="lab-section">
-              <div class="d-flex align-items-start justify-content-between gap-2">
-                <div>
-                  <h3 class="section-label mb-0">Active System Prompt</h3>
-                  <p class="hint-text mb-0">Shared across all users and sessions.</p>
-                </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm"
-                        [disabled]="reloadingPrompt()" (click)="reloadPrompt()">
-                  {{ reloadingPrompt() ? 'Reloading…' : 'Reload Prompt' }}
-                </button>
-              </div>
-
-              @if (loadingPromptInfo()) {
-                <p class="hint-text">Loading…</p>
-              } @else {
-                @if (promptInfo(); as info) {
-                  <div class="prompt-meta">
-                    <span>{{ info.label }}</span>
-                    <span>v{{ info.version }}</span>
-                    <span>{{ info.byteSize | number }} bytes</span>
-                    <span>hash {{ info.hash }}</span>
+                <div class="budget-grid">
+                  <div class="col-span-full">
+                    <p class="shared-note">
+                      <span class="fw-semibold">Shared defaults</span> — these values apply to all conversations and all users. Mode overrides (SAVE_TOKENS / FULL_CONTEXT) still apply on top.
+                    </p>
                   </div>
-                  <p class="hint-text">
-                    The backend only exposes prompt metadata (version / hash / size), not the full text,
-                    so there is no content preview here.
-                  </p>
-                } @else {
-                  <p class="hint-text">Prompt info unavailable.</p>
-                }
-              }
+                  <app-range-slider
+                    label="Context Token Budget (Shared)"
+                    [value]="sharedSettings()?.contextBudget ?? conv().contextBudget!"
+                    (valueChange)="updateSharedSettings({ contextBudget: $event })"
+                    [min]="1000"
+                    [max]="270000"
+                    [step]="1000"
+                    unit="tokens"
+                    minLabel="1k (Aggressive)"
+                    helperText="270k (Default)"
+                    maxLabel="270k (Max)" />
 
-              @if (reloadStatus()) {
-                <p class="status-line" [class.status-error]="reloadStatusIsError()">{{ reloadStatus() }}</p>
-              }
+                  <app-range-slider
+                    label="Recent Turns to Retain (Shared)"
+                    [value]="sharedSettings()?.recentTurnsToKeep ?? conv().recentTurnsToKeep!"
+                    (valueChange)="updateSharedSettings({ recentTurnsToKeep: $event })"
+                    [min]="2"
+                    [max]="100"
+                    [step]="2"
+                    unit="turns"
+                    minLabel="2 turns"
+                    helperText="100 turns (Default)"
+                    maxLabel="100 turns" />
+                </div>
+              </div>
 
-              <div class="mt-4">
-                <h3 class="section-label">Response Mode <span class="hint-text">(per conversation)</span></h3>
-                <div class="option-grid option-grid-modes">
-                  @for (m of responseModes; track m.id) {
-                    <button type="button" class="option-card option-card-compact"
-                            [class.selected]="conversation()?.responseMode === m.id"
-                            [disabled]="!conversation() || savingResponseMode()"
-                            (click)="selectResponseMode(m.id)">
-                      <div class="option-title">{{ m.label }}</div>
-                      <div class="option-desc">{{ m.desc }}</div>
-                    </button>
+              <!-- Structured Memory Capsule -->
+              <div class="lab-card space-y-3">
+                <div class="d-flex align-items-center justify-content-between">
+                  <div>
+                    <h3 class="section-title">
+                      <app-icon name="Sparkles" class="icon-4 text-amber-600" />
+                      <span>Structured Memory Capsule</span>
+                    </h3>
+                    <p class="section-hint mt-0-5">
+                      Extracted facts &amp; constraints injected as stable prefixes to maximize caching hits.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    (click)="isResetMemoryConfirmOpen.set(true)"
+                    class="reset-memory-btn"
+                    title="Clear summary and compaction history">
+                    <app-icon name="RotateCcw" class="icon-3" />
+                    <span>Reset Memory</span>
+                  </button>
+                </div>
+
+                <div class="capsule-fields space-y-3">
+                  @for (field of capsuleFields; track field.key) {
+                    <div>
+                      <label class="field-label mb-1">
+                        {{ field.label }}
+                      </label>
+                      <input
+                        type="text"
+                        [value]="currentCapsule()[field.key] || ''"
+                        (input)="handleCareerFieldChange(field.key, inputValue($event))"
+                        [placeholder]="field.placeholder"
+                        class="capsule-input" />
+                    </div>
                   }
                 </div>
               </div>
             </div>
           }
 
-          @case ('routing') {
-            <div class="lab-section">
-              <app-router-model-selector></app-router-model-selector>
-              <p class="hint-text mt-3">
-                Optimization mode (Auto / Save Tokens / Full Context / Vanilla) is set from Settings, not
-                here — this tab only covers the client-side routing model used for skill/pathway
-                matching.
-              </p>
-            </div>
-          }
+          <!-- TAB: REASONING & THINKING -->
+          @case ('reasoning') {
+            <div class="tab-pane space-y-6">
+              <div class="lab-card space-y-4">
+                <h3 class="section-title">
+                  <app-icon name="Brain" class="icon-4 text-purple-600" />
+                  <span>Dynamic Thinking &amp; Reasoning Budget</span>
+                </h3>
 
-          @case ('benchmark') {
-            <div class="lab-section">
-              <h3 class="section-label">Strategy Benchmark Matrix</h3>
-              <p class="hint-text">
-                Benchmarking (modelled estimate or live run, compared across strategies) lives in its own
-                dedicated Benchmark tool, using model <strong>{{ modelId }}</strong>.
-              </p>
-              <button type="button" class="btn btn-run btn-sm" (click)="triggerBenchmark()">Open Benchmark</button>
-            </div>
-          }
-
-          @case ('analytics') {
-            <div class="lab-section">
-              <div class="d-flex align-items-center justify-content-between">
-                <h3 class="section-label mb-0">Cumulative Session Telemetry</h3>
-                <button type="button" class="btn btn-outline-secondary btn-sm" (click)="openResetStatsConfirm()">
-                  Reset Counters
-                </button>
-              </div>
-
-              @if (sessionStats(); as stats) {
-                <div class="stats-grid">
-                  <div class="stat-card"><span class="stat-k">Prompt Tokens</span><span class="stat-v">{{ stats.promptTokens | number }}</span></div>
-                  <div class="stat-card"><span class="stat-k">Output Tokens</span><span class="stat-v">{{ stats.outputTokens | number }}</span></div>
-                  <div class="stat-card"><span class="stat-k">Total Tokens</span><span class="stat-v">{{ stats.totalTokens | number }}</span></div>
-                  <div class="stat-card"><span class="stat-k">Turns</span><span class="stat-v">{{ stats.turns | number }}</span></div>
-                  <div class="stat-card"><span class="stat-k">Est. Cost (USD)</span><span class="stat-v">{{ stats.estimatedCostUsd | number:'1.4-4' }}</span></div>
+                <div class="thinking-grid">
+                  @for (t of thinkingLevels; track t.id) {
+                    <button
+                      type="button"
+                      (click)="updateCurrentConversationSettings({ thinkingLevel: asThinking(t.id) })"
+                      class="choice-card thinking-card"
+                      [class.is-selected]="conv().thinkingLevel === t.id">
+                      <div class="choice-title">{{ t.label }}</div>
+                      <div class="thinking-tokens">{{ t.tokens }}</div>
+                      <div class="thinking-desc">{{ t.desc }}</div>
+                    </button>
+                  }
                 </div>
-              } @else {
-                <p class="hint-text">No session telemetry yet.</p>
-              }
 
-              <div class="d-flex justify-content-end mt-3">
-                <button type="button" class="btn btn-outline-secondary btn-sm"
-                        [disabled]="!conversation()" (click)="exportTelemetryJson()">
-                  Export Conversation (JSON)
-                </button>
+                <!-- Adaptive Classifier Heuristic Explanation Table -->
+                <div class="heuristic-box space-y-2">
+                  <div class="heuristic-title">
+                    <app-icon name="Info" class="icon-3-5 text-sky-600" />
+                    <span>How Adaptive Heuristic Reasoning Works:</span>
+                  </div>
+                  <p class="heuristic-text">
+                    To avoid charging an extra Gemini token-counting call, Yuzee runs a deterministic local classifier before dispatching requests:
+                  </p>
+                  <ul class="heuristic-list space-y-1">
+                    <li><strong>Comparison / Roadmaps (512 budget)</strong>: Triggers on keywords like <em>compare, trade-off, pathway, plan, roadmap</em>.</li>
+                    <li><strong>Simple Inquiries (0 budget)</strong>: Triggers on short definitions, greetings, formatting prompts.</li>
+                    <li><strong>General Guidance (128 budget)</strong>: Default safe budget for general career and skill questions.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- TAB: PROMPT & RESPONSE -->
+          @case ('prompt') {
+            <div class="tab-pane space-y-6">
+              <!-- System Prompt — read-only view -->
+              <div class="lab-card space-y-4">
+                <div class="d-flex align-items-start justify-content-between prompt-head">
+                  <div>
+                    <h3 class="section-title">
+                      <app-icon name="FileText" class="icon-4 text-emerald-600" />
+                      <span>Active System Prompt</span>
+                      <span class="readonly-pill">Read-only · v{{ quizPromptVersion }}</span>
+                    </h3>
+                    <p class="section-hint mt-1">
+                      The Yuzee production prompt is shared across all users and sessions. It is versioned and cache-optimised for Gemini.
+                    </p>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <button
+                      type="button"
+                      (click)="reloadPrompt()"
+                      [disabled]="isReloadingPrompt()"
+                      class="reload-prompt-btn"
+                      title="Hot-reload prompt from disk without restarting the server">
+                      <app-icon name="RotateCcw" class="icon-3-5" [class.animate-spin]="isReloadingPrompt()" />
+                      <span>{{ isReloadingPrompt() ? 'Reloading…' : 'Reload Prompt' }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      (click)="showPromptContent.set(!showPromptContent())"
+                      class="view-prompt-btn">
+                      <app-icon [name]="showPromptContent() ? 'EyeOff' : 'Eye'" class="icon-3-5" />
+                      <span>{{ showPromptContent() ? 'Hide' : 'View' }} Prompt</span>
+                    </button>
+                  </div>
+                </div>
+
+                @if (reloadPromptStatus(); as status) {
+                  <p class="reload-status" [class.is-error]="status.startsWith('Error')">
+                    {{ status }}
+                  </p>
+                }
+
+                @if (showPromptContent()) {
+                  <div class="space-y-1-5">
+                    <div class="prompt-meta">
+                      <span>{{ defaultPromptContent().length.toLocaleString() }} chars</span>
+                      <span>·</span>
+                      <span>hash {{ sharedSettings()?.defaultPromptHash?.slice(0, 8) ?? '—' }}</span>
+                    </div>
+                    <textarea
+                      readonly
+                      rows="8"
+                      [value]="defaultPromptContent()"
+                      class="prompt-textarea"></textarea>
+                  </div>
+                }
+
+                <!-- Response Mode Selector — still per-conversation -->
+                <div class="response-mode-section space-y-2">
+                  <label class="response-mode-label">Response Mode Directive <span class="response-mode-scope">(per conversation)</span>:</label>
+                  <div class="response-mode-grid">
+                    @for (m of responseModes; track m.id) {
+                      <button
+                        type="button"
+                        (click)="updateCurrentConversationSettings({ responseMode: asResponseMode(m.id) })"
+                        class="response-mode-card"
+                        [class.is-selected]="conv().responseMode === m.id">
+                        <div class="response-mode-name">{{ m.label }}</div>
+                        <div class="response-mode-desc">{{ m.desc }}</div>
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- TAB: GENERATION PARAMETERS -->
+          @case ('generation') {
+            <div class="tab-pane space-y-6">
+              <div class="lab-card space-y-5">
+                <div class="d-flex align-items-start gap-2">
+                  <app-icon name="Wand2" class="icon-4 text-violet-600 gen-head-icon" />
+                  <div>
+                    <h3 class="section-title section-title-plain">Generation Parameters</h3>
+                    <p class="section-hint mt-0-5 leading-relaxed">
+                      Override the model's sampling behaviour per-conversation. Changes apply to the next message sent.
+                      Leave a field at its default to let the server decide automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Temperature -->
+                <div class="space-y-2">
+                  <div class="param-head">
+                    <span class="param-name">Temperature</span>
+                    <div class="tip-wrap">
+                      <app-icon name="Info" class="icon-3-5 tip-icon" />
+                      <div class="tip">
+                        <strong>Temperature</strong> controls randomness. Lower = more predictable and focused (good for factual tasks). Higher = more creative and varied. Gemini default is 1. Range: 0 – 2.
+                      </div>
+                    </div>
+                    @if (conv().temperature != null) {
+                      <button
+                        type="button"
+                        (click)="updateCurrentConversationSettings({ temperature: undefined })"
+                        class="param-reset"
+                        title="Reset to default">
+                        reset
+                      </button>
+                    }
+                  </div>
+                  <app-range-slider
+                    label=""
+                    [value]="conv().temperature ?? 1"
+                    (valueChange)="updateCurrentConversationSettings({ temperature: $event })"
+                    [min]="0"
+                    [max]="2"
+                    [step]="0.05"
+                    unit=""
+                    minLabel="0 (Deterministic)"
+                    maxLabel="2 (Creative)"
+                    [helperText]="conv().temperature != null ? conv().temperature!.toFixed(2) : '1.00 (default)'" />
+                  <div class="param-scale">
+                    <span>Precise / Factual</span>
+                    <span class="param-scale-value">{{ (conv().temperature ?? 1).toFixed(2) }}</span>
+                    <span>Creative / Varied</span>
+                  </div>
+                </div>
+
+                <div class="param-divider"></div>
+
+                <!-- Top-P -->
+                <div class="space-y-2">
+                  <div class="param-head">
+                    <span class="param-name">Top-P (Nucleus Sampling)</span>
+                    <div class="tip-wrap">
+                      <app-icon name="Info" class="icon-3-5 tip-icon" />
+                      <div class="tip">
+                        <strong>Top-P</strong> restricts token selection to the smallest group of tokens whose cumulative probability exceeds P. 0.9 = consider top 90% of probable tokens. Lower values make output more focused. Use with or instead of temperature. Leave unset to use Gemini's default.
+                      </div>
+                    </div>
+                    @if (conv().topP != null) {
+                      <button
+                        type="button"
+                        (click)="updateCurrentConversationSettings({ topP: undefined })"
+                        class="param-reset"
+                        title="Reset to default">
+                        reset
+                      </button>
+                    } @else {
+                      <span class="param-unset">not set (Gemini default)</span>
+                    }
+                  </div>
+                  <app-range-slider
+                    label=""
+                    [value]="conv().topP ?? 0.95"
+                    (valueChange)="updateCurrentConversationSettings({ topP: $event })"
+                    [min]="0.1"
+                    [max]="1"
+                    [step]="0.05"
+                    unit=""
+                    minLabel="0.1 (Narrow)"
+                    maxLabel="1.0 (All tokens)"
+                    [helperText]="conv().topP != null ? conv().topP!.toFixed(2) : 'unset'" />
+                  <div class="param-scale">
+                    <span>Focused</span>
+                    <span class="param-scale-value">{{ conv().topP != null ? conv().topP!.toFixed(2) : '—' }}</span>
+                    <span>Broad</span>
+                  </div>
+                  @if (conv().topP == null) {
+                    <button
+                      type="button"
+                      (click)="updateCurrentConversationSettings({ topP: 0.95 })"
+                      class="param-enable">
+                      + Enable Top-P override
+                    </button>
+                  }
+                </div>
+
+                <div class="param-divider"></div>
+
+                <!-- Max Output Tokens -->
+                <div class="space-y-2">
+                  <div class="param-head">
+                    <span class="param-name">Max Output Tokens</span>
+                    <div class="tip-wrap">
+                      <app-icon name="Info" class="icon-3-5 tip-icon" />
+                      <div class="tip">
+                        <strong>Max Output Tokens</strong> caps how long the model's response can be. The server sets this automatically based on response mode (standard = 6 144, explain/detail = 8 192). Override here to force a shorter or longer response.
+                      </div>
+                    </div>
+                    @if (conv().maxOutputTokens != null) {
+                      <button
+                        type="button"
+                        (click)="updateCurrentConversationSettings({ maxOutputTokens: undefined })"
+                        class="param-reset"
+                        title="Reset to auto">
+                        reset to auto
+                      </button>
+                    }
+                  </div>
+                  <app-range-slider
+                    label=""
+                    [value]="conv().maxOutputTokens ?? 6144"
+                    (valueChange)="updateCurrentConversationSettings({ maxOutputTokens: $event })"
+                    [min]="256"
+                    [max]="65536"
+                    [step]="256"
+                    unit="tokens"
+                    minLabel="256"
+                    maxLabel="65 536"
+                    [helperText]="conv().maxOutputTokens != null ? conv().maxOutputTokens!.toLocaleString() + ' tokens' : 'auto (per response mode)'" />
+                  <div class="param-scale">
+                    <span>Short</span>
+                    <span class="param-scale-value">
+                      {{ conv().maxOutputTokens != null ? conv().maxOutputTokens!.toLocaleString() : 'auto' }}
+                    </span>
+                    <span>Long</span>
+                  </div>
+                  @if (conv().maxOutputTokens == null) {
+                    <button
+                      type="button"
+                      (click)="updateCurrentConversationSettings({ maxOutputTokens: 6144 })"
+                      class="param-enable">
+                      + Enable output token override
+                    </button>
+                  }
+                </div>
+
+                <div class="param-divider"></div>
+
+                <!-- Multi-turn -->
+                <app-toggle-switch
+                  label="Multi-turn Content Array"
+                  description="Send conversation history as a proper Content[] array (alternating user/model roles) instead of a single text blob. This matches how Gemini AI Studio works by default and gives the model native turn-awareness."
+                  [checked]="conv().useMultiTurn ?? true"
+                  (checkedChange)="updateCurrentConversationSettings({ useMultiTurn: $event })" />
+
+                <!-- Structured output -->
+                <app-toggle-switch
+                  label="Structured Output (Schema Enforcement)"
+                  description="Attach the Protocol v1.3 response schema and force JSON MIME type on every request. When off, the model responds in free-form JSON guided only by the system prompt — matching AI Studio's default behaviour. Disable to compare block-type selection quality between structured and unstructured modes."
+                  [checked]="conv().useStructuredOutput ?? false"
+                  (checkedChange)="updateCurrentConversationSettings({ useStructuredOutput: $event })" />
+
+                <app-toggle-switch
+                  label="Pathway RAG Context"
+                  description="Injects relevant sections of the active mini pathway into each follow-up turn so the chat model can reference routes, timelines and next steps. Adds ~1,250 tokens per turn. Off by default."
+                  [checked]="!!conv().usePathwayRag"
+                  (checkedChange)="updateCurrentConversationSettings({ usePathwayRag: $event })" />
+
+                <!-- Info footer -->
+                <div class="gen-tip">
+                  <strong>Tip:</strong> Temperature and Top-P both control randomness — using both simultaneously can lead to unpredictable results. Gemini recommends adjusting one at a time. For structured JSON output (Protocol v1.3), a temperature of 1 with Top-P unset is the safest starting point.
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- TAB: OPTIMIZATION ENGINE & ECONOMICS -->
+          @case ('optimization') {
+            <div class="tab-pane space-y-6">
+              <app-router-model-selector />
+              <div class="lab-card space-y-4">
+                <h3 class="section-title">
+                  <app-icon name="Sliders" class="icon-4 text-amber-600" />
+                  <span>Advanced Optimization Engine</span>
+                </h3>
+
+                <div class="space-y-4">
+                  <app-toggle-switch
+                    label="Interactions API Server-Side Continuation"
+                    description="Uses server-side interaction IDs to reuse KV-cache context and eliminate repetitive round-trip history transmission."
+                    [checked]="!!conv().useInteractionsApi"
+                    (checkedChange)="updateCurrentConversationSettings({ useInteractionsApi: $event })" />
+
+                  <app-toggle-switch
+                    label="Flash-Lite Utility Routing"
+                    description="Routes summarization, compaction, and classification tasks to Gemini 3.5 Flash-Lite for minimum cost."
+                    [checked]="conv().useFlashLiteUtility ?? true"
+                    (checkedChange)="updateCurrentConversationSettings({ useFlashLiteUtility: $event })" />
+                </div>
+
+                <!-- Economics Break-Even Calculator -->
+                <div class="breakeven-box space-y-2">
+                  <div class="breakeven-title">
+                    <app-icon name="CheckCircle2" class="icon-4 text-emerald-600" />
+                    <span>Compaction Break-Even Formula</span>
+                  </div>
+                  <p class="breakeven-text">
+                    When older dialogue turns are compacted into a structured summary, a one-off compaction token cost is incurred.
+                    Because each subsequent turn no longer transmits those evicted turns, net savings break-even occurs within:
+                  </p>
+                  <div class="breakeven-formula">
+                    Break-Even Turns = Compaction Token Cost / Net Saved Tokens Per Turn (~1.8 turns)
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- TAB: BENCHMARK MATRIX -->
+          @case ('benchmark') {
+            <div class="tab-pane space-y-4">
+              <div class="lab-card space-y-4">
+                <div class="d-flex align-items-center justify-content-between">
+                  <div>
+                    <h3 class="section-title">
+                      <app-icon name="Play" class="icon-4 text-indigo-600" />
+                      <span>Strategy Benchmark Matrix</span>
+                    </h3>
+                    <p class="section-hint mt-0-5">
+                      Compare token usage, latency, and cache hit efficiency across all 4 memory management strategies.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    (click)="runBenchmarkTest()"
+                    [disabled]="isBenchmarking()"
+                    class="run-matrix-btn">
+                    <app-icon name="Play" class="icon-3-5" fill="currentColor" />
+                    <span>{{ isBenchmarking() ? 'Running...' : 'Run Matrix Test' }}</span>
+                  </button>
+                </div>
+
+                <div class="bench-grid">
+                  <div>
+                    <label class="field-label mb-1">Test Prompt:</label>
+                    <input
+                      type="text"
+                      [value]="benchmarkPrompt()"
+                      (input)="benchmarkPrompt.set(inputValue($event))"
+                      class="bench-input" />
+                  </div>
+
+                  <div>
+                    <label class="field-label mb-1">Model Override:</label>
+                    <select
+                      [value]="benchmarkModel() || conv().model"
+                      (change)="benchmarkModel.set(inputValue($event))"
+                      class="bench-input bench-select">
+                      @for (id of modelIds; track id) {
+                        <option [value]="id" [selected]="id === (benchmarkModel() || conv().model)">{{ id }}</option>
+                      }
+                    </select>
+                  </div>
+                </div>
+
+                <div class="bench-grid">
+                  <div>
+                    <label class="field-label mb-1-5">Strategies to Include:</label>
+                    <div class="space-y-1">
+                      @for (s of benchmarkStrategyIds; track s) {
+                        <label class="bench-option">
+                          <input
+                            type="checkbox"
+                            [checked]="benchmarkStrategies().includes(s)"
+                            (change)="toggleBenchmarkStrategy(s, $any($event.target).checked)"
+                            class="bench-checkbox" />
+                          {{ strategyLabel(s) }}
+                        </label>
+                      }
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="field-label mb-1-5">Mode:</label>
+                    <div class="space-y-2">
+                      <label class="bench-option">
+                        <input
+                          type="radio"
+                          name="benchmarkMode"
+                          [checked]="!benchmarkIsLive()"
+                          (change)="benchmarkIsLive.set(false)" />
+                        <span><strong>Modelled Estimate</strong> — zero API calls, instant</span>
+                      </label>
+                      <label class="bench-option">
+                        <input
+                          type="radio"
+                          name="benchmarkMode"
+                          [checked]="benchmarkIsLive()"
+                          (change)="benchmarkIsLive.set(true)" />
+                        <span><strong>Live Gemini</strong> — real provider calls, uses API quota</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                @if (benchmarkResults(); as results) {
+                  <div class="bench-table-wrap">
+                    <table class="bench-table">
+                      <thead>
+                        <tr class="bench-head-row">
+                          <th>Strategy</th>
+                          <th>Mode</th>
+                          <th>Input</th>
+                          <th>Output</th>
+                          <th>Cached</th>
+                          <th class="bench-th-total">Total</th>
+                          <th>Latency</th>
+                        </tr>
+                      </thead>
+                      <tbody class="bench-body">
+                        @for (r of results; track $index) {
+                          <tr class="bench-row">
+                            <td class="bench-strategy">{{ r.strategy }}</td>
+                            <td>
+                              <span class="bench-mode" [class.is-live]="r.mode === 'live'">
+                                {{ r.mode }}
+                              </span>
+                            </td>
+                            <td class="text-slate-600">{{ fmt(r.inputTokens) }}</td>
+                            <td class="text-slate-600">{{ fmt(r.outputTokens) }}</td>
+                            <td class="text-emerald-600">{{ r.cachedTokens != null ? r.cachedTokens.toLocaleString() : '—' }}</td>
+                            <td class="bench-total">{{ fmt(r.totalTokens) }}</td>
+                            <td class="text-slate-500">{{ r.latencyMs != null ? r.latencyMs + 'ms' : '—' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+
+          <!-- TAB: SESSION ANALYTICS -->
+          @case ('analytics') {
+            <div class="tab-pane space-y-4">
+              <div class="lab-card space-y-4">
+                <div class="d-flex align-items-center justify-content-between">
+                  <h3 class="section-title">
+                    <app-icon name="BarChart3" class="icon-4 text-emerald-600" />
+                    <span>Cumulative Session Telemetry</span>
+                  </h3>
+                  <button
+                    type="button"
+                    (click)="isResetStatsConfirmOpen.set(true)"
+                    class="reset-counters-btn">
+                    <app-icon name="RotateCcw" class="icon-3" />
+                    <span>Reset Counters</span>
+                  </button>
+                </div>
+
+                <div class="stat-grid">
+                  <div class="stat-card">
+                    <div class="stat-label">User Chat Turns</div>
+                    <div class="stat-value text-slate-900">{{ stats()?.userFacingChatCalls || 0 }}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Total Tokens Saved</div>
+                    <div class="stat-value text-emerald-600">{{ stats()?.tokensSaved?.toLocaleString() || 0 }}</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Net Savings Ratio</div>
+                    <div class="stat-value text-sky-600">{{ stats()?.netSavingsPercentage || 0 }}%</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">Cache Hit Ratio</div>
+                    <div class="stat-value text-indigo-600">{{ stats()?.cacheHitRatio || 0 }}%</div>
+                  </div>
+                </div>
+
+                <div class="export-row">
+                  <button
+                    type="button"
+                    (click)="exportConversationJSON()"
+                    class="export-btn">
+                    <app-icon name="Download" class="icon-3-5" />
+                    <span>Export Telemetry (JSON)</span>
+                  </button>
+                </div>
               </div>
             </div>
           }
         }
       </div>
-
-      <div class="card-footer d-flex align-items-center justify-content-end">
-        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
-      </div>
     </div>
   </div>
+
+  <!-- Confirmation Dialogs -->
+  <app-confirm-dialog
+    [isOpen]="isResetMemoryConfirmOpen()"
+    (cancelled)="isResetMemoryConfirmOpen.set(false)"
+    (confirmed)="confirmResetMemory()"
+    title="Reset Conversation Memory?"
+    description="This will clear the semantic conversation summary and historical compaction logs for this session. Your career context facts will remain intact."
+    confirmLabel="Reset Memory"
+    [isDestructive]="true" />
+
+  <app-confirm-dialog
+    [isOpen]="isResetStatsConfirmOpen()"
+    (cancelled)="isResetStatsConfirmOpen.set(false)"
+    (confirmed)="confirmResetStats()"
+    title="Reset Cumulative Counters?"
+    description="This will reset all session telemetry counters (user tokens, model tokens, cache hits, and net savings) back to zero."
+    confirmLabel="Reset Counters"
+    [isDestructive]="true" />
 }
-
-<app-confirm-dialog
-  [isOpen]="resetMemoryConfirmOpen()"
-  title="Reset Conversation Memory?"
-  description="This clears the semantic conversation summary and compaction history for this conversation. Career context facts are not affected."
-  confirmLabel="Reset Memory"
-  [isDestructive]="true"
-  (confirmed)="confirmResetMemory()"
-  (cancelled)="resetMemoryConfirmOpen.set(false)">
-</app-confirm-dialog>
-
-<app-confirm-dialog
-  [isOpen]="resetStatsConfirmOpen()"
-  title="Reset Cumulative Counters?"
-  description="This resets all session telemetry counters back to zero."
-  confirmLabel="Reset Counters"
-  [isDestructive]="true"
-  (confirmed)="confirmResetStats()"
-  (cancelled)="resetStatsConfirmOpen.set(false)">
-</app-confirm-dialog>

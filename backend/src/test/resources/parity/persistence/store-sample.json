@@ -1,0 +1,28 @@
+{
+  "miniPathways": [
+    {"id": "run-1", "conversationId": "conv-keep", "sourceMessageId": "msg-1", "version": "mini-pathway-v3", "status": "running", "mode": "manual",
+     "createdAt": "2026-09-23T01:02:03.004Z", "model": "gemini-3.5-flash", "promptHash": "abc123",
+     "decision": {"action": "manual", "score": 0.5, "reasons": []}, "hint": {"kind": "career", "labels": ["Nurse", "Midwife"]},
+     "usage": {"inputTokens": 0, "outputTokens": 0, "thinkingTokens": 0}},
+    {"id": "run-2", "conversationId": "conv-gone", "sourceMessageId": "msg-2", "version": "mini-pathway-v3", "status": "error", "mode": "automatic",
+     "createdAt": "2026-09-23T01:02:04.000Z", "model": "gemini-3.5-flash", "promptHash": "def456", "decision": {"action": "automatic"},
+     "usage": {"inputTokens": 12, "outputTokens": 3, "thinkingTokens": 1}, "error": "We could not prepare the mini pathway. Please try again."},
+    {"id": "run-3", "conversationId": "conv-keep", "sourceMessageId": "msg-3", "version": "mini-pathway-v3", "status": "complete", "mode": "manual",
+     "createdAt": "2026-09-23T01:02:05.500Z", "model": "gemini-3.5-flash", "promptHash": "ghi789", "decision": {}, "qualityIssues": [],
+     "response": {"text": "Café – ✓ \"quoted\"\nline\u0001tab\t", "numbers": [1, 1.5, -0.25, 1e-7, 12345678901234, 0]},
+     "usage": {"inputTokens": 1000, "outputTokens": 2000, "thinkingTokens": 30}}
+  ],
+  "details": [
+    {"id": "det-1", "policyVersion": "2026-09-15.4", "conversationId": "conv-keep",
+     "request": {"parentMessageId": "msg-1", "target": "Bachelor of Nursing", "question": "What units are in year 1?", "studyYear": "1", "location": "Sydney"},
+     "retrievedAt": "2026-09-23T01:02:03.004Z", "status": "partial", "summary": "Some units are listed.",
+     "facts": [{"text": "Anatomy is taught.", "kind": "source_backed", "evidenceIds": ["e1"]}], "gaps": [], "nextQuestions": ["Which campus?"],
+     "sources": [{"id": "s1", "url": "https://example.edu/nursing", "title": "Nursing"}], "evidence": [{"id": "e1", "sourceId": "s1", "text": "Anatomy"}],
+     "searchSuggestionsHtml": "<div>search</div>", "usage": {"inputTokens": 10, "outputTokens": 20, "searchQueries": 1, "calls": 2}},
+    {"id": "det-2", "policyVersion": "2026-09-15.4", "conversationId": "conv-gone", "request": {"parentMessageId": "msg-9", "target": "x", "question": "y"},
+     "retrievedAt": "2026-09-23T01:02:03.004Z", "status": "no_evidence", "summary": "None.", "facts": [], "gaps": [], "nextQuestions": [], "sources": [],
+     "evidence": [], "searchSuggestionsHtml": "", "usage": {"inputTokens": 0, "outputTokens": 0, "searchQueries": 0, "calls": 0}}
+  ],
+  "objective": {"id": "7f0c5c3e-1b2a-4c3d-8e9f-0a1b2c3d4e5f", "conversationId": "conv-keep", "objectiveId": "COURSE_011", "state": "ACTIVE", "revision": 1,
+    "createdAt": 1600000000000, "updatedAt": 1600000000001, "answers": [], "plan": {"handoff": {"summary": "Compare – two options"}, "score": 0.75, "empty": {}}}
+}

@@ -1,0 +1,93 @@
+<div class="output-review rp-root">
+  <header class="rp-header">
+    <button (click)="back.emit()" class="rp-back tw-border">Back to chat</button>
+    <div>
+      <h1 class="rp-h1">Counselling output review</h1>
+      <p class="rp-muted-sm">{{ scenarios.length }} designed examples · Uses the main chat components · No AI calls or provider requests</p>
+    </div>
+  </header>
+  <main class="rp-main">
+    <div class="rp-intro tw-border"><strong>What a good answer does:</strong> answer the request, respect the person’s constraints, make unknowns visible, then offer one useful next step when needed. These examples demonstrate expected behaviour; they do not prove a live model always follows it.</div>
+    <nav aria-label="Review categories" class="rp-tabs">
+      @for (name of groups; track name) {
+        <button [attr.aria-pressed]="group() === name" class="rp-tab tw-border" [class.is-active]="group() === name" (click)="chooseGroup(name)">{{ name }} <span>({{ groupCount(name) }})</span></button>
+      }
+    </nav>
+    <div class="rp-layout">
+      <aside class="rp-aside tw-border">
+        <label class="rp-label" for="scenario-search">Find a scenario</label>
+        <input id="scenario-search" [value]="search()" (input)="search.set($any($event.target).value)" placeholder="Try parent, training or data" class="rp-search tw-border" />
+        <div aria-label="Example scenarios" class="rp-list">
+          @for (f of filtered(); track f.id) {
+            <button [attr.data-scenario-id]="f.id" [attr.aria-pressed]="selected() === f.id && !custom()" (click)="choose(f.id)"
+              class="rp-scenario tw-border" [class.is-active]="selected() === f.id && !custom()" [class.border-transparent]="!(selected() === f.id && !custom())">{{ f.label }}</button>
+          }
+          @if (!filtered().length) { <p class="rp-empty">No matching examples. Try a different word.</p> }
+        </div>
+      </aside>
+      <section class="rp-section">
+        <div class="rp-card tw-border">
+          <h2 class="rp-h2">{{ custom() ? 'Your JSON example' : scenario().label }}</h2>
+          <p class="rp-muted-sm"><strong>User says: </strong>{{ scenario().request }}</p>
+          <p class="rp-expect"><strong>Counselling expectation: </strong>{{ scenario().expected }}</p>
+          <div class="rp-controls">
+            <label class="rp-check"><input type="checkbox" [checked]="phone()" (change)="phone.set($any($event.target).checked)" />Narrow preview</label>
+            <label class="rp-check"><input type="checkbox" [checked]="simulateFailure()" (change)="simulateFailure.set($any($event.target).checked)" />Fail the next example reply</label>
+            <button class="rp-btn tw-border" (click)="choose(selected())">Reset example</button>
+          </div>
+        </div>
+        <article data-review-preview class="rp-preview tw-border" [style.max-width.px]="phone() ? 390 : null">
+          <div class="rp-oala">Oala <span class="rp-oala-sub">· Designed example</span></div>
+          @for (key of renderKey(); track key) {
+            @if (scenario().phase && !custom() && !stopped()) {
+              <app-chat-progress [phase]="scenario().phase" [startedAt]="startedAt() - (scenario().state === 'slow' ? 15000 : 0)" (stop)="stopped.set(true)" />
+            }
+          }
+          @if ((stopped() || scenario().state === 'stopped') && !custom()) {
+            <div class="main-chat-stopped"><span>Stopped. Your question is still here.</span><button (click)="retryStopped()">Try again</button></div>
+          }
+          @if (scenario().state === 'invalid' && !custom()) {
+            <div role="alert" class="rp-invalid tw-border">
+              <p>This response could not be displayed. Please try again.</p>
+              <button class="rp-btn rp-btn-white tw-border" (click)="notice.set('Example retry selected. No AI call is made on this page.')">Try again</button>
+            </div>
+          }
+          @if (response()) {
+            @for (key of renderKey(); track key) {
+              <app-protocol-renderer [data]="response()" [readOnly]="scenario().state === 'earlier'" [interactHandler]="onInteract" />
+            }
+          }
+        </article>
+        @if (notice()) { <p role="status" class="rp-notice tw-border">{{ notice() }}</p> }
+        @if (response()) {
+          <details class="rp-details tw-border">
+            <summary class="rp-summary">Inspect the readable output and JSON</summary>
+            <pre class="rp-readable">{{ readableText() }}</pre>
+            <pre class="rp-json">{{ jsonText() }}</pre>
+          </details>
+        }
+      </section>
+    </div>
+    <details class="rp-details-lg tw-border">
+      <summary class="rp-summary rp-summary-strong">What works, what was fixed, and what still needs checking</summary>
+      <div class="rp-issues">
+        @for (issue of issues; track issue.title) {
+          <div class="rp-issue tw-border">
+            <span class="rp-issue-status">{{ issue.status }}</span>
+            <h3 class="rp-issue-title">{{ issue.title }}</h3>
+            <p class="rp-issue-detail">{{ issue.detail }}</p>
+          </div>
+        }
+      </div>
+    </details>
+    <details class="rp-details-lg tw-border">
+      <summary class="rp-summary rp-summary-strong">Try another JSON response</summary>
+      <div class="rp-json-form">
+        <label class="rp-block" for="response-json">Response JSON</label>
+        <textarea id="response-json" rows="7" [value]="draft()" (input)="draft.set($any($event.target).value)" class="rp-json-input tw-border"></textarea>
+        <button class="rp-primary" (click)="preview()">Preview response</button>
+        @if (error()) { <p role="alert" class="rp-error">{{ error() }}</p> }
+      </div>
+    </details>
+  </main>
+</div>

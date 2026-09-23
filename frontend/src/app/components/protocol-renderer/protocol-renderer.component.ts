@@ -1,193 +1,140 @@
-import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, EventEmitter, Input, Output, SecurityContext, ViewChild } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { NgTemplateOutlet } from '@angular/common';
 import { ApiService } from '../../services/api.service';
-import { InteractionComponent } from './interaction/interaction.component';
+import { IconComponent } from '../shared/icon/icon.component';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
-import {
-  YuzeeResponseV13, YuzeeContentBlock, YuzeeItem, YuzeeRow, ServiceAction, UserEvent, ActionExecuteResponse,
-  CardItem, TimelineMilestone, FlowNode, FlowEdge, PathwayLane, ScorecardMetric, ChartSeries, ProgressStage
-} from '../../models/types';
+import { PathwayLearningCuesComponent } from '../mini-pathway/pathway-learning-cues.component';
+import { InteractionComponent, InteractHandler } from './interaction/interaction.component';
+import { GuidanceListComponent } from './guidance-list/guidance-list.component';
+import { TRUSTED_SERVICE_ACTIONS, TrustedServiceAction } from './protocol-validator';
+import { learningToneIn, markdownToHtml, readableMarkdown } from './protocol-presentation';
+import type { YuzeeResponseV13, YuzeeContentBlock, ServiceAction, UserEvent, ActionExecuteResponse } from '../../models/types';
 
-interface GuidanceRowVm {
-  id: string;
-  ordinal: number | null;
-  title: string;
-  description: string[];
-  sideLabel?: string;
-  sideText?: string;
-  tone: string;
-  statusLabel?: string;
-  statusIcon?: 'flag' | 'arrow' | 'warning' | 'check' | 'info';
-}
-
-const GUIDANCE_STATES: Record<string, { label: string; tone: string; icon: GuidanceRowVm['statusIcon'] }> = {
-  current: { label: 'Start here', tone: 'blue', icon: 'flag' },
-  next: { label: 'Next step', tone: 'purple', icon: 'arrow' },
-  warning: { label: 'Check this', tone: 'amber', icon: 'warning' },
-  blocked: { label: 'Needs attention', tone: 'rose', icon: 'warning' },
-  complete: { label: 'Completed', tone: 'green', icon: 'check' },
-  positive: { label: 'Potential benefit', tone: 'neutral', icon: 'info' },
-  negative: { label: 'Consideration', tone: 'amber', icon: 'info' },
+const CALLOUT_ICON: Record<string, string> = {
+  info: 'Info', default: 'Info', success: 'CheckCircle2', warning: 'AlertTriangle', danger: 'XCircle', muted: 'AlertCircle',
 };
+const CARD_STATUS = ['recommended', 'alternative', 'completed', 'current', 'blocked', 'warning', 'neutral', 'upcoming'];
+const MILESTONE_STATUS = ['completed', 'current', 'upcoming', 'blocked', 'paused', 'unknown'];
+const NODE_STATUS = ['recommended', 'current', 'completed', 'blocked', 'neutral', 'upcoming'];
+const LANE_STATUS = ['completed', 'current', 'upcoming', 'blocked'];
+const METRIC_STATUS = ['excellent', 'good', 'warning', 'critical', 'neutral'];
+const STAGE_STATUS = ['completed', 'current', 'upcoming', 'blocked', 'paused', 'failed', 'unknown'];
+const SOURCE_LABEL: Record<string, string> = { provided: 'Provided figures', estimated: 'Estimate', to_verify: 'Needs checking', verified: 'Marked verified in the response' };
 
-const CALLOUT_META: Record<string, { cls: string; icon: string }> = {
-  info: { cls: 'callout-info', icon: 'ℹ' },
-  default: { cls: 'callout-info', icon: 'ℹ' },
-  success: { cls: 'callout-success', icon: '✓' },
-  warning: { cls: 'callout-warning', icon: '⚠' },
-  danger: { cls: 'callout-danger', icon: '✕' },
-  muted: { cls: 'callout-muted', icon: 'ⓘ' },
-};
-
-const CARD_STATUS_CLASS: Record<string, string> = {
-  recommended: 'card-recommended', alternative: 'card-alternative', completed: 'card-completed',
-  current: 'card-current', blocked: 'card-blocked', warning: 'card-warning', neutral: 'card-neutral', upcoming: 'card-neutral',
-};
-
-const TIMELINE_DOT_CLASS: Record<string, string> = {
-  completed: 'dot-completed', current: 'dot-current', upcoming: 'dot-upcoming', blocked: 'dot-blocked', paused: 'dot-paused', unknown: 'dot-unknown',
-};
-
-const FLOW_NODE_CLASS: Record<string, string> = {
-  recommended: 'node-recommended', current: 'node-current', completed: 'node-completed', blocked: 'node-blocked', neutral: 'node-neutral', upcoming: 'node-upcoming',
-};
-
-const LANE_STEP_STATUS_CLASS: Record<string, string> = {
-  completed: 'step-status-completed', current: 'step-status-current', upcoming: 'step-status-upcoming', blocked: 'step-status-blocked',
-};
-
-const METRIC_STATUS_CLASS: Record<string, string> = {
-  excellent: 'metric-excellent', good: 'metric-good', warning: 'metric-warning', critical: 'metric-critical', neutral: 'metric-neutral',
-};
-
-const CHART_SOURCE_LABEL: Record<string, string> = {
-  provided: 'Provided figures', estimated: 'Estimate', to_verify: 'Needs checking', verified: 'Marked verified in the response',
-};
-
-const STAGE_STATUS_CLASS: Record<string, string> = {
-  completed: 'stage-completed', current: 'stage-current', upcoming: 'stage-upcoming', blocked: 'stage-blocked', paused: 'stage-paused', failed: 'stage-failed', unknown: 'stage-unknown',
-};
+let nextAnchor = 0;
 
 /**
- * Port of ProtocolV13Renderer.tsx — renders a Yuzee protocol response's content_blocks[]
- * (v1.3 + the 7 new v1.4 block types), the interaction widget, recommended-action chips
- * and the service-action confirm/execute flow.
+ * Port of ProtocolV13Renderer.tsx — turns a Yuzee protocol response (v1.3 / v1.4 content_blocks,
+ * interaction, recommended actions, service handoff) into the counselling-output UI.
  *
- * Public API:
- * - @Input({required:true}) response: YuzeeResponseV13
- * - @Input() conversationId, readOnly, initialFields, hideRecommendedActions, semanticValid, validationErrors
- * - @Output() interact: EventEmitter<UserEvent> — bubbles both interaction submissions and
- *   recommended-action-chip clicks. Callers must eventually call `reportInteractionResult(accepted)`
- *   once their own async submit (e.g. TokenLabService.sendMessage) settles, so the embedded
- *   <app-interaction> can leave its pending state (see InteractionComponent's doc comment).
+ * Inputs mirror the React props: data (alias `response`), initialFields, rawJson, schemaValid,
+ * semanticValid, validationErrors, readOnly, conversationId, hideRecommendedActions,
+ * deferQuestionToWorkspace, pathwayLearningCues. React's `onInteract` is either the
+ * `interactHandler` function input (awaited; `false` = not accepted) or the `(interact)` output,
+ * in which case the caller completes the question widget with `reportInteractionResult(accepted)`.
+ * `(openPathway)` is React's `onOpenPathway`: the "Build my pathway" button only appears when bound.
  */
 @Component({
   selector: 'app-protocol-renderer',
   standalone: true,
-  imports: [CommonModule, InteractionComponent, ConfirmDialogComponent],
+  imports: [NgTemplateOutlet, IconComponent, ConfirmDialogComponent, PathwayLearningCuesComponent, InteractionComponent, GuidanceListComponent],
   templateUrl: './protocol-renderer.component.html',
-  styleUrl: './protocol-renderer.component.scss'
+  styleUrls: ['./protocol-renderer.component.scss', './protocol-renderer-blocks.scss']
 })
 export class ProtocolRendererComponent {
-  @Input({ required: true }) response!: YuzeeResponseV13;
-  @Input() conversationId?: string;
-  @Input() readOnly = false;
+  @Input() data?: YuzeeResponseV13 | null;
+  /** Backwards-compatible alias for `data`. */
+  @Input() set response(value: YuzeeResponseV13 | null | undefined) { this.data = value; }
   @Input() initialFields: Record<string, string> = {};
-  @Input() hideRecommendedActions = false;
+  @Input() rawJson?: string;
+  @Input() schemaValid = true;
   @Input() semanticValid = true;
   @Input() validationErrors: string[] = [];
+  @Input() readOnly = false;
+  @Input() conversationId?: string;
+  @Input() hideRecommendedActions = false;
+  @Input() deferQuestionToWorkspace = false;
+  @Input() pathwayLearningCues = false;
+  @Input() interactHandler?: InteractHandler;
 
   @Output() interact = new EventEmitter<UserEvent>();
+  @Output() openPathway = new EventEmitter<void>();
 
   @ViewChild(InteractionComponent) interactionRef?: InteractionComponent;
 
-  readonly outputAnchor = 'pr-' + Math.random().toString(36).slice(2);
-
+  readonly outputAnchor = 'pr' + (++nextAnchor);
   pendingAction: ServiceAction | null = null;
-  actionStatus: Record<string, ActionExecuteResponse> = {};
+  actionStatus: Record<string, { executed: boolean; message: string }> = {};
+  private mdCache = new Map<string, SafeHtml>();
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private sanitizer: DomSanitizer) {}
 
-  /**
-   * Used as the `@for` track expression over content_blocks instead of the inline
-   * `track block.id ?? $index` — Angular 18's `@for` track compiler can emit a reference to an
-   * undeclared temporary variable ("tmp_N_0 is not defined") for a `??` expression directly in a
-   * track binding; a plain method call avoids the codegen path that triggers it.
-   */
-  trackBlock(block: YuzeeContentBlock, index: number): string {
-    return block?.id ?? String(index);
+  // ---- envelope ---------------------------------------------------------
+
+  get blocks(): YuzeeContentBlock[] {
+    const d: any = this.data;
+    const b = d?.content_blocks || d?.blocks || [];
+    return Array.isArray(b) ? b : [];
   }
 
-  // ---------------------------------------------------------------------
-  // Envelope-level helpers
-  // ---------------------------------------------------------------------
-
-  get careText(): string {
-    const raw = (this.response?.response_intent ?? '').trim();
-    if (!raw || raw.toLowerCase() === 'none') return '';
-    return /^[A-Z][A-Z_]{2,}$/.test(raw) ? '' : raw;
-  }
+  get restBlocks(): YuzeeContentBlock[] { return this.blocks.slice(1); }
 
   get readableSections(): { title: string; index: number }[] {
-    return (this.response?.content_blocks ?? [])
-      .map((block, index) => ({ title: block.title, index }))
-      .filter(s => !!s.title?.trim());
+    return this.blocks.map((block, index) => ({ title: block.title, index })).filter(section => section.title?.trim());
   }
 
-  get showSectionNav(): boolean {
-    return this.readableSections.length >= 5;
+  get careText(): string {
+    const raw = this.data?.response_intent?.trim();
+    const isProtocolLabel = raw ? /^[A-Z][A-Z_]{2,}$/.test(raw) : false;
+    const text = isProtocolLabel ? '' : raw;
+    return text && text !== 'none' ? text : '';
   }
 
-  sectionAnchor(index: number): string {
-    return `${this.outputAnchor}-section-${index}`;
-  }
-
-  get service() {
-    return this.response?.service_trigger;
-  }
-
-  get showServiceHandoff(): boolean {
-    const s = this.service;
-    return !!s && (s.primary_requested_service ?? 'NONE') !== 'NONE' && s.trigger_now !== false && !!s.actions?.length;
+  get suggestPathway(): boolean {
+    if (!this.openPathway.observed || !this.data) return false;
+    const hasWorkflowBlocks = this.blocks.some(b => (b.type === 'list' || b.type === 'steps') && Array.isArray(b.items) && b.items.some(i => i.status === 'current' || i.status === 'next'));
+    const responseIntentStr = (this.data.response_intent || '') + (this.data as any).response_direction;
+    return hasWorkflowBlocks || /ACTION_PLAN|GOAL|PATHWAY|ROADMAP|PLAN/i.test(responseIntentStr);
   }
 
   get showDraftOnly(): boolean {
-    return this.response?.current_mode === 'S_SERVICE_HANDOFF'
-      || (!!this.response?.rmo_readiness?.ready_to_generate && !!this.service?.service_intent_detected);
+    const d: any = this.data;
+    return d?.current_mode === 'S_SERVICE_HANDOFF' || !!(d?.rmo_readiness?.ready_to_generate && d?.service_trigger?.service_intent_detected);
   }
 
   get showRecommendedActions(): boolean {
-    return !this.hideRecommendedActions && !this.readOnly
-      && this.response?.interaction?.kind === 'none'
-      && !!this.response?.interaction?.recommended_actions?.length;
+    const inter = this.data?.interaction;
+    return !this.hideRecommendedActions && !!inter && inter.kind === 'none' && Array.isArray(inter.recommended_actions) && inter.recommended_actions.length > 0 && !this.readOnly;
   }
+
+  get showService(): boolean {
+    const s = this.data?.service_trigger;
+    return !!s && (s.primary_requested_service || 'NONE') !== 'NONE' && s.trigger_now !== false && Array.isArray(s.actions) && s.actions.length > 0;
+  }
+
+  get serviceActions(): ServiceAction[] { return this.data?.service_trigger?.actions ?? []; }
+
+  sectionId(index: number): string { return `${this.outputAnchor}-section-${index}`; }
+
+  // ---- interaction ------------------------------------------------------
 
   handleActionClick(actionId: string, message: string): void {
     if (this.readOnly) return;
-    this.interact.emit({ type: 'action_clicked', action_id: actionId, value: message, timestamp: Date.now() });
+    const event: UserEvent = { type: 'action_clicked', action_id: actionId, value: message, timestamp: Date.now() };
+    if (this.interactHandler) this.interactHandler(event); else this.interact.emit(event);
   }
 
-  onInteractionSubmit(event: UserEvent): void {
-    this.interact.emit(event);
-  }
-
-  /** Call once the caller's own async submission (e.g. sendMessage) settles for the active interaction. */
+  /** Call once the caller's own async submission settles for the active question (output path). */
   reportInteractionResult(accepted: boolean): void {
     this.interactionRef?.reportResult(accepted);
   }
 
-  // ---------------------------------------------------------------------
-  // Service action execution
-  // ---------------------------------------------------------------------
+  // ---- service actions --------------------------------------------------
 
-  actionId(act: ServiceAction): string {
-    return act.action_id || act.id || '';
-  }
-
-  /** Typed lookup (plain index access on a Record doesn't tell TS the key may be absent). */
-  statusOf(actId: string): ActionExecuteResponse | undefined {
-    return this.actionStatus[actId];
-  }
+  actId(act: ServiceAction): string { return act.action_id || act.id || ''; }
+  trusted(act: ServiceAction): TrustedServiceAction | undefined { return TRUSTED_SERVICE_ACTIONS[this.actId(act)]; }
+  statusOf(act: ServiceAction): { executed: boolean; message: string } | undefined { return this.actionStatus[this.actId(act)]; }
 
   triggerServiceAction(act: ServiceAction): void {
     if (act.requires_confirmation) this.pendingAction = act;
@@ -195,208 +142,93 @@ export class ProtocolRendererComponent {
   }
 
   executeServiceAction(act: ServiceAction): void {
-    const actId = this.actionId(act);
+    const actId = this.actId(act);
     const convId = this.conversationId || 'default';
-    // Assumed contract (backend endpoint does not exist yet):
-    //   POST /api/conversations/{convId}/actions/{actionId}/execute   body: {}
-    //   200 response: { executed: boolean; message: string }
-    this.api.post<ActionExecuteResponse>(
-      `/conversations/${encodeURIComponent(convId)}/actions/${encodeURIComponent(actId)}/execute`, {}
-    ).subscribe({
-      next: (res) => {
-        this.actionStatus = {
-          ...this.actionStatus,
-          [actId]: { executed: !!res?.executed, message: res?.message || (res?.executed ? 'Action Initiated' : 'Not connected in Token Lab.') }
-        };
-      },
-      error: () => {
-        this.actionStatus = { ...this.actionStatus, [actId]: { executed: false, message: 'Not connected in Token Lab.' } };
-      }
-    });
-    this.pendingAction = null;
-  }
-
-  confirmPendingAction(): void {
-    if (this.pendingAction) this.executeServiceAction(this.pendingAction);
-  }
-
-  cancelPendingAction(): void {
-    this.pendingAction = null;
-  }
-
-  // ---------------------------------------------------------------------
-  // Markdown (text blocks) — bold/italic/inline-code/paragraphs + GFM pipe tables.
-  // No markdown library is installed in this app; this is a small, dependency-free
-  // renderer covering exactly what the protocol's `text` blocks use.
-  // ---------------------------------------------------------------------
-
-  renderMarkdown(text: string | undefined): string {
-    if (!text) return '';
-    const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    const codeSpans: string[] = [];
-    const withPlaceholders = text.replace(/`([^`\n]+)`/g, (_m, code: string) => {
-      codeSpans.push(`<code>${escape(code)}</code>`);
-      return ` ${codeSpans.length - 1} `;
-    });
-
-    let html = escape(withPlaceholders);
-
-    html = html.replace(
-      /^\|(.+)\|[ \t]*\r?\n\|[ :\-|]+\|[ \t]*\r?\n((?:\|.*\|[ \t]*\r?\n?)*)/gm,
-      (_m, headerRow: string, bodyRows: string) => {
-        const headers = headerRow.split('|').map((h: string) => h.trim()).filter(Boolean);
-        const bodyHtml = bodyRows.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean).map((line: string) => {
-          const cells = line.replace(/^\||\|$/g, '').split('|').map((c: string) => c.trim());
-          return `<tr>${cells.map((c: string) => `<td>${c}</td>`).join('')}</tr>`;
-        }).join('');
-        return `<div class="response-table-scroll"><table class="table table-bordered response-md-table"><thead><tr>${headers.map((h: string) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`;
-      }
-    );
-
-    html = html
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .split(/\n{2,}/)
-      .map(block => /^<div class="response-table-scroll"/.test(block.trim()) ? block : `<p>${block.trim().replace(/\n/g, '<br>')}</p>`)
-      .join('');
-
-    return html.replace(/ (\d+) /g, (_m, i: string) => codeSpans[Number(i)]);
-  }
-
-  // ---------------------------------------------------------------------
-  // Guidance list (list/steps) — port of GuidanceList.tsx
-  // ---------------------------------------------------------------------
-
-  guidanceOrdered(block: YuzeeContentBlock): boolean {
-    return block.type === 'steps';
-  }
-
-  guidanceRows(block: YuzeeContentBlock): GuidanceRowVm[] {
-    const ordered = this.guidanceOrdered(block);
-    const checkSection = /\b(what.*check|needs checking|still.*check|to confirm|to verify)\b/i.test(block.title || '');
-    return (block.items ?? []).map((item: YuzeeItem, index: number) => {
-      const state = checkSection && item.status === 'warning' ? undefined : GUIDANCE_STATES[item.status];
-      const tone = state?.tone ?? 'neutral';
-      const numberedTitle = ordered
-        ? item.title?.match(/^(?:(?:stage|step)\s+([1-9]\d*)\s*[:.\-–—]\s*|([1-9]\d*)[.)]\s+)(\S[\s\S]*)$/i)
-        : null;
-      const ordinal = numberedTitle ? Number(numberedTitle[1] || numberedTitle[2]) : index + 1;
-      const repeatedValue = ordered && (
-        (!!numberedTitle && item.value?.trim() === String(ordinal))
-        || new RegExp(`^(?:stage|step)\\s+${ordinal}[.:]?$`, 'i').test(item.value?.trim() ?? '')
-      );
-      const value = repeatedValue ? '' : item.value;
-      const title = numberedTitle ? numberedTitle[3] : item.title;
-      const description: string[] = [];
-      if (item.text || value) description.push(item.text || value);
-      if (item.text && value && value !== item.text) description.push(value);
-      return {
-        id: item.id || String(index),
-        ordinal: numberedTitle ? ordinal : null,
-        title,
-        description,
-        sideLabel: item.side_label,
-        sideText: item.side_text,
-        tone,
-        statusLabel: state?.label,
-        statusIcon: state?.icon,
-      };
+    // Like the original's `await res.json()`: any parsed JSON body counts, whatever the HTTP status;
+    // a network failure or unparseable body falls back to "Not connected". The dialog closes after.
+    const settle = (data: any) => {
+      const status = data && typeof data === 'object'
+        ? { executed: !!data.executed, message: data.message || (data.executed ? 'Action Initiated' : 'Not connected in Token Lab.') }
+        : { executed: false, message: 'Not connected in Token Lab.' };
+      this.actionStatus = { ...this.actionStatus, [actId]: status };
+      this.pendingAction = null;
+    };
+    this.api.post<ActionExecuteResponse>(`/conversations/${encodeURIComponent(convId)}/actions/${encodeURIComponent(actId)}/execute`, act).subscribe({
+      next: res => settle(res),
+      error: err => settle(err?.status && !(err.error instanceof ProgressEvent) ? err.error : null),
     });
   }
 
-  // ---------------------------------------------------------------------
-  // table / comparison
-  // ---------------------------------------------------------------------
+  confirmPendingAction(): void { if (this.pendingAction) this.executeServiceAction(this.pendingAction); }
 
-  cellValue(row: YuzeeRow, key: string): string {
-    return row.cells?.find(c => c.key === key)?.value || 'Not provided';
+  // ---- block helpers ----------------------------------------------------
+
+  items(block: YuzeeContentBlock): any[] { return Array.isArray(block.items) ? block.items : []; }
+  cols(block: YuzeeContentBlock): { key: string; label: string }[] { return Array.isArray(block.columns) ? block.columns : []; }
+  rows(block: YuzeeContentBlock): any[] { return Array.isArray(block.rows) ? block.rows : []; }
+  d(block: YuzeeContentBlock): any { return (block as any).data || {}; }
+  list(value: unknown): any[] { return Array.isArray(value) ? value : []; }
+
+  /** Sanitised by Angular's HTML sanitizer; only the fixed task-checkbox / footnote markup is added after it. */
+  markdown(block: YuzeeContentBlock): SafeHtml {
+    const b: any = block;
+    const src = readableMarkdown(b.text || b.content || b.body || '');
+    let html = this.mdCache.get(src);
+    if (html === undefined) {
+      html = this.sanitizer.bypassSecurityTrustHtml(markdownToHtml(src, h => this.sanitizer.sanitize(SecurityContext.HTML, h) ?? ''));
+      this.mdCache.set(src, html);
+    }
+    return html;
   }
 
-  private rawCell(row: YuzeeRow, key: string): string {
-    return row.cells?.find(c => c.key === key)?.value ?? '';
-  }
+  cellValue(row: any, key: string): string | undefined { return row?.cells?.find((c: any) => c.key === key)?.value; }
+  rowTone(row: any): string | undefined { return this.pathwayLearningCues ? learningToneIn((row.cells || []).map((c: any) => c.value).join(' ')) : undefined; }
+  cellTone(value: string | undefined): string | undefined { return this.pathwayLearningCues ? learningToneIn(value || '') : undefined; }
 
   comparisonHasCriteria(block: YuzeeContentBlock): boolean {
-    const rows = block.rows ?? [];
-    const cols = block.columns ?? [];
-    const criteriaAlreadyInColumns = rows.length > 0 && cols.some(col =>
-      /^(decision\s+)?(criteria|criterion|factor)$/i.test(col.label.trim())
-      && rows.every(row => !!row.criteria?.trim() && this.rawCell(row, col.key).trim().toLowerCase() === row.criteria!.trim().toLowerCase())
-    );
-    return rows.some(r => !!r.criteria) && !criteriaAlreadyInColumns;
+    const cmpRows = this.rows(block);
+    const cmpCols = this.cols(block);
+    // Avoid duplicating the row label when Gemini also supplies it as an explicit criteria column.
+    const criteriaAlreadyInColumns = cmpRows.length > 0 && cmpCols.some(col => /^(decision\s+)?(criteria|criterion|factor)$/i.test(col.label.trim()) && cmpRows.every(row => row.criteria?.trim() && this.cellValue(row, col.key)?.trim().toLowerCase() === row.criteria.trim().toLowerCase()));
+    return cmpRows.some(r => r.criteria) && !criteriaAlreadyInColumns;
   }
 
-  // ---------------------------------------------------------------------
-  // callout
-  // ---------------------------------------------------------------------
+  variant(block: YuzeeContentBlock): string {
+    const v = block.variant || 'default';
+    return Object.prototype.hasOwnProperty.call(CALLOUT_ICON, v) ? v : 'default';
+  }
+  calloutIcon(block: YuzeeContentBlock): string { return CALLOUT_ICON[this.variant(block)]; }
 
-  calloutMeta(block: YuzeeContentBlock) {
-    return CALLOUT_META[block.variant || 'default'] ?? CALLOUT_META['default'];
+  status(value: string, allowed: string[], fallback: string): string { return allowed.includes(value) ? value : fallback; }
+  cardStatus(s: string): string { return this.status(s, CARD_STATUS, 'neutral'); }
+  milestoneStatus(s: string): string { return this.status(s, MILESTONE_STATUS, 'unknown'); }
+  nodeStatus(s: string): string { return this.status(s, NODE_STATUS, 'neutral'); }
+  laneStatus(s: string): string { return this.status(s, LANE_STATUS, 'upcoming'); }
+  metricStatus(s: string): string { return this.status(s, METRIC_STATUS, 'neutral'); }
+  stageStatus(s: string): string { return this.status(s, STAGE_STATUS, 'unknown'); }
+
+  nodeLabel(block: YuzeeContentBlock, id: string): string { return this.list(this.d(block).nodes).find((n: any) => n.id === id)?.label || 'Unknown step'; }
+
+  metricValue(m: any): string {
+    return m.value_type === 'percentage' ? `${m.value}%` : m.value_type === 'rating' ? `${m.value}/${m.max ?? 10}` : `${m.value}${m.unit ? ` ${m.unit}` : ''}`;
   }
 
-  // ---------------------------------------------------------------------
-  // cards / timeline / flow / pathway_map / scorecard / chart / progress
-  // (v1.4 typed `data` payloads)
-  // ---------------------------------------------------------------------
+  sourceLabel(block: YuzeeContentBlock): string { return SOURCE_LABEL[this.d(block).source_status] || 'Source not specified'; }
+  seriesHead(s: any): string { return s.label + (s.unit ? ' (' + s.unit + ')' : ''); }
+  seriesValue(s: any, i: number): string { const v = s.values?.[i]; return v === undefined || v === null ? 'Not provided' : String(v); }
 
-  cardsOf(block: YuzeeContentBlock): CardItem[] { return (block.data?.['cards'] as CardItem[]) ?? []; }
-  cardStatusClass(status?: string): string { return CARD_STATUS_CLASS[status || 'neutral'] ?? CARD_STATUS_CLASS['neutral']; }
+  isChecked(item: any): boolean { return ['complete', 'completed'].includes(item.status); }
 
-  milestonesOf(block: YuzeeContentBlock): TimelineMilestone[] { return (block.data?.['milestones'] as TimelineMilestone[]) ?? []; }
-  timelineDotClass(status: string): string { return TIMELINE_DOT_CLASS[status] ?? TIMELINE_DOT_CLASS['unknown']; }
-
-  nodesOf(block: YuzeeContentBlock): FlowNode[] { return (block.data?.['nodes'] as FlowNode[]) ?? []; }
-  edgesOf(block: YuzeeContentBlock): FlowEdge[] { return (block.data?.['edges'] as FlowEdge[]) ?? []; }
-  flowNodeClass(status: string): string { return FLOW_NODE_CLASS[status] ?? FLOW_NODE_CLASS['neutral']; }
-  flowNodeLabel(block: YuzeeContentBlock, id: string): string { return this.nodesOf(block).find(n => n.id === id)?.label ?? 'Unknown step'; }
-
-  lanesOf(block: YuzeeContentBlock): PathwayLane[] { return (block.data?.['lanes'] as PathwayLane[]) ?? []; }
-  pathwayGoal(block: YuzeeContentBlock): string { return (block.data?.['goal'] as string) ?? ''; }
-  laneStepStatusClass(status: string): string { return LANE_STEP_STATUS_CLASS[status] ?? ''; }
-
-  metricsOf(block: YuzeeContentBlock): ScorecardMetric[] { return (block.data?.['metrics'] as ScorecardMetric[]) ?? []; }
-  metricStatusClass(status: string): string { return METRIC_STATUS_CLASS[status] ?? METRIC_STATUS_CLASS['neutral']; }
-  metricDisplay(m: ScorecardMetric): string {
-    if (m.value_type === 'percentage') return `${m.value}%`;
-    if (m.value_type === 'rating') return `${m.value}/${m.max ?? 10}`;
-    return `${m.value}${m.unit ? ' ' + m.unit : ''}`;
+  // default fallback
+  private isTypeAsTitle(block: YuzeeContentBlock): boolean { return block.title === block.type || /^row_/.test(block.title || ''); }
+  fallbackHeading(block: YuzeeContentBlock): string {
+    const r = this.rows(block);
+    return this.isTypeAsTitle(block) ? (r[0]?.value || r[0]?.text || '') : (block.title || '');
   }
-  trendGlyph(trend: string): string { return trend === 'up' ? '↑' : trend === 'down' ? '↓' : ''; }
-
-  chartCategories(block: YuzeeContentBlock): string[] { return (block.data?.['categories'] as string[]) ?? []; }
-  chartSeries(block: YuzeeContentBlock): ChartSeries[] { return (block.data?.['series'] as ChartSeries[]) ?? []; }
-  chartSourceLabel(block: YuzeeContentBlock): string {
-    const status = (block.data?.['source_status'] as string) ?? '';
-    return CHART_SOURCE_LABEL[status] ?? 'Source not specified';
+  fallbackRows(block: YuzeeContentBlock): any[] {
+    const r = this.rows(block);
+    return this.isTypeAsTitle(block) && r.length > 0 ? r.slice(1) : r;
   }
-  chartCellValue(series: ChartSeries, index: number): string {
-    const v = series.values?.[index];
-    return v === undefined || v === null ? 'Not provided' : String(v);
-  }
-
-  stagesOf(block: YuzeeContentBlock): ProgressStage[] { return (block.data?.['stages'] as ProgressStage[]) ?? []; }
-  stageStatusClass(status: string): string { return STAGE_STATUS_CLASS[status] ?? STAGE_STATUS_CLASS['unknown']; }
-  stageGlyph(stage: ProgressStage, index: number): string { return stage.status === 'completed' ? '✓' : String(index + 1); }
-
-  // ---------------------------------------------------------------------
-  // Fallback (unknown block type) — generic card layout
-  // ---------------------------------------------------------------------
-
-  private isTypeAsTitle(block: YuzeeContentBlock): boolean {
-    return block.title === block.type || /^row_/.test(block.title || '');
-  }
-
-  fallbackCardHeading(block: YuzeeContentBlock): string {
-    const rows = (block.rows as any[]) ?? [];
-    return this.isTypeAsTitle(block) ? (rows[0]?.value || rows[0]?.text || '') : (block.title || '');
-  }
-
-  fallbackBodyRows(block: YuzeeContentBlock): any[] {
-    const rows = (block.rows as any[]) ?? [];
-    return this.isTypeAsTitle(block) && rows.length > 0 ? rows.slice(1) : rows;
-  }
-
-  fallbackRowLabel(row: any): string { return row.label || row.key || row.criteria || ''; }
-  fallbackRowValue(row: any): string { return row.value || row.text || ''; }
+  rowLabel(row: any): string { return row.label || row.key || row.criteria || ''; }
+  rowValue(row: any): string { return row.value || row.text || ''; }
 }

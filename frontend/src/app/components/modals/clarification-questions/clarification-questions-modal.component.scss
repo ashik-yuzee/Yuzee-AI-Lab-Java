@@ -1,45 +1,81 @@
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .5);
-  z-index: 1060;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+// Port of ClarificationQuestionsModal.tsx — exact compiled declarations of each Tailwind utility.
+// (animate-in / fade-in / zoom-in had no CSS in the original build, so there is no entry animation.)
+@mixin sm { @media (width >= 40rem) { @content; } }
+@mixin hover { &:hover { @media (hover: hover) { @content; } } }
+@mixin border { border-style: var(--tw-border-style); border-width: 1px; }
+@mixin transition-colors {
+  transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
 }
 
-.modal-card {
-  border-radius: 16px;
-  width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  border: 1px solid #e4e9f2;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
+// fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm duration-150
+.cqm-overlay {
+  position: fixed; inset: 0px; z-index: 60; display: flex; align-items: flex-end; justify-content: center; padding: 0px;
+  background-color: color-mix(in srgb, oklch(20.8% 0.042 265.755) 60%, transparent);
+  @supports (color: color-mix(in lab, red, red)) { background-color: color-mix(in oklab, var(--color-slate-900) 60%, transparent); }
+  --tw-backdrop-blur: blur(var(--blur-sm));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  --tw-duration: 150ms; transition-duration: 150ms;
+  @include sm { align-items: center; padding: calc(var(--spacing) * 4); }
 }
 
-.modal-header {
-  border-bottom: 1px solid #e4e9f2;
-  background: #f8f9fc;
+// bg-white w-full sm:rounded-2xl sm:max-w-lg shadow-2xl border border-slate-200 flex flex-col
+// max-h-[92vh] sm:max-h-[85vh] overflow-hidden rounded-t-2xl
+.cqm-panel {
+  background-color: var(--color-white); width: 100%;
+  --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, rgb(0 0 0 / 0.25));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  @include border; border-color: var(--color-slate-200); display: flex; flex-direction: column; max-height: 92vh; overflow: hidden;
+  border-top-left-radius: var(--radius-2xl); border-top-right-radius: var(--radius-2xl);
+  @include sm { border-radius: var(--radius-2xl); max-width: var(--container-lg); max-height: 85vh; }
 }
 
-.modal-body {
-  overflow-y: auto;
-  flex: 1;
+// px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 rounded-t-2xl
+.cqm-header {
+  padding-inline: calc(var(--spacing) * 5); padding-block: calc(var(--spacing) * 3.5);
+  border-bottom-style: var(--tw-border-style); border-bottom-width: 1px; border-color: var(--color-slate-200);
+  background-color: var(--color-slate-50); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  border-top-left-radius: var(--radius-2xl); border-top-right-radius: var(--radius-2xl);
 }
-
-.modal-footer {
-  border-top: 1px solid #eef1f6;
-  background: #fafbfd;
+.cqm-header-left { display: flex; align-items: center; gap: calc(var(--spacing) * 2.5); }
+// w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-xs
+.cqm-header-icon {
+  width: calc(var(--spacing) * 8); height: calc(var(--spacing) * 8); border-radius: var(--radius-lg); background-color: var(--color-sky-600);
+  display: flex; align-items: center; justify-content: center; color: var(--color-white);
+  --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
 }
-
-.quick-reply {
-  font-size: 11px;
-  color: #667085;
+.cqm-icon-4 { width: calc(var(--spacing) * 4); height: calc(var(--spacing) * 4); }
+.cqm-icon-5 { width: calc(var(--spacing) * 5); height: calc(var(--spacing) * 5); }
+.cqm-title { font-size: var(--text-sm); line-height: var(--tw-leading, var(--text-sm--line-height)); --tw-font-weight: var(--font-weight-bold); font-weight: var(--font-weight-bold); color: var(--color-slate-900); }
+.cqm-subtitle { font-size: 11px; color: var(--color-slate-500); }
+// p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer
+.cqm-close {
+  padding: calc(var(--spacing) * 1.5); color: var(--color-slate-400); border-radius: var(--radius-lg); @include transition-colors; cursor: pointer;
+  @include hover {
+    color: var(--color-slate-700);
+    background-color: color-mix(in srgb, oklch(92.9% 0.013 255.508) 50%, transparent);
+    @supports (color: color-mix(in lab, red, red)) { background-color: color-mix(in oklab, var(--color-slate-200) 50%, transparent); }
+  }
 }
-.quick-reply:hover {
-  color: #344054;
+// flex-1 overflow-y-auto p-4 space-y-3
+.cqm-content { flex: 1; overflow-y: auto; padding: calc(var(--spacing) * 4); }
+:where(.cqm-content > :not(:last-child)) { margin-block-end: calc(var(--spacing) * 3); }
+// px-5 py-3 border-t border-slate-100 bg-slate-50/50 shrink-0
+.cqm-footer {
+  padding-inline: calc(var(--spacing) * 5); padding-block: calc(var(--spacing) * 3);
+  border-top-style: var(--tw-border-style); border-top-width: 1px; border-color: var(--color-slate-100);
+  background-color: color-mix(in srgb, oklch(98.4% 0.003 247.858) 50%, transparent);
+  @supports (color: color-mix(in lab, red, red)) { background-color: color-mix(in oklab, var(--color-slate-50) 50%, transparent); }
+  flex-shrink: 0;
+}
+.cqm-escape-row { display: flex; flex-wrap: wrap; gap: calc(var(--spacing) * 2); }
+// px-2.5 py-1 text-[11px] text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-slate-300 rounded-lg bg-white transition-colors cursor-pointer
+.cqm-escape {
+  padding-inline: calc(var(--spacing) * 2.5); padding-block: var(--spacing); font-size: 11px; color: var(--color-slate-500);
+  @include border; border-color: var(--color-slate-200); border-radius: var(--radius-lg); background-color: var(--color-white);
+  @include transition-colors; cursor: pointer;
+  @include hover { color: var(--color-slate-800); border-color: var(--color-slate-300); }
 }

@@ -6,13 +6,14 @@ import java.util.List;
 
 /**
  * Gemini model capability + pricing entry. Mirrors ModelCapabilityInfo from
- * yuzee-ai-token-lab/src/data/models.ts (fields not needed server-side, like the
- * long-form UI descriptions, are intentionally omitted — see GeminiModelRegistry).
+ * yuzee-ai-token-lab/src/data/models.ts (serialized as GEMINI_MODELS in capabilities.modelsList).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ModelInfo {
     private String id;
     private String name;
+    private String shortDescription;
+    private String longDescription;
     private String family;            // "flash" | "flash-lite" | "legacy"
     private String categoryGroup;     // "Current" | "Flash-Lite" | "Legacy comparison" | "Retired"
     private String status;            // "current" | "stable" | "legacy" | "retired"
@@ -37,6 +38,10 @@ public class ModelInfo {
     public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+    public String getShortDescription() { return shortDescription; }
+    public void setShortDescription(String shortDescription) { this.shortDescription = shortDescription; }
+    public String getLongDescription() { return longDescription; }
+    public void setLongDescription(String longDescription) { this.longDescription = longDescription; }
     public String getFamily() { return family; }
     public void setFamily(String family) { this.family = family; }
     public String getCategoryGroup() { return categoryGroup; }

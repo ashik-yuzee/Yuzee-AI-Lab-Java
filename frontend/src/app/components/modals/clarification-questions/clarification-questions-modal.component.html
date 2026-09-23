@@ -1,32 +1,33 @@
-<div class="modal-backdrop" (click)="closed.emit()">
-  <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-
-    <div class="modal-header d-flex align-items-center justify-content-between px-4 py-3">
-      <div>
-        <h5 class="mb-0 fw-semibold">A few quick questions</h5>
-        <p class="text-muted small mb-0">Your answers help Oala give much better guidance</p>
+<div class="cqm-overlay">
+  <div class="cqm-panel">
+    <!-- Header -->
+    <div class="cqm-header">
+      <div class="cqm-header-left">
+        <div class="cqm-header-icon">
+          <app-icon name="HelpCircle" class="cqm-icon-4" />
+        </div>
+        <div>
+          <h2 class="cqm-title">A few quick questions</h2>
+          <p class="cqm-subtitle">Your answers help Oala give much better guidance</p>
+        </div>
       </div>
-      <button class="btn btn-sm btn-outline-secondary" (click)="closed.emit()" aria-label="Close">✕</button>
+      <button (click)="handleSkip()" class="cqm-close" title="Skip questions">
+        <app-icon name="X" class="cqm-icon-5" />
+      </button>
     </div>
 
-    <div class="modal-body px-4 py-3">
-      <app-clarification-questions-card
-        [questions]="questions"
-        [bridgeMessage]="bridgeMessage"
-        [disabled]="disabled"
-        (answered)="onAnswered($event)"
-      />
+    <!-- Content -->
+    <div class="cqm-content">
+      <app-clarification-questions-card [questions]="questions" [bridgeMessage]="bridgeMessage" (submitted)="handleSubmit($event)" />
     </div>
 
-    <div class="modal-footer px-4 py-3">
-      <div class="d-flex flex-wrap gap-2">
-        @for (label of quickReplies; track label) {
-          <button type="button" class="btn btn-sm btn-outline-secondary quick-reply" (click)="onQuickReply(label)">
-            {{ label }}
-          </button>
+    <!-- Escape hatch -->
+    <div class="cqm-footer">
+      <div class="cqm-escape-row">
+        @for (label of escapeHatches; track label) {
+          <button (click)="escape(label)" class="cqm-escape">{{ label }}</button>
         }
       </div>
     </div>
-
   </div>
 </div>

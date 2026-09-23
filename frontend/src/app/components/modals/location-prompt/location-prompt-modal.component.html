@@ -1,0 +1,30 @@
+@if (visible()) {
+  <div class="lp-overlay" (keydown)="onKeydown($event)">
+    <form (submit)="save($event)" role="dialog" aria-modal="true" aria-labelledby="location-title" class="lp-form">
+      <app-icon name="MapPin" class="lp-icon" />
+      <h2 id="location-title" class="lp-title">Where are you located?</h2>
+      <p class="lp-text">Type your town, city or postcode to make guidance more relevant. You can skip this and add it later. No street address needed.</p>
+      <label for="initial-location" class="lp-label">Your location</label>
+      <input
+        #locationInput
+        id="initial-location"
+        type="text"
+        [value]="input()"
+        maxlength="500"
+        autocomplete="address-level2"
+        (input)="onInput($event)"
+        placeholder="For example, Geelong, VIC"
+        [attr.aria-invalid]="!!error()"
+        [attr.aria-describedby]="error() ? 'location-error' : null"
+        class="lp-input"
+      />
+      @if (error()) {
+        <p id="location-error" role="alert" class="lp-error">{{ error() }}</p>
+      }
+      <div class="lp-actions">
+        <button type="submit" class="lp-submit">Use this location</button>
+        <button type="button" (click)="close()" class="lp-skip">Skip for now</button>
+      </div>
+    </form>
+  </div>
+}

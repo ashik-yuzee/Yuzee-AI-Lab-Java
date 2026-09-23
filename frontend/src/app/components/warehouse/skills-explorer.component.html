@@ -1,124 +1,37 @@
 <div class="warehouse-explorer">
-  @if (data.roles.length) {
-    <section class="warehouse-linked-section">
-      <h4><span aria-hidden="true">💼</span> Work you could explore</h4>
-      <p class="warehouse-muted">Choose up to three roles to look at more closely. These are starting points, not a judgement of your suitability.</p>
-      @for (r of data.roles; track trackById(r)) {
-        <article class="warehouse-role">
-          <label>
-            <input type="checkbox" [checked]="isRoleSelected(r.id)" [disabled]="roleCheckboxDisabled(r.id)"
-              (change)="toggleRole(r.id, $any($event.target).checked)" />
-            <strong>{{ r.title }}</strong>
-          </label>
-          <p>{{ r.description }}</p>
-          @if (r.matchedSkills.length) {
-            <p class="warehouse-muted">Connected through: {{ r.matchedSkills.join(' · ') }}</p>
-          }
-          <details>
-            <summary>Tasks and skills used</summary>
-            <ul>@for (t of r.tasks; track trackText(t)) { <li>{{ t }}</li> }</ul>
-            <p>{{ roleSkillNames(r) }}</p>
-            <small>General occupation profile. Australian entry requirements depend on the role and location.</small>
-          </details>
-        </article>
+  @if (data.roles.length > 0) {
+    <section class="warehouse-linked-section"><h4><app-icon name="BriefcaseBusiness" [size]="18" /> Work you could explore</h4><p class="warehouse-muted">Choose up to three roles to look at more closely. These are starting points, not a judgement of your suitability.</p>
+      @for (r of data.roles; track r.id) {
+        <article class="warehouse-role"><label><input type="checkbox" [checked]="roles.includes(r.id)" [disabled]="disabled || roles.length >= 3 && !roles.includes(r.id)" (change)="toggleRole(r.id, $event)" /><strong>{{ r.title }}</strong></label><p>{{ r.description }}</p>@if (r.matchedSkills.length > 0) {<p class="warehouse-muted">Connected through: {{ join(r.matchedSkills) }}</p>}<details><summary>Tasks and skills used</summary><ul>@for (t of r.tasks; track t) {<li>{{ t }}</li>}</ul><p>{{ names(r.skills) }}</p><small>General occupation profile. Australian entry requirements depend on the role and location.</small></details></article>
       }
     </section>
   }
-
-  @if (visibleSkills().length) {
-    <section class="warehouse-linked-section">
-      <h4><span aria-hidden="true">🔧</span> Where would you like to build?</h4>
-      <p class="warehouse-muted">Tell us what you have tried or want to learn. Leave anything you haven't considered blank.</p>
-      <div class="warehouse-skill-list">
-        @for (s of visibleSkills(); track trackById(s)) {
-          <div class="warehouse-skill-row">
-            <div>
-              <label [attr.for]="'skill-' + s.id">{{ s.name }}</label>
-              @if (s.description) {
-                <details>
-                  <summary>What this means</summary>
-                  <p>{{ s.description }}</p>
-                </details>
-              }
-            </div>
-            <select [id]="'skill-' + s.id" [disabled]="disabled" [value]="skillStateFor(s.id)"
-              (change)="onSkillStateChange(s.id, s.name, $any($event.target).value)">
-              <option value="">Not answered</option>
-              <option value="HAVE">I've used this</option>
-              <option value="LEARN">I want to learn</option>
-              <option value="UNSURE">I'm not sure</option>
-            </select>
-          </div>
-        }
-      </div>
-    </section>
+  @if (visibleSkills.length > 0) {
+    <section class="warehouse-linked-section"><h4><app-icon name="Wrench" [size]="18" /> Where would you like to build?</h4><p class="warehouse-muted">Tell us what you have tried or want to learn. Leave anything you haven't considered blank.</p><div class="warehouse-skill-list">
+      @for (s of visibleSkills; track s.id) {
+        <div class="warehouse-skill-row"><div><label [attr.for]="'skill-' + s.id">{{ s.name }}</label>@if (s.description) {<details><summary>What this means</summary><p>{{ s.description }}</p></details>}</div><select [id]="'skill-' + s.id" [disabled]="disabled" (change)="setSkill(s, $event)"><option value="" [selected]="skillState(s.id) === ''">Not answered</option><option value="HAVE" [selected]="skillState(s.id) === 'HAVE'">I've used this</option><option value="LEARN" [selected]="skillState(s.id) === 'LEARN'">I want to learn</option><option value="UNSURE" [selected]="skillState(s.id) === 'UNSURE'">I'm not sure</option></select></div>
+      }
+    </div></section>
   }
-
-  @if (hasChoiceSection()) {
-    <div class="warehouse-choice">
-      <button type="button" (click)="commitSave()" [disabled]="disabled || !isDirty()">
-        <span aria-hidden="true">✓</span> Save my choices
-      </button>
-      <span role="status">{{ savedStatusText() }}</span>
-    </div>
+  @if (data.roles.length > 0 || data.skills.length > 0) {
+    <div class="warehouse-choice"><button type="button" (click)="submit()" [disabled]="disabled || !dirty"><app-icon name="Check" [size]="17" />Save my choices</button><span role="status">{{ dirty ? 'Your changes are ready to save.' : saved ? 'Saved for this conversation. Oala will use these choices in your next answer.' : 'Your choices will guide the next answer.' }}</span></div>
   }
-
-  @if (data.learning.length) {
-    <section class="warehouse-linked-section">
-      <h4><span aria-hidden="true">📘</span> Learning connected to these skills</h4>
-      <p class="warehouse-muted">These qualifications have related skill or unit links. Open a course to see its delivery, entry requirements and available intelligence.</p>
-      @for (l of data.learning; track trackById(l)) {
-        <article class="warehouse-learning">
-          <strong>{{ l.skill }}</strong>
-          <p class="warehouse-muted">{{ l.code }} · Related to {{ l.query }}</p>
-          @for (c of l.courses; track trackById(c)) {
-            <button type="button" class="warehouse-course-link" [disabled]="disabled" (click)="openCourse(c.id)">
-              {{ c.name }} · {{ c.provider }} <span aria-hidden="true">→</span>
-            </button>
-          }
-        </article>
+  @if (data.learning.length > 0) {
+    <section class="warehouse-linked-section"><h4><app-icon name="BookOpen" [size]="18" /> Learning connected to these skills</h4><p class="warehouse-muted">These qualifications have related skill or unit links. Open a course to see its delivery, entry requirements and available intelligence.</p>
+      @for (l of data.learning; track l.id) {
+        <article class="warehouse-learning"><strong>{{ l.skill }}</strong><p class="warehouse-muted">{{ l.code }} · Related to {{ l.query }}</p>@for (c of l.courses; track c.id) {<button class="warehouse-course-link" (click)="course.emit([c.id])" [disabled]="disabled">{{ c.name }} · {{ c.provider }} <span aria-hidden="true">→</span></button>}</article>
       }
     </section>
   }
-
-  @if (data.jobs.length) {
-    <section class="warehouse-linked-section">
-      <h4><span aria-hidden="true">📍</span> Examples from job advertisements</h4>
-      <p class="warehouse-muted">
-        {{ data.geography?.name }} · {{ data.geography?.localMatch ? 'Matches your selected area.' : 'Broader area than your selected location.' }}
-        These are stored adverts; current availability has not been confirmed.
-      </p>
-      @for (j of data.jobs; track trackById(j)) {
-        <article class="warehouse-job">
-          <h5>{{ j.title }}</h5>
-          <p>{{ jobCompanyAndArea(j) }}</p>
-          <p class="warehouse-muted">Recorded {{ jobRecordedDate(j) }}{{ j.employmentType ? ' · ' + j.employmentType : '' }}</p>
-          @if (j.skills.length) { <p><strong>Skills listed:</strong> {{ j.skills.join(' · ') }}</p> }
-          <details>
-            <summary>View advert details</summary>
-            <p>{{ j.description }}</p>
-            @if (j.requirements.length) {
-              <ul>@for (r of j.requirements; track trackText(r)) { <li>{{ r }}</li> }</ul>
-            }
-            @if (j.salary) { <p>{{ j.salary }}</p> }
-            @if (j.url) {
-              <a [href]="j.url" target="_blank" rel="noopener noreferrer">Open source advert <span aria-hidden="true">↗</span></a>
-            }
-          </details>
-        </article>
+  @if (data.jobs.length > 0) {
+    <section class="warehouse-linked-section"><h4><app-icon name="MapPin" [size]="18" /> Examples from job advertisements</h4><p class="warehouse-muted">{{ data.geography?.name }} · {{ data.geography?.localMatch ? 'Matches your selected area.' : 'Broader area than your selected location.' }} These are stored adverts; current availability has not been confirmed.</p>
+      @for (j of data.jobs; track j.id) {
+        <article class="warehouse-job"><h5>{{ j.title }}</h5><p>{{ place(j) }}</p><p class="warehouse-muted">Recorded {{ j.postedAt?.slice(0, 10) || j.updatedAt?.slice(0, 10) || 'date not supplied' }}{{ j.employmentType ? ' · ' + j.employmentType : '' }}</p>@if (j.skills.length > 0) {<p><strong>Skills listed:</strong> {{ join(j.skills) }}</p>}<details><summary>View advert details</summary><p>{{ j.description }}</p>@if (j.requirements.length > 0) {<ul>@for (r of j.requirements; track $index) {<li>{{ r }}</li>}</ul>}@if (j.salary) {<p>{{ j.salary }}</p>}@if (j.url) {<a [href]="j.url" target="_blank" rel="noopener noreferrer">Open source advert <app-icon name="ExternalLink" [size]="14" /></a>}</details></article>
       }
     </section>
   }
-
-  @if (data.observedSkills.length) {
-    <section class="warehouse-linked-section">
-      <h4>Skills listed in this sample</h4>
-      <p class="warehouse-muted">{{ data.coverage.withStructuredSkills }} of {{ data.coverage.sampleSize }} retrieved adverts contain structured skill data. This is a sample, not a local demand ranking.</p>
-      <ul>@for (s of data.observedSkills; track trackById(s)) { <li>{{ s.name }} — {{ s.count }} of {{ s.denominator }} adverts</li> }</ul>
-    </section>
+  @if (data.observedSkills.length > 0) {
+    <section class="warehouse-linked-section"><h4>Skills listed in this sample</h4><p class="warehouse-muted">{{ data.coverage.withStructuredSkills }} of {{ data.coverage.sampleSize }} retrieved adverts contain structured skill data. This is a sample, not a local demand ranking.</p><ul>@for (s of data.observedSkills; track s.id) {<li>{{ s.name }} — {{ s.count }} of {{ s.denominator }} adverts</li>}</ul></section>
   }
-
-  @if (data.jobs.length && !data.observedSkills.length) {
-    <p class="warehouse-muted">The retrieved adverts do not include structured skill lists. Occupation profiles above explain typical skills; they do not establish which skills are most in demand locally.</p>
-  }
+  @if (data.jobs.length > 0 && !data.observedSkills.length) {<p class="warehouse-muted">The retrieved adverts do not include structured skill lists. Occupation profiles above explain typical skills; they do not establish which skills are most in demand locally.</p>}
 </div>

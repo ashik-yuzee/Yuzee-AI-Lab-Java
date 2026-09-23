@@ -1,9 +1,12 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /** A single normalized course record. Ported from yuzee-ai-token-lab/src/warehouse/types.ts (WarehouseCourse). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class WarehouseCourse {
     private String id;
     private String evidenceId;
@@ -25,7 +28,7 @@ public class WarehouseCourse {
     private List<String> considerations = new ArrayList<>();
     private List<CourseQuality> quality = new ArrayList<>();
     private String qualityExplanation;
-    private List<String> evidenceIssues;
+    @JsonInclude(JsonInclude.Include.NON_NULL) private List<String> evidenceIssues;
     private List<IntelligenceSection> intelligence = new ArrayList<>();
     private String providerId;
     private ComparisonDetails comparisonDetails = new ComparisonDetails();
@@ -82,6 +85,8 @@ public class WarehouseCourse {
     public Source getSource() { return source; }
     public void setSource(Source source) { this.source = source; }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Fees {
         private String domestic;
         private String international;
@@ -94,6 +99,8 @@ public class WarehouseCourse {
         public void setDetails(List<String> details) { this.details = details; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class IntelligenceSection {
         private String key;
         private String label;
@@ -110,6 +117,8 @@ public class WarehouseCourse {
         public void setItems(List<String> items) { this.items = items; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class ComparisonDetails {
         private List<String> learning = new ArrayList<>();
         private List<String> practice = new ArrayList<>();
@@ -134,6 +143,8 @@ public class WarehouseCourse {
         public void setOutcome(String outcome) { this.outcome = outcome; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Source {
         private String label = "Yuzee course catalogue";
         private String url;

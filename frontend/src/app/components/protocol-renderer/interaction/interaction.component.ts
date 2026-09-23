@@ -1,22 +1,25 @@
 import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { YuzeeInteraction, YuzeeOption, UserEvent } from '../../../models/types';
+import { IconComponent } from '../../shared/icon/icon.component';
+import { validateInteractionFields } from '../protocol-validator';
+import type { YuzeeInteraction, UserEvent, YuzeeOption } from '../../../models/types';
+
+/** Mirrors React's `onInteract` prop: resolves to `false` when the reply was not accepted. */
+export type InteractHandler = (event: UserEvent) => Promise<boolean | void> | boolean | void;
+
+let nextScope = 0;
 
 /**
- * Port of ProtocolInteraction.tsx — the interactive question widget attached to a turn.
+ * Port of ProtocolInteraction.tsx — one explicit submission, with drafts preserved until the
+ * reply is accepted.
  *
- * `@Output() interact` fires a `UserEvent`-shaped payload the instant the user submits.
- * Because Angular's EventEmitter has no return value (unlike the React `onInteract`
- * callback, which returned a Promise<boolean>), the pending/submitted/error lifecycle is
- * completed by the parent calling the public `reportResult(accepted)` method once its own
- * async submission (e.g. TokenLabService.sendMessage) resolves — grab a template ref
- * (`#ix`) on `<app-interaction>` and call `ix.reportResult(true | false)`.
+ * Submission goes to `interactHandler` when given (awaited exactly like React's `onInteract`).
+ * Otherwise `(interact)` fires and the widget stays "Sending…" until the parent calls
+ * `reportResult(accepted)`.
  */
 @Component({
   selector: 'app-interaction',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [IconComponent],
   templateUrl: './interaction.component.html',
   styleUrl: './interaction.component.scss'
 })
@@ -24,10 +27,14 @@ export class InteractionComponent implements OnChanges {
   @Input({ required: true }) interaction!: YuzeeInteraction;
   @Input() initialFields: Record<string, string> = {};
   @Input() readOnly = false;
+  @Input() interactHandler?: InteractHandler;
+  /** React's `!onInteract`: set by a wrapper that forwards `(interact)` only when its own parent listens. */
+  @Input() canInteract?: boolean;
   @Output() interact = new EventEmitter<UserEvent>();
 
-  @ViewChild('ownAnswer') ownAnswerRef?: ElementRef<HTMLTextAreaElement>;
+  @ViewChild('answerRef') answerRef?: ElementRef<HTMLTextAreaElement>;
 
+  readonly scope = 'pi' + (++nextScope);
   selected: string[] = [];
   ranked: string[] = [];
   answer = '';
@@ -38,145 +45,129 @@ export class InteractionComponent implements OnChanges {
   submitted = false;
   ownOpen = false;
 
+  private questionKey?: string;
+  private resolveReport?: (accepted: boolean) => void;
+
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['interaction']) return;
+    // React keyed this component by question_id: a new question resets all local state.
+    if (!changes['interaction'] || this.interaction?.question_id === this.questionKey && this.questionKey !== undefined) return;
     const q = this.interaction;
+    this.questionKey = q?.question_id;
     this.selected = [];
-    this.ranked = (q?.options ?? []).map(o => o.id);
+    this.ranked = this.options.map(o => o.id);
     this.answer = '';
+    const init = this.initialFields ?? {};
+    this.fields = Object.fromEntries(this.fieldList.filter(f => init[f.id] !== undefined).map(f => [f.id, init[f.id]]));
     this.fieldErrors = {};
     this.error = '';
     this.pending = false;
     this.submitted = false;
     this.ownOpen = false;
-    const init = this.initialFields ?? {};
-    this.fields = Object.fromEntries((q?.fields ?? []).filter(f => init[f.id] !== undefined).map(f => [f.id, init[f.id]]));
   }
 
+  get options(): YuzeeOption[] { return Array.isArray(this.interaction?.options) ? this.interaction.options : []; }
+  get fieldList() { return Array.isArray(this.interaction?.fields) ? this.interaction.fields : []; }
+  get active(): boolean { return !!this.interaction && this.interaction.kind !== 'none' && this.interaction.input_type !== 'none'; }
+  get isChoice(): boolean { return ['single_select', 'multi_select'].includes(this.interaction.input_type); }
+
   get disabled(): boolean {
-    return this.readOnly || this.pending || this.submitted;
+    return !!this.readOnly || this.pending || this.submitted || !(this.canInteract ?? (!!this.interactHandler || this.interact.observed));
   }
 
   get hasAnswer(): boolean {
-    const q = this.interaction;
-    if (!q) return false;
-    if (q.input_type === 'ranked_select') return this.ranked.length > 0;
-    if (q.input_type === 'fields') return true;
-    if (q.input_type === 'text') return !!this.answer.trim();
-    return this.selected.length > 0 || (q.allow_other_input && !!this.answer.trim());
-  }
-
-  get hintText(): string {
-    switch (this.interaction?.input_type) {
-      case 'multi_select': return 'Choose all that fit.';
-      case 'single_select': return 'Choose the next step that suits you.';
-      case 'ranked_select': return 'Move what matters most to the top.';
-      case 'fields': return 'Enter your details. Required fields are marked.';
-      default: return 'A short answer is fine. You can also say "I’m not sure".';
-    }
-  }
-
-  get footerText(): string {
-    if (this.selected.length) return this.interaction.input_type === 'multi_select' ? `${this.selected.length} selected` : 'One option selected';
-    if (this.answer.trim()) return 'Your own answer';
-    return 'You can change direction at any time.';
+    const t = this.interaction.input_type;
+    return t === 'ranked_select' ? this.ranked.length > 0 : t === 'fields' ? true : t === 'text' ? !!this.answer.trim() : this.selected.length > 0 || (this.interaction.allow_other_input && !!this.answer.trim());
   }
 
   get statusText(): string {
-    if (this.submitted) return 'Answer sent.';
-    if (this.pending) return 'Sending your answer…';
-    return 'Earlier question · You can add or change details in your message below.';
+    return this.submitted ? 'Answer sent.' : this.pending ? 'Sending your answer…' : 'Earlier question · You can add or change details in your message below.';
   }
 
-  label(id: string): string {
-    return this.interaction?.options?.find(o => o.id === id)?.label ?? id;
+  get hintText(): string {
+    const t = this.interaction.input_type;
+    return t === 'multi_select' ? 'Choose all that fit.' : t === 'single_select' ? 'Choose the next step that suits you.' : t === 'ranked_select' ? 'Move what matters most to the top.' : t === 'fields' ? 'Enter your details. Required fields are marked.' : 'A short answer is fine. You can also say “I’m not sure”.';
   }
 
-  onOptionToggle(o: YuzeeOption): void {
-    if (this.interaction.input_type === 'single_select') {
-      this.selected = [o.id];
-      this.answer = '';
-      this.ownOpen = false;
-    } else {
-      this.selected = this.selected.includes(o.id) ? this.selected.filter(id => id !== o.id) : [...this.selected, o.id];
-    }
+  get footerText(): string {
+    return this.selected.length ? (this.interaction.input_type === 'multi_select' ? `${this.selected.length} selected` : 'One option selected') : this.answer.trim() ? 'Your own answer' : 'You can change direction at any time.';
   }
 
-  onAnswerInput(value: string): void {
-    this.answer = value;
-    if (this.interaction.input_type === 'single_select') this.selected = [];
-  }
+  label(id: string): string { return this.options.find(o => o.id === id)?.label || id; }
 
-  move(index: number, delta: number): void {
-    const target = index + delta;
-    if (target < 0 || target >= this.ranked.length) return;
-    const next = [...this.ranked];
-    [next[index], next[target]] = [next[target], next[index]];
-    this.ranked = next;
+  toggle(o: YuzeeOption): void {
+    const single = this.interaction.input_type === 'single_select';
+    this.selected = single ? [o.id] : this.selected.includes(o.id) ? this.selected.filter(id => id !== o.id) : [...this.selected, o.id];
+    if (single) { this.answer = ''; this.ownOpen = false; }
   }
 
   toggleOwn(): void {
     this.ownOpen = !this.ownOpen;
-    if (this.ownOpen) setTimeout(() => this.ownAnswerRef?.nativeElement.focus());
+    if (this.ownOpen) setTimeout(() => this.answerRef?.nativeElement.focus());
   }
 
-  submit(e: Event): void {
+  onAnswer(value: string): void {
+    this.answer = value;
+    if (this.interaction.input_type === 'single_select') this.selected = [];
+  }
+
+  setField(id: string, value: string): void { this.fields = { ...this.fields, [id]: value }; }
+
+  move(index: number, delta: number): void {
+    const next = [...this.ranked];
+    const target = index + delta;
+    [next[index], next[target]] = [next[target], next[index]];
+    this.ranked = next;
+  }
+
+  optionValue(o: YuzeeOption): string { return o.value || o.label; }
+
+  /** Parent-driven completion for the `(interact)` output path. */
+  reportResult(accepted: boolean): void {
+    this.resolveReport?.(accepted);
+    this.resolveReport = undefined;
+  }
+
+  async submit(e: Event): Promise<void> {
     e.preventDefault();
     if (this.disabled) return;
-    this.error = '';
     const q = this.interaction;
-    const inter: { question_id: string; selected_option_ids?: string[]; ranked_option_ids?: string[]; fields?: Record<string, string>; self_input?: string } = { question_id: q.question_id };
-    let value: string;
-    let type: UserEvent['type'];
-
+    this.error = '';
+    const inter: any = { question_id: q.question_id };
+    let value = '';
     if (q.input_type === 'fields') {
-      const check = this.validateFields();
+      const check = validateInteractionFields(q, this.fields);
       this.fieldErrors = check.fieldErrors;
       if (!check.valid) { this.error = 'Please check the highlighted fields.'; return; }
-      inter.fields = Object.fromEntries(Object.entries(this.fields).map(([k, v]) => [k, (v ?? '').trim()]));
-      value = q.fields.map(f => `${f.label}: ${f.options.find(o => o.value === this.fields[f.id])?.label || (this.fields[f.id] ?? '').trim() || 'Not provided'}`).join('\n');
-      type = 'fields_submission';
+      inter.fields = Object.fromEntries(Object.entries(this.fields).map(([k, v]) => [k, v.trim()]));
+      value = this.fieldList.map(f => `${f.label}: ${f.options.find(o => o.value === this.fields[f.id])?.label || this.fields[f.id]?.trim() || 'Not provided'}`).join('\n');
     } else if (q.input_type === 'text') {
       if (!this.answer.trim()) { this.error = 'Please type your answer.'; return; }
-      inter.self_input = this.answer.trim();
-      value = this.answer.trim();
-      type = 'text_answer';
+      inter.self_input = this.answer.trim(); value = this.answer.trim();
     } else if (q.input_type === 'ranked_select') {
-      inter.ranked_option_ids = this.ranked;
-      value = this.ranked.map(id => this.label(id)).join(' → ');
-      type = 'ranked_submission';
+      inter.ranked_option_ids = this.ranked; value = this.ranked.map(id => this.label(id)).join(' → ');
     } else {
       if (!this.selected.length && !this.answer.trim()) { this.error = 'Choose an option or write your own answer.'; return; }
       inter.selected_option_ids = this.selected;
       if (q.allow_other_input && this.answer.trim()) inter.self_input = this.answer.trim();
       value = [...this.selected.map(id => this.label(id)), this.answer.trim()].filter(Boolean).join(', ');
-      type = 'text_answer';
     }
-
+    const event = {
+      type: q.input_type === 'ranked_select' ? 'ranked_submission' : q.input_type === 'fields' ? 'fields_submission' : 'text_answer',
+      interaction_id: q.question_id, value, userEvent: { interaction: inter }, timestamp: Date.now()
+    } as UserEvent;
     this.pending = true;
-    this.interact.emit({ type, interaction_id: q.question_id, value, userEvent: { interaction: inter }, timestamp: Date.now() });
+    try {
+      const accepted = await this.dispatch(event);
+      if (accepted === false) this.error = 'Your reply could not be completed. Your answer is still here. Please try again.';
+      else this.submitted = true;
+    } catch { this.error = 'Your reply could not be sent. Your answer is still here. Please try again.'; }
+    finally { this.pending = false; }
   }
 
-  /** Called by the parent once its own async submission (POST to the backend) settles. */
-  reportResult(accepted: boolean): void {
-    this.pending = false;
-    if (accepted) this.submitted = true;
-    else this.error = 'Your reply could not be sent. Your answer is still here. Please try again.';
-  }
-
-  private validateFields(): { valid: boolean; fieldErrors: Record<string, string> } {
-    const fieldErrors: Record<string, string> = {};
-    for (const field of this.interaction.fields) {
-      const text = (this.fields[field.id] ?? '').trim();
-      if (field.required && !text) {
-        fieldErrors[field.id] = `Enter ${field.id === 'location' ? 'a city, suburb or postcode' : field.label.toLowerCase()}.`;
-      } else if (text.length > 500) {
-        fieldErrors[field.id] = 'Keep this answer under 500 characters.';
-      } else if (text && field.input_type === 'single_select') {
-        const matches = field.options.some(o => (o.value || o.label) === text);
-        if (!matches) fieldErrors[field.id] = `Choose one of the listed options for ${field.label.toLowerCase()}.`;
-      }
-    }
-    return { valid: Object.keys(fieldErrors).length === 0, fieldErrors };
+  private dispatch(event: UserEvent): Promise<boolean | void> {
+    if (this.interactHandler) return Promise.resolve(this.interactHandler(event));
+    const result = new Promise<boolean>(resolve => { this.resolveReport = resolve; });
+    this.interact.emit(event);
+    return result;
   }
 }

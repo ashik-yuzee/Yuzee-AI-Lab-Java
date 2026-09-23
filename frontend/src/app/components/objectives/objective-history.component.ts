@@ -1,73 +1,41 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { IconComponent } from '../shared/icon/icon.component';
 import { ObjectivesService } from '../../services/objectives.service';
-import { ObjectiveAnswerReceipt, ObjectiveSession, STATE_LABEL, answerText } from './objectives.types';
+import { ObjectiveAnswerReceipt, ObjectiveSession, activityTitle, answerHistory, answerText, stateLabel } from './objectives.types';
 
-/**
- * Angular port of the old React app's `src/objectives/ObjectiveHistory.tsx`, which defined two
- * small components in one file — kept as two standalone components in this one file too (this
- * codebase already does the same for `PathwayLearningCuesComponent`/`PathwayColourGuideComponent`
- * in `mini-pathway/pathway-learning-cues.component.ts`):
- *
- * - `AnswerHistoryComponent` (`app-answer-history`, was `AnswerHistory`): the "Your answers" list
- *   for one session, used inside `ObjectiveWorkspaceComponent`.
- * - `ObjectiveHistoryComponent` (`app-objective-history`, was `ObjectiveHistory`): a per-chat-message
- *   receipt list — every session opened from a given `sourceMessageId` — meant to be dropped next
- *   to that chat message by whichever engineer wires this feature into `chat-area.component`
- *   (out of scope here per this port's brief). Reads sessions straight from `ObjectivesService`,
- *   exactly like the old app's `useObjectives()` hook did.
- */
+/** ObjectiveHistory.tsx EnteredAnswer + AnswerHistory. */
 @Component({
   selector: 'app-answer-history',
   standalone: true,
-  imports: [CommonModule],
+  imports: [NgTemplateOutlet, IconComponent],
+  styles: [':host{display:contents}'],
   templateUrl: './answer-history.component.html',
-  styleUrl: './objective-history.component.scss',
 })
 export class AnswerHistoryComponent {
   @Input({ required: true }) session!: ObjectiveSession;
-
   answerText = answerText;
-
-  entries(): ObjectiveAnswerReceipt[] {
-    return this.session.answers ?? [];
-  }
-
-  hasContent(): boolean {
-    return this.entries().length > 0 || !!this.session.pendingAnswer;
-  }
-
-  entryStatus(entry: ObjectiveAnswerReceipt, pending: boolean): string {
-    if (!pending) return 'Entered';
-    return entry.localOnly ? 'Entered · on this device' : 'Entered · saved';
-  }
-
-  submittedAt(entry: ObjectiveAnswerReceipt): string {
-    return entry.submittedAt ? new Date(entry.submittedAt).toLocaleString() : '';
-  }
+  get answers(): ObjectiveAnswerReceipt[] { return answerHistory(this.session); }
+  status(entry: ObjectiveAnswerReceipt, pending: boolean): string { return pending ? (entry.localOnly ? 'Entered · on this device' : 'Entered · saved') : 'Entered'; }
+  iso(ms: number): string { return new Date(ms).toISOString(); }
+  local(ms: number): string { return new Date(ms).toLocaleString(); }
 }
 
+/** ObjectiveHistory.tsx ObjectiveHistory: saved activities anchored under the chat turn that started them. */
 @Component({
   selector: 'app-objective-history',
   standalone: true,
-  imports: [CommonModule, AnswerHistoryComponent],
+  imports: [IconComponent, AnswerHistoryComponent],
+  styles: [':host{display:contents}'],
   templateUrl: './objective-history.component.html',
-  styleUrl: './objective-history.component.scss',
 })
 export class ObjectiveHistoryComponent {
   @Input({ required: true }) sourceMessageId!: string;
+  activityTitle = activityTitle;
+  stateLabel = stateLabel;
 
-  @Output() view = new EventEmitter<string>();
+  constructor(public o: ObjectivesService) {}
 
-  readonly stateLabel = STATE_LABEL;
+  get sessions(): ObjectiveSession[] { return this.o.sessions().filter(s => s.sourceMessageId === this.sourceMessageId); }
 
-  constructor(private objectives: ObjectivesService) {}
-
-  sessions(): ObjectiveSession[] {
-    return this.objectives.sessions().filter(s => s.sourceMessageId === this.sourceMessageId);
-  }
-
-  viewSession(id: string): void {
-    this.view.emit(id);
-  }
 }

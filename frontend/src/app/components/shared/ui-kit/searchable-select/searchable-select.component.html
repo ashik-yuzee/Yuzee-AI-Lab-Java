@@ -1,97 +1,103 @@
-<div class="searchable-select" [class.disabled]="disabled" (keydown)="onKeydown($event)">
-  @if (label) {
-    <label class="searchable-select-label" [attr.for]="id ?? selectId">{{ label }}</label>
-  }
+<div class="sel" [class]="className" (keydown)="onKeydown($event)">
+  @if (label) { <label class="sel-label">{{ label }}</label> }
 
+  <!-- Trigger Button -->
   <button
     #triggerBtn
+    [attr.id]="id"
     type="button"
-    [id]="id ?? selectId"
-    class="searchable-select-trigger"
-    [class.compact]="compact"
-    [class.open]="isOpen()"
     [disabled]="disabled"
     aria-haspopup="listbox"
     [attr.aria-expanded]="isOpen()"
     [attr.aria-label]="label || selectedOption?.label || placeholder"
-    (click)="toggleOpen()">
-    <span class="searchable-select-trigger-content">
-      @if (leadingIcon) { <i class="searchable-select-leading-icon {{ leadingIcon }}" aria-hidden="true"></i> }
-      <span class="searchable-select-value">{{ selectedOption?.label ?? placeholder }}</span>
-    </span>
-    <i class="searchable-select-chevron" [class.is-open]="isOpen()" aria-hidden="true"></i>
+    (click)="toggleOpen()"
+    class="sel-trigger"
+    [class.is-disabled]="disabled"
+    [class.is-open]="!disabled && isOpen()"
+    [class.is-idle]="!disabled && !isOpen()"
+    [class.is-compact]="compact"
+    [class.is-regular]="!compact"
+  >
+    <div class="sel-trigger-main">
+      @if (leadingIcon) { <app-icon [name]="leadingIcon" class="sel-leading" /> }
+      <span class="sel-trigger-text">{{ selectedOption ? selectedOption.label : placeholder }}</span>
+    </div>
+    <app-icon name="ChevronDown" class="sel-chevron" [class.is-open]="isOpen()" />
   </button>
 
+  <!-- Popover Dropdown -->
   @if (isOpen()) {
-    <div
-      class="searchable-select-popover"
-      role="listbox"
-      [attr.aria-label]="label || 'Options'"
-      [style.width.px]="popoverWidthPx">
-
-      @if (showSearch) {
-        <div class="searchable-select-search-wrap">
-          <div class="searchable-select-search">
-            <i class="searchable-select-search-icon" aria-hidden="true"></i>
+    <div role="listbox" [attr.aria-label]="label || 'Options'" class="sel-pop" [class]="popoverClasses">
+      <!-- Optional Search Box -->
+      @if (options.length >= showSearchThreshold) {
+        <div class="sel-search">
+          <div class="sel-search-box">
+            <app-icon name="Search" class="sel-search-icon" />
             <input
               #searchInput
               type="text"
-              class="searchable-select-search-input"
-              placeholder="Search..."
+              placeholder="Search models..."
               [value]="searchQuery()"
-              (input)="onSearchInput($event)" />
+              (input)="onSearchInput($event)"
+              class="sel-search-input"
+            />
           </div>
         </div>
       }
 
-      <div class="searchable-select-list">
+      <!-- Options List -->
+      <div class="sel-list">
         @if (groupedOptions.length === 0) {
-          <div class="searchable-select-empty">No matching options</div>
-        }
+          <div class="sel-empty">No matching options</div>
+        } @else {
+          @for (g of groupedOptions; track $index) {
+            <div class="sel-group">
+              @if (g.groupName) { <div class="sel-group-name">{{ g.groupName }}</div> }
 
-        @for (group of groupedOptions; track group.groupName) {
-          <div class="searchable-select-group">
-            @if (group.groupName) {
-              <div class="searchable-select-group-name">{{ group.groupName }}</div>
-            }
-
-            @for (opt of group.items; track opt.value) {
-              <button
-                type="button"
-                role="option"
-                class="searchable-select-option"
-                [class.selected]="opt.value === value"
-                [class.is-focused]="opt.value === focusedValue()"
-                [class.disabled]="opt.disabled"
-                [disabled]="opt.disabled"
-                [attr.aria-selected]="opt.value === value"
-                (click)="selectOption(opt)">
-                <span class="searchable-select-option-main">
-                  @if (opt.icon) { <i class="searchable-select-option-icon {{ opt.icon }}" aria-hidden="true"></i> }
-                  <span class="searchable-select-option-text">
-                    <span class="searchable-select-option-row">
-                      <span class="searchable-select-option-label">{{ opt.label }}</span>
-                      @if (opt.badge) {
-                        <span class="searchable-select-badge" [ngClass]="badgeClass(opt.badgeColor)">{{ opt.badge }}</span>
-                      }
-                    </span>
-                    @if (opt.description) {
-                      <span class="searchable-select-option-desc">{{ opt.description }}</span>
+              @for (opt of g.items; track opt.value) {
+                <button
+                  type="button"
+                  role="option"
+                  [attr.aria-selected]="opt.value === value"
+                  [disabled]="!!opt.disabled"
+                  (click)="selectOption(opt)"
+                  class="sel-opt"
+                  [class.is-disabled]="!!opt.disabled"
+                  [class.is-selected]="!opt.disabled && opt.value === value"
+                  [class.is-plain]="!opt.disabled && opt.value !== value"
+                >
+                  <div class="sel-opt-main">
+                    @if (opt.icon) {
+                      <app-icon [name]="opt.icon" class="sel-opt-icon" [class.is-selected]="opt.value === value" />
                     }
-                  </span>
-                </span>
+                    <div class="sel-opt-body">
+                      <div class="sel-opt-line">
+                        <span class="sel-opt-label" [class.is-selected]="opt.value === value">{{ opt.label }}</span>
+                        @if (opt.badge) {
+                          <span class="sel-badge" [class]="'is-' + (opt.badgeColor || 'blue')">{{ opt.badge }}</span>
+                        }
+                      </div>
+                      @if (opt.description) {
+                        <p class="sel-opt-desc">{{ opt.description }}</p>
+                      }
+                    </div>
+                  </div>
 
-                @if (opt.value === value) {
-                  <span class="searchable-select-check" aria-hidden="true">&#10003;</span>
-                }
-              </button>
-            }
-          </div>
+                  @if (opt.value === value) {
+                    <div class="sel-check">
+                      <app-icon name="Check" class="sel-check-icon" [strokeWidth]="3" />
+                    </div>
+                  }
+                </button>
+              }
+            </div>
+          }
         }
       </div>
 
+      <!-- Footer Note -->
       @if (footerNote) {
-        <div class="searchable-select-footer">{{ footerNote }}</div>
+        <div class="sel-footer">{{ footerNote }}</div>
       }
     </div>
   }

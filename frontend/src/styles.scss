@@ -1,33 +1,112 @@
-@import 'bootstrap/scss/bootstrap';
+// Bootstrap, minus its `reboot` module: the original app's own base reset (Tailwind preflight, in
+// the foundation below) takes its place. Reboot styles p/h1-h6/ul/dt/code/label/buttons with type
+// selectors, which would outrank that reset and add margins, line-heights and cursors the original
+// never had. Every other Bootstrap module (grid, utilities, components) is loaded as usual.
+@import 'bootstrap/scss/functions';
+@import 'bootstrap/scss/variables';
+@import 'bootstrap/scss/variables-dark';
+@import 'bootstrap/scss/maps';
+@import 'bootstrap/scss/mixins';
+@import 'bootstrap/scss/utilities';
+@import 'bootstrap/scss/root';
+@import 'bootstrap/scss/images';
+@import 'bootstrap/scss/containers';
+@import 'bootstrap/scss/grid';
+@import 'bootstrap/scss/tables';
+@import 'bootstrap/scss/forms';
+@import 'bootstrap/scss/buttons';
+@import 'bootstrap/scss/transitions';
+@import 'bootstrap/scss/dropdown';
+@import 'bootstrap/scss/button-group';
+@import 'bootstrap/scss/nav';
+@import 'bootstrap/scss/navbar';
+@import 'bootstrap/scss/card';
+@import 'bootstrap/scss/accordion';
+@import 'bootstrap/scss/breadcrumb';
+@import 'bootstrap/scss/pagination';
+@import 'bootstrap/scss/badge';
+@import 'bootstrap/scss/alert';
+@import 'bootstrap/scss/progress';
+@import 'bootstrap/scss/list-group';
+@import 'bootstrap/scss/close';
+@import 'bootstrap/scss/toasts';
+@import 'bootstrap/scss/modal';
+@import 'bootstrap/scss/tooltip';
+@import 'bootstrap/scss/popover';
+@import 'bootstrap/scss/carousel';
+@import 'bootstrap/scss/spinners';
+@import 'bootstrap/scss/offcanvas';
+@import 'bootstrap/scss/placeholders';
+@import 'bootstrap/scss/helpers';
+@import 'bootstrap/scss/utilities/api';
 
 // Required for ion-app/ion-content to size and position themselves (structural shell only --
-// no ionic theming). Deliberately skips typography.css/display.css etc: those restyle
-// h1-h6/links/utility classes and would fight Bootstrap's visible styling.
+// no ionic theming). Deliberately skips normalize.css/typography.css/display.css: the original's
+// base reset covers normalisation, and those add button cursors/line-heights and restyle
+// headings/links the original never had.
 @import '@ionic/angular/css/core.css';
-@import '@ionic/angular/css/normalize.css';
 @import '@ionic/angular/css/structure.css';
 
-:root {
-  --accent: #7957c6;
-  --accent-8: #f2edff;
-  --accent-border: #b9a6df;
-}
+// The original app's design tokens, base element reset and global custom rules. Imported after
+// Bootstrap and Ionic so it wins the cascade — this is what makes element defaults (headings,
+// paragraphs, buttons, borders) match the original exactly.
+@import 'styles/original-foundation';
 
-* { box-sizing: border-box; }
-
+// structure.css/core.css put these on `*`, html and body; the original has none of them. Put the
+// browser defaults back so nothing computed differs (word-wrap is inherited everywhere).
+* { -webkit-touch-callout: default; }
+html.plt-pwa { height: 100%; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  margin: 0;
-  background: #f4f6fb;
-  color: #27364a;
+  position: static;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  transform: none;
+  touch-action: auto;
+  -webkit-user-drag: auto;
+  overscroll-behavior-y: auto;
+  overflow-wrap: normal;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d9e6; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #b0bccc; }
+// index.html: <html class="h-full">, <body class="h-full bg-[#F9FAFB] text-slate-900 antialiased
+// overflow-hidden"> and <div id="root" class="h-full"> (utilities beat the base body rule above).
+html, body, app-root { height: 100%; }
+app-root { display: block; }
+body {
+  overflow: hidden;
+  background-color: #F9FAFB;
+  color: var(--color-slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-.flex-1 { flex: 1 1 0%; min-width: 0; }
-.min-w-0 { min-width: 0; }
-
+// ion-app gets `contain: layout size style` from Ionic's .ion-page, which would clip position:fixed
+// overlays (modals, popovers) to the ion-app box instead of the viewport.
 ion-app { contain: none !important; }
+// ion-app's own stylesheet makes all text unselectable on phones/tablets; the original keeps it selectable.
+html.plt-mobile body ion-app { user-select: auto; }
+
+// ion-content's shadow styles would otherwise restyle every page: `font-family:
+// var(--ion-font-family)` (Roboto on desktop, replacing the body font and the Open Sans switch),
+// a #000 text colour and white background on its scroll layer, and `touch-action: pan-x pan-y
+// pinch-zoom` (no double-tap zoom). Outer rules beat :host/::part styles, so hand them back.
+ion-content {
+  font-family: inherit;
+  contain: none;
+  --background: transparent;
+}
+ion-content::part(scroll) {
+  color: inherit;
+  touch-action: auto;
+}
+
+// Per-group global styles (component-local CSS files from the original that several components share).
+@import 'styles/group-shell';
+@import 'styles/group-chat';
+@import 'styles/group-protocol';
+@import 'styles/group-modals';
+@import 'styles/group-advanced-lab';
+@import 'styles/group-pathway';
+@import 'styles/group-objectives-warehouse-research';

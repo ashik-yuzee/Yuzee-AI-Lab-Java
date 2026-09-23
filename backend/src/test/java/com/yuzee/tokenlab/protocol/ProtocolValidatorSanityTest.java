@@ -128,4 +128,36 @@ class ProtocolValidatorSanityTest {
         assertEquals("australian_location", locationField.get("input_type").asText());
         assertEquals(0, locationField.get("options").size());
     }
+
+    @Test
+    void schemaErrorsAndWarningsMatchOriginalAjvOutput() throws Exception {
+        // Expected strings captured from the original validator.ts (Ajv 8, allErrors) on the same input.
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode node = mapper.readTree(MINIMAL_V13);
+        var progress = (com.fasterxml.jackson.databind.node.ObjectNode) node.get("state").get("progress");
+        progress.put("security_breach_count", -1);
+        progress.put("failed_attempts", 1.5);
+        progress.put("active_security_penalty", 0);
+        ProtocolValidator validator = new ProtocolValidator(new SecurityStateService());
+        ProtocolValidator.ValidationResult r = validator.validateProtocol(node);
+        assertEquals(List.of(
+            "[Schema] /state/progress/failed_attempts: must be integer",
+            "[Schema] /state/progress/security_breach_count: must be >= 0",
+            "[Schema] /state/progress/active_security_penalty: must be string",
+            "[Schema] /state/progress/active_security_penalty: must be equal to one of the allowed values"), r.errors);
+        assertTrue(r.jsonParsed);
+        assertFalse(r.protocolAccepted);
+
+        JsonNode warn = mapper.readTree(MINIMAL_V13);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) warn.get("state").get("progress")).put("active_security_penalty", "10_min_timeout");
+        ProtocolValidator.ValidationResult w = validator.validateProtocol(warn);
+        assertTrue(w.protocolAccepted);
+        assertEquals(List.of("[Invariant] active_security_penalty=\"10_min_timeout\" requires security_breach_count >= 1, but got security_breach_count=0"), w.warnings);
+        assertEquals("{\"jsonParsed\":true,\"schemaValid\":true,\"semanticValid\":true,\"protocolAccepted\":true,\"schemaErrors\":[],\"semanticErrors\":[],\"errors\":[],\"warnings\":[\"" + w.warnings.get(0).replace("\"", "\\\"") + "\"]}",
+            mapper.writeValueAsString(w));
+
+        var ue = validator.validateUserEventAgainstActiveInteraction(
+            mapper.readTree("{\"interaction\":{\"question_id\":\"q1\",\"self_input\":null}}"), mapper.readTree("{\"kind\":\"question\"}"));
+        assertEquals(List.of("Your answer must be text."), ue.errors);
+    }
 }

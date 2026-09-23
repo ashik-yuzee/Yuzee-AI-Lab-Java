@@ -1,0 +1,19 @@
+[
+ "\nCREATE TABLE IF NOT EXISTS conversation_logs (\n  id            BIGSERIAL PRIMARY KEY,\n  logged_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  ip            TEXT        NOT NULL,\n  conversation_id TEXT      NOT NULL,\n  message_id    TEXT        NOT NULL,\n  model         TEXT,\n  input_tokens        INT,\n  uncached_input_tokens INT,\n  cached_tokens       INT,\n  output_tokens       INT,\n  thinking_tokens     INT,\n  estimated_cost_usd  NUMERIC(12,8),\n  latency_ms          INT,\n  finish_reason       TEXT,\n  is_mock       BOOLEAN     NOT NULL DEFAULT FALSE,\n  is_whiteboard BOOLEAN     NOT NULL DEFAULT FALSE,\n  user_input    TEXT,\n  assistant_output TEXT,\n  error_code    TEXT\n)",
+ "\nCREATE TABLE IF NOT EXISTS conversations (\n  id                    TEXT PRIMARY KEY,\n  title                 TEXT NOT NULL DEFAULT '',\n  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  expires_at            TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),\n  model                 TEXT NOT NULL DEFAULT 'gemini-3.5-flash',\n  mode                  TEXT DEFAULT 'AUTO',\n  strategy              TEXT DEFAULT 'ADAPTIVE_HYBRID',\n  preset                TEXT DEFAULT 'BALANCED',\n  response_mode         TEXT DEFAULT 'standard',\n  thinking_level        TEXT DEFAULT 'adaptive',\n  context_budget        INT DEFAULT 270000,\n  recent_turns_to_keep  INT DEFAULT 100,\n  summary               TEXT DEFAULT '',\n  summary_version       INT DEFAULT 0,\n  system_prompt_mode    TEXT DEFAULT 'default',\n  custom_system_prompt  TEXT DEFAULT '',\n  use_interactions_api  BOOLEAN DEFAULT FALSE,\n  use_flash_lite_utility BOOLEAN DEFAULT TRUE,\n  career_context        JSONB DEFAULT '{}',\n  compaction_history    JSONB DEFAULT '[]',\n  active_interaction    JSONB\n)",
+ "\nCREATE TABLE IF NOT EXISTS messages (\n  id                  TEXT PRIMARY KEY,\n  conversation_id     TEXT NOT NULL,\n  role                TEXT NOT NULL,\n  content             TEXT NOT NULL,\n  structured_response JSONB,\n  user_event          JSONB,\n  telemetry           JSONB,\n  feedback            JSONB,\n  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),\n  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE\n)",
+ "CREATE INDEX IF NOT EXISTS idx_convlog_ip      ON conversation_logs (ip, logged_at DESC)",
+ "CREATE INDEX IF NOT EXISTS idx_convlog_conv    ON conversation_logs (conversation_id)",
+ "CREATE INDEX IF NOT EXISTS idx_conv_updated    ON conversations (updated_at DESC)",
+ "CREATE INDEX IF NOT EXISTS idx_conv_expires    ON conversations (expires_at)",
+ "CREATE INDEX IF NOT EXISTS idx_msg_conv        ON messages (conversation_id, created_at ASC)",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS uncached_input_tokens INT",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS thinking_tokens INT",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS user_input TEXT",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS assistant_output TEXT",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS error_code TEXT",
+ "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS is_whiteboard BOOLEAN NOT NULL DEFAULT FALSE",
+ "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'AUTO'",
+ "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS compaction_history JSONB DEFAULT '[]'",
+ "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS active_interaction JSONB"
+]

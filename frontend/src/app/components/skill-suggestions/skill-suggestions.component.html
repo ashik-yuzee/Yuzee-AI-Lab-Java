@@ -1,0 +1,26 @@
+@if (allowed()) {
+  @if (review()?.status === 'abstained') {
+    @if (retryable()) {
+      <div class="skill-unavailable" role="status" [attr.data-skill-review-status]="review()!.reason">Extra guidance is temporarily unavailable. <button type="button" class="skill-retry" (click)="retry()">Retry suggestions</button></div>
+    } @else {
+      <span hidden [attr.data-skill-review-status]="review()!.reason"></span>
+    }
+  } @else {
+    <section aria-label="Suggested guidance" [attr.data-skill-review-status]="review()?.reason || 'loading'" class="skill-section"><div class="skill-card">
+      <div class="skill-header"><app-icon name="Sparkles" [size]="18" /><h2>Explore this further</h2></div>
+      @if (!review()) {
+        <p role="status" class="skill-loading">Finding relevant ways to help…</p>
+      } @else {
+        <p class="skill-intro">Choose a topic for a closer look at what it means for you.</p>
+        <div class="skill-grid" [class.two-col]="review()!.offers.length > 1">
+          @for (offer of review()!.offers; track offer.toolId) {
+            <button type="button" [disabled]="busy()" (click)="choose(offer)" class="skill-offer">
+              <span class="skill-offer-label">{{ offer.label }}<app-icon name="ArrowRight" [size]="18" class="skill-offer-arrow" /></span>
+              <span class="skill-offer-text">{{ offer.description }}</span>
+            </button>
+          }
+        </div>
+      }
+    </div></section>
+  }
+}

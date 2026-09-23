@@ -192,4 +192,36 @@ class PortedReviewServicesSanityTest {
         assertEquals(1, calls.get());
         assertTrue(thrown.getMessage().contains("429"));
     }
+
+    // -- Exact-port checks against the original TS semantics --------------------------------
+
+    @Test
+    void exactPortSemantics() throws Exception {
+        GeminiModelRegistry registry = new GeminiModelRegistry();
+        Map<String, Object> usage = new java.util.HashMap<>(Map.of("inputTokens", 1000, "outputTokens", 200, "uncachedInputTokens", 400));
+        usage.put("thinkingTokens", 100);
+        usage.put("cachedTokens", 600);
+        // 400*0.10 + 300*0.40 + 600*0.025, per million
+        assertEquals((400 * 0.10 + 300 * 0.40 + 600 * 0.025) / 1_000_000, registry.calcTurnCost("gemini-3.7-flash", usage), 1e-15);
+        assertEquals(null, registry.calcTurnCost("gemini-2.0-flash", usage));
+        assertEquals(null, registry.calcTurnCost("gemini-3.7-flash", Map.of("outputTokens", 1))); // inputTokens undefined -> NaN
+        assertEquals(8, registry.selectableModelIds().size());
+        assertEquals(null, registry.thinkingMechanism("nope"));
+
+        JsonNode original = mapper.readTree("{\"state\":1,\"content_blocks\":[]}");
+        assertThrows(com.fasterxml.jackson.core.JsonProcessingException.class, () -> teachingReview.applyReviewedBlocks(original, "not json"));
+        assertThrows(IllegalStateException.class, () -> teachingReview.applyReviewedBlocks(original, "{}"));
+        assertThrows(IllegalStateException.class, () -> teachingReview.applyReviewedBlocks(original, "{\"content_blocks\":[{\"text\":\" \",\"value\":5}]}"));
+        assertEquals(1, teachingReview.applyReviewedBlocks(original, "{\"content_blocks\":[{\"text\":\"x\"}]}").path("state").asInt());
+
+        assertEquals("CANCELLED", ReviewRetryService.reviewFailureCode(new RuntimeException("Gemini error 503"), true));
+        assertEquals("TIMEOUT", ReviewRetryService.reviewFailureCode(new java.net.SocketTimeoutException("timeout"), false));
+        assertEquals("NETWORK", ReviewRetryService.reviewFailureCode(new java.net.ConnectException("refused"), false));
+        assertEquals("PROVIDER", ReviewRetryService.reviewFailureCode(new java.io.IOException("Gemini error 503: x"), false));
+        assertEquals("INVALID_RESPONSE", ReviewRetryService.reviewFailureCode(new IllegalStateException("Review output limit"), false));
+        assertEquals("I couldn’t prepare a clear response. Please try again. Your answer has been kept.", ReviewRetryService.reviewFailureMessage("X"));
+
+        ReviewFailure cancelled = assertThrows(ReviewFailure.class, () -> reviewRetry.runReview(() -> "x", () -> true));
+        assertEquals(Map.of("attempts", 0, "failures", List.of("CANCELLED")), cancelled.getAudit());
+    }
 }

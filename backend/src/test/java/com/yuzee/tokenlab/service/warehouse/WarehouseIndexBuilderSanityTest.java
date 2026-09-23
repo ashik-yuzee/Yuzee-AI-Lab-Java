@@ -87,4 +87,41 @@ class WarehouseIndexBuilderSanityTest {
         assertFalse(builder.ensureReady());
         assertFalse(builder.isReady());
     }
+
+    @Test
+    void textHelpersKeepTheOriginalSemantics() {
+        assertEquals("\"certificate\"* AND \"iv\" AND \"plumbing\"* AND \"cpc40120\"", WarehouseText.catalogueClause("Certificate IV in Plumbing CPC40120"));
+        assertEquals("\"time\"* AND \"management\"* AND \"and\"*", WarehouseText.clause("time management and"));
+        assertEquals("3", WarehouseText.jsString(3.0));
+        assertEquals(java.util.List.of("the", "gordon"), WarehouseText.providerWords("The Gordon"));
+        assertEquals(null, WarehouseText.cleanText("not_verified"));
+        assertEquals("https://example.com/", WarehouseText.url("HTTPS://Example.com"));
+    }
+
+    @Test
+    void lookupReturnsTheOriginalPackShape(@TempDir Path tempDir) throws Exception {
+        Path sourceFile = tempDir.resolve("training_gov.db");
+        try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + sourceFile); Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE live_courses (id INTEGER, course_name TEXT, institution_id INTEGER, institution_name TEXT, national_code TEXT, course_code TEXT, aqf_level TEXT, course_type TEXT, description TEXT, duration_text TEXT, delivery_modes_json TEXT, locations_json TEXT, entry_requirements TEXT, domestic_fee TEXT, international_fee TEXT, skills_json TEXT, quality_scores_json TEXT, work_readiness_score REAL, future_readiness_score REAL, yuzee_readiness_score REAL, career_outcomes_json TEXT, intelligence_json TEXT, canonical_url TEXT, web_collect_url TEXT, website TEXT, intelligence_enriched_at TEXT, updated_at TEXT)");
+            st.execute("INSERT INTO live_courses (id,course_name,institution_id,institution_name,national_code,aqf_level,delivery_modes_json,work_readiness_score,intelligence_json) VALUES (1,'Certificate IV in Plumbing',10,'Example TAFE','CPC40120','4','[\"Online\"]',80.0,'{\"trust_and_quality\":{\"scoring_reason\":\"Sound\"}}')");
+            st.execute("CREATE TABLE live_institutions (id INTEGER, legal_name TEXT, rto_code TEXT, rto_type TEXT, higher_education_code TEXT, city TEXT, state TEXT, website_url TEXT, has_student_support INTEGER, has_disability_support INTEGER, has_library INTEGER, has_apprenticeships INTEGER, about_us_description TEXT, updated_at TEXT)");
+            st.execute("INSERT INTO live_institutions (id,legal_name,rto_code,city,state,has_student_support) VALUES (10,'Example TAFE','123','Ringwood','VIC',1)");
+        }
+        WarehouseIndexBuilder builder = new WarehouseIndexBuilder(sourceFile.toString(), tempDir.resolve("index.sqlite").toString());
+        assertTrue(builder.ensureReady());
+        var plan = new com.yuzee.tokenlab.model.warehouse.WarehouseQueryPlan();
+        plan.setComparison(true);
+        plan.setFacets(java.util.List.of("PROVIDER"));
+        var result = new WarehouseQueryService(builder).lookup(java.util.List.of("plumbing"), java.util.List.of(), plan);
+        assertEquals(1, result.courses().size());
+        var course = result.courses().get(0);
+        assertEquals("4", course.getLevel());
+        assertEquals(java.util.List.of("Online"), course.getDelivery());
+        assertEquals("Sound", course.getQualityExplanation());
+        assertEquals("MATCHED", result.providerMatches().get(0).getStatus());
+        assertEquals(java.util.List.of("Student support"), result.providerMatches().get(0).getProviders().get(0).getSupport());
+        assertEquals(java.util.List.of("Student support"), result.connected().getProviders().get(0).getSupport());
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(course);
+        assertTrue(json.contains("\"code\":\"CPC40120\"") && json.contains("\"duration\":null"), json);
+    }
 }

@@ -1,0 +1,160 @@
+// Rich v1.4 block styles for ProtocolV13Renderer (cards, timeline, flow, pathway_map, scorecard,
+// chart, progress, checklist, fallback). Split from protocol-renderer.component.scss only to keep
+// each stylesheet under the per-file component style budget.
+@import 'protocol-mixins';
+
+// ---- cards
+.pr-cards-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: calc(var(--spacing) * 2.5); @include sm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pr-card { padding: calc(var(--spacing) * 3.5); border-radius: var(--radius-xl); @include border; @include shadow-2xs; }
+.pr-card-recommended { border-color: var(--color-sky-400); @include mix-bg(oklch(97.7% 0.013 236.62), --color-sky-50, 60%); }
+.pr-card-alternative { border-color: var(--color-violet-300); @include mix-bg(oklch(96.9% 0.016 293.756), --color-violet-50, 50%); }
+.pr-card-completed { border-color: var(--color-emerald-300); @include mix-bg(oklch(97.9% 0.021 166.113), --color-emerald-50, 50%); }
+.pr-card-current { border-color: var(--color-amber-400); @include mix-bg(oklch(98.7% 0.022 95.277), --color-amber-50, 50%); }
+.pr-card-blocked { border-color: var(--color-rose-300); @include mix-bg(oklch(96.9% 0.015 12.422), --color-rose-50, 40%); }
+.pr-card-warning { border-color: var(--color-amber-300); @include mix-bg(oklch(98.7% 0.022 95.277), --color-amber-50, 40%); }
+.pr-card-neutral, .pr-card-upcoming { border-color: var(--color-slate-200); background-color: var(--color-white); }
+.pr-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: calc(var(--spacing) * 2); }
+.pr-card-name { @include bold; @include text-xs; color: #1c1f26; }
+.pr-card-sub { font-size: 11px; color: #5b6472; }
+.pr-card-badge { flex-shrink: 0; font-size: 10px; @include semibold; padding-inline: calc(var(--spacing) * 1.5); padding-block: calc(var(--spacing) * 0.5); border-radius: 0.25rem; background-color: var(--color-slate-100); @include border; border-color: var(--color-slate-200); color: #2c333d; }
+.pr-card-desc { @include text-xs; color: #5b6472; @include leading(var(--leading-relaxed)); }
+.pr-card-facts {
+  padding-top: var(--spacing); border-top-style: var(--tw-border-style); border-top-width: 1px;
+  border-color: color-mix(in srgb, oklch(92.9% 0.013 255.508) 80%, transparent);
+  @supports (color: color-mix(in lab, red, red)) { border-color: color-mix(in oklab, var(--color-slate-200) 80%, transparent); }
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: calc(var(--spacing) * 3); row-gap: var(--spacing);
+}
+.pr-card-fact { display: flex; flex-direction: column; }
+.pr-fact-label { font-size: 10px; color: #8a929d; @include medium; text-transform: uppercase; @include tracking(var(--tracking-wide)); }
+.pr-fact-value { font-size: 11px; @include semibold; color: #2c333d; }
+
+// ---- status pills (timeline labels + pathway step statuses share one palette)
+.pr-pill-completed { background-color: var(--color-emerald-100); color: var(--color-emerald-800); }
+.pr-pill-current { background-color: var(--color-amber-100); color: var(--color-amber-900); }
+.pr-pill-upcoming, .pr-pill-unknown { background-color: var(--color-slate-100); color: #5b6472; }
+.pr-pill-blocked { background-color: var(--color-rose-100); color: var(--color-rose-800); }
+.pr-pill-paused { background-color: var(--color-violet-100); color: var(--color-violet-800); }
+
+// ---- timeline
+.pr-tl { position: relative; padding-left: calc(var(--spacing) * 5); }
+.pr-tl-line { position: absolute; left: 7px; top: var(--spacing); bottom: var(--spacing); width: 1px; background-color: var(--color-slate-200); }
+.pr-tl-item { position: relative; display: flex; align-items: flex-start; gap: calc(var(--spacing) * 3); }
+.pr-tl-dot { position: absolute; left: calc(var(--spacing) * -5); margin-top: calc(var(--spacing) * 0.5); width: calc(var(--spacing) * 3.5); height: calc(var(--spacing) * 3.5); border-radius: calc(infinity * 1px); @include border(2px); border-color: var(--color-white); @include shadow-sm; }
+.pr-tl-dot-completed { background-color: var(--color-emerald-500); }
+.pr-tl-dot-current { background-color: var(--color-amber-500); animation: var(--animate-pulse); @media (prefers-reduced-motion: reduce) { animation: none; } }
+.pr-tl-dot-upcoming { background-color: var(--color-slate-300); }
+.pr-tl-dot-blocked { background-color: var(--color-rose-400); }
+.pr-tl-dot-paused { background-color: var(--color-violet-400); }
+.pr-tl-dot-unknown { background-color: var(--color-slate-200); }
+.pr-tl-body { min-width: 0px; flex: 1; }
+.pr-tl-head { display: flex; align-items: center; gap: calc(var(--spacing) * 2); flex-wrap: wrap; }
+.pr-tl-label { @include text-xs; @include semibold; color: #1c1f26; }
+.pr-tl-time { font-size: 10px; color: #8a929d; @include medium; }
+.pr-tl-optional { font-size: 9px; color: #8a929d; font-style: italic; }
+.pr-tl-status { font-size: 9px; @include semibold; text-transform: uppercase; padding-inline: var(--spacing); padding-block: calc(var(--spacing) * 0.5); border-radius: 0.25rem; @include tracking(var(--tracking-wide)); }
+.pr-tl-desc { font-size: 11px; color: #5b6472; margin-top: calc(var(--spacing) * 0.5); @include leading(var(--leading-relaxed)); }
+
+// ---- flow
+.pr-flow-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: calc(var(--spacing) * 2); @include sm { grid-template-columns: repeat(2, minmax(0, 1fr)); } @include lg { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pr-node { padding: calc(var(--spacing) * 3); border-radius: var(--radius-xl); @include border; @include text-xs; @include shadow-2xs; }
+.pr-node-recommended { border-color: var(--color-sky-400); background-color: var(--color-sky-50); }
+.pr-node-current { border-color: var(--color-amber-400); background-color: var(--color-amber-50); }
+.pr-node-completed { border-color: var(--color-emerald-300); background-color: var(--color-emerald-50); }
+.pr-node-blocked { border-color: var(--color-rose-300); background-color: var(--color-rose-50); }
+.pr-node-neutral { border-color: var(--color-slate-200); background-color: var(--color-white); }
+.pr-node-upcoming { border-color: var(--color-slate-200); background-color: var(--color-slate-50); }
+.pr-node-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing); margin-bottom: var(--spacing); }
+.pr-node-label { @include bold; color: #1c1f26; }
+.pr-node-type { flex-shrink: 0; font-size: 9px; @include semibold; color: #8a929d; text-transform: uppercase; @include tracking(var(--tracking-wider)); }
+.pr-node-desc { font-size: 11px; color: #5b6472; @include leading(var(--leading-relaxed)); }
+.pr-edges { font-size: 10px; color: #8a929d; padding-top: var(--spacing); }
+.pr-edge { display: flex; align-items: center; gap: var(--spacing); }
+.pr-edge-node { @include medium; color: #5b6472; }
+.pr-edge-label { color: #8a929d; }
+.pr-edge-cond { font-style: italic; color: #8a929d; }
+
+// ---- pathway_map
+.pr-goal { @include text-xs; color: #5b6472; @include medium; }
+.pr-lanes { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: calc(var(--spacing) * 2.5); }
+.pr-lane { padding: calc(var(--spacing) * 3.5); border-radius: var(--radius-xl); @include border; @include shadow-2xs; border-color: var(--color-slate-200); background-color: var(--color-white);
+  &.is-recommended { border-color: var(--color-sky-400); @include mix-bg(oklch(97.7% 0.013 236.62), --color-sky-50, 40%); }
+}
+.pr-lane-head { display: flex; align-items: flex-start; justify-content: space-between; gap: calc(var(--spacing) * 2); margin-bottom: calc(var(--spacing) * 2); }
+.pr-lane-title { @include bold; @include text-xs; color: #1c1f26; }
+.pr-lane-summary { font-size: 11px; color: #5b6472; margin-top: calc(var(--spacing) * 0.5); }
+.pr-lane-badge { flex-shrink: 0; font-size: 9px; @include bold; color: var(--color-sky-700); background-color: var(--color-sky-100); @include border; border-color: var(--color-sky-200); padding-inline: calc(var(--spacing) * 1.5); padding-block: calc(var(--spacing) * 0.5); border-radius: 0.25rem; text-transform: uppercase; @include tracking(var(--tracking-wider)); }
+.pr-lane-step { display: flex; align-items: flex-start; gap: calc(var(--spacing) * 2); @include text-xs; }
+.pr-lane-num { flex-shrink: 0; margin-top: calc(var(--spacing) * 0.5); width: calc(var(--spacing) * 4); height: calc(var(--spacing) * 4); border-radius: calc(infinity * 1px); background-color: var(--color-slate-200); display: flex; align-items: center; justify-content: center; font-size: 9px; @include bold; color: #5b6472; }
+.pr-lane-step-body { flex: 1; min-width: 0px; }
+.pr-lane-step-label { @include semibold; color: #2c333d; }
+.pr-lane-step-desc { color: #5b6472; margin-left: var(--spacing); }
+.pr-lane-step-status { margin-left: calc(var(--spacing) * 1.5); font-size: 9px; padding-inline: var(--spacing); padding-block: calc(var(--spacing) * 0.5); border-radius: 0.25rem; @include semibold; }
+
+// ---- scorecard (column count is overridden by the global scorecard .grid rule)
+.pr-score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--spacing) * 2); @include sm { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pr-metric { padding: calc(var(--spacing) * 3); border-radius: var(--radius-xl); @include border; border-color: var(--color-slate-200); background-color: var(--color-white); @include shadow-2xs; }
+.pr-metric-label { font-size: 10px; color: #8a929d; @include semibold; text-transform: uppercase; @include tracking(var(--tracking-wide)); }
+.pr-metric-value { display: flex; align-items: center; gap: var(--spacing); @include bold; font-size: var(--text-lg); line-height: var(--tw-leading, var(--text-lg--line-height)); --tw-numeric-spacing: tabular-nums; font-variant-numeric: var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,); }
+.pr-metric-excellent { color: var(--color-emerald-700); }
+.pr-metric-good { color: var(--color-sky-700); }
+.pr-metric-warning { color: var(--color-amber-700); }
+.pr-metric-critical { color: var(--color-rose-700); }
+.pr-metric-neutral { color: #2c333d; }
+.pr-trend-up { color: var(--color-emerald-600); }
+.pr-trend-down { color: var(--color-rose-500); }
+.pr-metric-desc { font-size: 10px; color: #5b6472; @include leading(var(--leading-relaxed)); }
+
+// ---- chart
+.pr-chart-title { @include semibold; }
+.pr-chart-note { @include text-sm; color: var(--color-slate-600); }
+.pr-chart-scroll { border-radius: var(--radius-xl); @include border; border-color: var(--color-slate-200); }
+.pr-chart-table { width: 100%; text-align: left; @include text-sm; }
+.pr-chart-cell { padding: calc(var(--spacing) * 3); }
+.pr-chart-row { border-top-style: var(--tw-border-style); border-top-width: 1px; border-color: var(--color-slate-200); }
+.pr-chart-cat { @include medium; }
+.pr-tabular { --tw-numeric-spacing: tabular-nums; font-variant-numeric: var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,); }
+
+// ---- progress (flex items-start gap-0 overflow-x-auto pb-1; global rules in _group-protocol.scss
+// reproduce the original's `[data-output-type="progress"] .overflow-x-auto` overrides)
+.pr-stage-track { display: flex; align-items: flex-start; gap: 0px; overflow-x: auto; padding-bottom: var(--spacing); }
+.pr-stage { display: flex; flex-direction: column; align-items: center; min-width: 72px; max-width: 100px; }
+.pr-stage-ring { width: calc(var(--spacing) * 8); height: calc(var(--spacing) * 8); border-radius: calc(infinity * 1px); @include border(2px); display: flex; align-items: center; justify-content: center; font-size: 11px; @include bold; }
+.pr-ring-completed { border-color: var(--color-emerald-500); background-color: var(--color-emerald-500); color: var(--color-white); }
+.pr-ring-current { border-color: var(--color-amber-500); background-color: var(--color-amber-500); color: var(--color-white); animation: var(--animate-pulse); @media (prefers-reduced-motion: reduce) { animation: none; } }
+.pr-ring-upcoming { border-color: var(--color-slate-300); background-color: var(--color-white); color: #8a929d; }
+.pr-ring-blocked { border-color: var(--color-rose-400); background-color: var(--color-rose-400); color: var(--color-white); }
+.pr-ring-paused { border-color: var(--color-violet-400); background-color: var(--color-violet-400); color: var(--color-white); }
+.pr-ring-failed { border-color: var(--color-rose-600); background-color: var(--color-rose-600); color: var(--color-white); }
+.pr-ring-unknown { border-color: var(--color-slate-200); background-color: var(--color-slate-100); color: #8a929d; }
+// mt-1.5 text-center text-[10px] font-semibold px-1 leading-tight (font-semibold is later in the
+// compiled file than font-bold, so "current"'s font-bold never took effect)
+.pr-stage-label { margin-top: calc(var(--spacing) * 1.5); text-align: center; font-size: 10px; @include semibold; padding-inline: var(--spacing); @include leading(var(--leading-tight)); }
+.pr-stage-label-completed { color: var(--color-emerald-700); }
+.pr-stage-label-current { color: var(--color-amber-800); }
+.pr-stage-label-upcoming { color: #5b6472; }
+.pr-stage-label-blocked { color: var(--color-rose-700); }
+.pr-stage-label-paused { color: var(--color-violet-700); }
+.pr-stage-label-failed { color: var(--color-rose-800); }
+.pr-stage-label-unknown { color: #8a929d; }
+.pr-stage-desc { font-size: 9px; color: #8a929d; text-align: center; margin-top: calc(var(--spacing) * 0.5); @include leading(var(--leading-tight)); }
+.pr-stage-connector { flex: 1; margin-top: calc(var(--spacing) * 4); height: 1px; min-width: 12px; background-color: var(--color-slate-200); }
+
+// ---- checklist
+.pr-check-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: calc(var(--spacing) * 1.5); @include sm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pr-check-item { display: flex; align-items: flex-start; gap: calc(var(--spacing) * 2); padding: calc(var(--spacing) * 2); border-radius: var(--radius-lg); @include border; @include text-xs; background-color: var(--color-white); border-color: var(--color-slate-200); }
+.pr-check-mark { flex-shrink: 0; width: calc(var(--spacing) * 5); height: calc(var(--spacing) * 5); border-radius: calc(infinity * 1px); @include border; border-color: var(--color-slate-300); display: flex; align-items: center; justify-content: center; margin-top: calc(var(--spacing) * 0.5); }
+.pr-check-title { @include semibold; color: #1c1f26; @include leading(var(--leading-snug)); }
+.pr-check-text { font-size: 11px; color: #5b6472; @include leading(var(--leading-snug)); margin-top: calc(var(--spacing) * 0.5); }
+
+// ---- unknown block fallback (the original set border/background inline)
+.pr-fallback { border-radius: var(--radius-xl); overflow: hidden; @include text-sm; border: 1px solid #e5ddd5; }
+.pr-fallback-head { padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 2.5); @include semibold; font-size: 14px; background: #f5f0ea; color: #3d2f26; border-bottom: 1px solid #e5ddd5; }
+.pr-fallback-text { padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 3); color: #5b6472; @include leading(var(--leading-relaxed)); border-bottom-style: var(--tw-border-style); border-bottom-width: 1px; border-color: #e5ddd5; }
+.pr-fallback-items { padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 3); }
+.pr-fallback-item { display: flex; align-items: flex-start; gap: calc(var(--spacing) * 2); font-size: 13px; }
+.pr-fallback-dot { margin-top: 5px; width: calc(var(--spacing) * 1.5); height: calc(var(--spacing) * 1.5); border-radius: calc(infinity * 1px); background-color: var(--accent); flex-shrink: 0; }
+.pr-fallback-item-title { @include medium; color: #1c1f26; }
+.pr-fallback-item-text { color: #5b6472; }
+.pr-fallback-row { padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 3); border-top-style: var(--tw-border-style); border-top-width: 1px; border-color: #e5ddd5; }
+.pr-fallback-row-label { font-size: 10px; @include bold; text-transform: uppercase; @include tracking(var(--tracking-widest)); color: #a89080; margin-bottom: var(--spacing); }
+.pr-fallback-row-value { font-size: 13px; color: #4a3828; @include leading(var(--leading-relaxed)); }

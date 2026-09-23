@@ -1,15 +1,18 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /** Result of matching one free-text provider query against live_institutions. Ported from
  *  yuzee-ai-token-lab/src/warehouse/types.ts (ProviderMatch) and provider-data.cjs (matches()). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class ProviderMatch {
     private String query;
     private String status; // MATCHED | AMBIGUOUS | NOT_FOUND
     private List<ProviderRecord> providers = new ArrayList<>();
-    private String resolution;
+    @JsonInclude(JsonInclude.Include.NON_NULL) private String resolution;
 
     public String getQuery() { return query; }
     public void setQuery(String query) { this.query = query; }
@@ -20,6 +23,8 @@ public class ProviderMatch {
     public String getResolution() { return resolution; }
     public void setResolution(String resolution) { this.resolution = resolution; }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class ProviderRecord {
         private String id;
         private String evidenceId;

@@ -1,22 +1,31 @@
 @if (isOpen) {
-  <div class="modal-backdrop show"></div>
-  <div class="modal d-block confirm-dialog-modal" tabindex="-1" role="alertdialog" aria-modal="true"
-       [attr.aria-labelledby]="'confirm-dialog-title'" [attr.aria-describedby]="'confirm-dialog-desc'">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-      <div class="modal-content confirm-dialog-content">
-        <div class="modal-body text-center">
-          <div class="confirm-dialog-icon" [class.is-destructive]="isDestructive">
-            <span aria-hidden="true">&#9888;</span>
-          </div>
-          <h3 id="confirm-dialog-title" class="confirm-dialog-title">{{ title }}</h3>
-          @if (dialogText) {
-            <p id="confirm-dialog-desc" class="confirm-dialog-text">{{ dialogText }}</p>
-          }
-        </div>
-        <div class="modal-footer confirm-dialog-footer">
-          <button #cancelBtn type="button" class="btn btn-light flex-1" (click)="onCancel()">{{ cancelLabel }}</button>
-          <button type="button" class="btn flex-1" [class.btn-danger]="isDestructive" [class.btn-primary]="!isDestructive" (click)="onConfirm()">{{ confirmLabel }}</button>
-        </div>
+  <div class="cd-overlay">
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="apple-confirm-title"
+      aria-describedby="apple-confirm-desc"
+      class="cd-dialog apple-glass apple-dialog-shadow"
+    >
+      <div class="cd-icon-wrap">
+        <app-icon name="AlertTriangle" class="cd-icon" [class.is-destructive]="isDestructive" [class.is-warning]="!isDestructive" />
+      </div>
+
+      <h3 id="apple-confirm-title" class="cd-title">{{ title }}</h3>
+
+      <p id="apple-confirm-desc" class="cd-desc">{{ dialogText }}</p>
+
+      <div class="cd-actions">
+        <button #cancelBtn type="button" (click)="cancelled.emit()" class="cd-cancel">{{ cancelLabel }}</button>
+        <button
+          type="button"
+          (click)="confirmed.emit()"
+          class="cd-confirm"
+          [class.is-destructive]="isDestructive"
+          [class.is-primary]="!isDestructive"
+        >
+          {{ confirmLabel }}
+        </button>
       </div>
     </div>
   </div>

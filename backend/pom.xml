@@ -91,6 +91,19 @@
       <version>4.12.0</version>
     </dependency>
 
+    <!-- Local BGE role ranking (roleRanking.ts): ONNX model + HuggingFace tokenizer.json.
+         onnxruntime stays on 1.24.3, the onnxruntime-node the original runs: 1.30.0's int8 kernels shift BGE scores by ~3e-3. -->
+    <dependency>
+      <groupId>com.microsoft.onnxruntime</groupId>
+      <artifactId>onnxruntime</artifactId>
+      <version>1.24.3</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.djl.huggingface</groupId>
+      <artifactId>tokenizers</artifactId>
+      <version>0.38.0</version>
+    </dependency>
+
     <!-- Test -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -117,6 +130,14 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <!-- Tests run outside the repo so data/*.json and ../.env are never read or written. -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <workingDirectory>${project.build.directory}/test-work</workingDirectory>
+        </configuration>
       </plugin>
     </plugins>
   </build>

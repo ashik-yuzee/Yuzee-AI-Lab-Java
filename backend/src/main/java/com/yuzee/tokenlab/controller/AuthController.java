@@ -25,14 +25,14 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
-        String password = body.get("password");
+    public ResponseEntity<?> login(@RequestBody(required = false) Map<String, Object> body) {
+        Object username = body != null ? body.get("username") : null;
+        Object password = body != null ? body.get("password") : null;
         if (!adminUsername.equals(username) || !adminPassword.equals(password)) {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
-        String token = hmacFilter.generateToken(username, password);
-        return ResponseEntity.ok(Map.of("token", token, "username", username));
+        String token = hmacFilter.generateToken(adminUsername, adminPassword);
+        return ResponseEntity.ok(Map.of("token", token));
     }
 
     @PostMapping("/logout")
@@ -42,7 +42,9 @@ public class AuthController {
 
     @GetMapping("/check")
     public ResponseEntity<?> check(HttpServletRequest request) {
-        // Auth is verified by the filter; if we get here the token is valid
-        return ResponseEntity.ok(Map.of("authenticated", true, "username", "admin"));
+        // Unauthenticated route, as the original: reports whether the bearer token is valid.
+        String auth = request.getHeader("Authorization");
+        String token = auth != null && auth.startsWith("Bearer ") ? auth.substring(7) : "";
+        return ResponseEntity.ok(Map.of("authenticated", hmacFilter.validateToken(token)));
     }
 }

@@ -1,19 +1,14 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 
-/**
- * Port of AppleToggle.tsx. Plain @Input/@Output (not a ControlValueAccessor) since the
- * original is a simple checked/onChange pair, not a form-integrated control — this keeps
- * the API a 1:1 map of the React props.
- */
+/** 1:1 port of AppleToggle.tsx (checked/onChange → [checked]/(checkedChange)). */
 @Component({
   selector: 'app-toggle-switch',
   standalone: true,
-  imports: [CommonModule],
   templateUrl: './toggle-switch.component.html',
   styleUrl: './toggle-switch.component.scss'
 })
-export class ToggleSwitchComponent {
+export class ToggleSwitchComponent implements AfterViewChecked {
+  @ViewChild('input', { static: true }) input!: ElementRef<HTMLInputElement>;
   @Input() id?: string;
   @Input() checked = false;
   @Input() disabled = false;
@@ -23,7 +18,12 @@ export class ToggleSwitchComponent {
   @Output() checkedChange = new EventEmitter<boolean>();
 
   onToggle(e: Event): void {
-    if (this.disabled) return;
     this.checkedChange.emit((e.target as HTMLInputElement).checked);
+  }
+
+  /** Controlled like React's <input checked>: the box reverts to `checked` until the parent changes it. */
+  ngAfterViewChecked(): void {
+    const el = this.input.nativeElement;
+    if (el.checked !== this.checked) el.checked = this.checked;
   }
 }

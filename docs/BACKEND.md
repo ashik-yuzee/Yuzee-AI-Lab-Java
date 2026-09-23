@@ -2103,7 +2103,10 @@ A real, working data pipeline over a 288-table SQLite database
 (`training_gov.db`, ~12GB — Australian government training/course/job market
 data: `training.gov.au` courses, CRICOS/HE providers, NCVER stats, ABS census
 data, Jobs and Skills Australia projections, O*NET occupation/skill
-mappings, funding rules, TimesFM-based demand forecasting, and more). Wired
+mappings, funding rules, stored projections, and more). Neither this app nor the original
+computes forecasts or runs a forecasting model (e.g. TimesFM): any projections are precomputed rows in
+this externally built database, which lives outside both repos (default `~/.yuzee-monitor/training_gov.db`,
+or `YUZEE_WAREHOUSE_DB`). Wired
 into the live chat turn (Part 3.2, step 6) — the only enrichment subsystem
 alongside `TurnNeedsService` confirmed to reach a real user on every turn.
 

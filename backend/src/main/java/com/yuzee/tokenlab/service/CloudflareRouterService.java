@@ -12,7 +12,6 @@ import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -74,7 +73,7 @@ public class CloudflareRouterService {
         if (!isConfigured()) {
             return new Result(503, Map.of("error", "Cloudflare credentials not configured"));
         }
-        if (text == null || text.isBlank()) {
+        if (text == null || text.isEmpty()) {
             return new Result(400, Map.of("error", "text required"));
         }
         String systemPrompt = SYSTEM_PROMPTS.get(task);
@@ -104,22 +103,16 @@ public class CloudflareRouterService {
                 JsonNode cfData = mapper.readTree(response.body().string());
                 String raw = cfData.path("result").path("response").asText("");
                 Matcher m = JSON_OBJECT.matcher(raw);
-                Object parsed = null;
-                if (m.find()) {
-                    try {
-                        parsed = mapper.readValue(m.group(), Map.class);
-                    } catch (Exception ignored) {
-                        // Leave parsed as null -- the model didn't return valid JSON this time.
-                    }
-                }
+                // JSON.parse failure propagates to the 500 handler, as in server.ts.
+                Object parsed = m.find() ? mapper.readValue(m.group(), Object.class) : null;
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("ok", true);
                 out.put("task", task);
                 out.put("result", parsed);
                 return new Result(200, out);
             }
-        } catch (IOException e) {
-            return new Result(500, Map.of("error", e.getMessage() != null ? e.getMessage() : "routing failed"));
+        } catch (Exception e) {
+            return new Result(500, Map.of("error", e.getMessage() != null && !e.getMessage().isEmpty() ? e.getMessage() : "routing failed"));
         }
     }
 }

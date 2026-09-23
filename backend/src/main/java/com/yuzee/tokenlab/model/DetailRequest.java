@@ -1,5 +1,7 @@
 package com.yuzee.tokenlab.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -7,6 +9,7 @@ import java.util.Map;
  * A scoped follow-up research request. Ported from yuzee-ai-token-lab/src/research/types.ts
  * (DetailRequest) and contract.ts (parseDetailRequest).
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class DetailRequest {
     private String parentMessageId;
     private String target;
@@ -31,11 +34,12 @@ public class DetailRequest {
 
         DetailRequest result = new DetailRequest();
         for (Map.Entry<String, Integer> e : limits.entrySet()) {
-            Object raw = body.getOrDefault(e.getKey(), "");
+            Object raw = body.get(e.getKey()); // body[key] ?? ''
+            if (raw == null) raw = "";
             if (!(raw instanceof String value) || value.length() > e.getValue()) {
                 throw new IllegalArgumentException("Please shorten " + e.getKey() + ".");
             }
-            value = value.trim();
+            value = value.strip();
             switch (e.getKey()) {
                 case "parentMessageId" -> result.parentMessageId = value;
                 case "target" -> result.target = value;
@@ -48,7 +52,7 @@ public class DetailRequest {
         if (isBlank(result.parentMessageId) || isBlank(result.target) || isBlank(result.question)) {
             throw new IllegalArgumentException("Enter the course or option and your question.");
         }
-        if (body.containsKey("refresh") && body.get("refresh") != null) {
+        if (body.containsKey("refresh")) { // body.refresh !== undefined: null is rejected too
             Object refresh = body.get("refresh");
             if (!(refresh instanceof Boolean b)) throw new IllegalArgumentException("Refresh must be a yes or no choice.");
             result.refresh = b;

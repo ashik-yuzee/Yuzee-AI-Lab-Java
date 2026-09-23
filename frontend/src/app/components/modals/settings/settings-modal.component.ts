@@ -1,105 +1,138 @@
-import { Component, Output, EventEmitter, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { TokenLabService } from '../../../services/token-lab.service';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Component, effect, signal, untracked } from '@angular/core';
+import { ApiService } from '../../../services/api.service';
 import { AuthService } from '../../../services/auth.service';
-import { firstValueFrom } from 'rxjs';
+import { TokenLabService, formatCost } from '../../../services/token-lab.service';
+import { IconComponent } from '../../shared/icon/icon.component';
+import { RouterModelSelectorComponent } from '../../shared/router-model-selector/router-model-selector.component';
 
+interface LifetimeStats {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  thinkingTokens: number;
+  costUsd: number;
+  whiteboard?: { calls: number; inputTokens: number; outputTokens: number; costUsd: number };
+}
+
+interface PromptData { content: string; hash: string; bytes: number; filename: string; filepath: string }
+
+const ACCENT_PRESETS = [
+  { name: 'Violet', value: '#8952ee' },
+  { name: 'Blue', value: '#2f6fed' },
+  { name: 'Teal', value: '#0d9488' },
+  { name: 'Rose', value: '#e11d48' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Slate', value: '#475569' },
+];
+
+const LAB_SHORTCUTS = [
+  { tab: 'context', label: 'Memory Strategy', desc: 'Context budget & memory' },
+  { tab: 'reasoning', label: 'Thinking Level', desc: 'Reasoning depth control' },
+  { tab: 'prompt', label: 'System Prompt', desc: 'Instruction mode & API' },
+  { tab: 'optimization', label: 'Optimization', desc: 'Token economics' },
+  { tab: 'benchmark', label: 'Benchmark', desc: 'Strategy comparison' },
+  { tab: 'analytics', label: 'Analytics', desc: 'Session usage charts' },
+];
+
+/**
+ * 1:1 port of SettingsModal.tsx. Always mounted (as in the original), so its local state persists
+ * between opens; lifetime stats and the master prompt are refetched each time it opens.
+ */
 @Component({
   selector: 'app-settings-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  template: `
-    <div class="modal-backdrop" (click)="close.emit()">
-      <div class="modal-card card p-4 shadow-lg" (click)="$event.stopPropagation()">
-        <div class="d-flex align-items-center justify-content-between mb-4">
-          <h5 class="mb-0 fw-semibold">Settings</h5>
-          <button class="btn btn-sm btn-outline-secondary" (click)="close.emit()">✕</button>
-        </div>
-
-        <!-- Model -->
-        <div class="mb-3">
-          <label class="form-label">Model</label>
-          <select class="form-select" [(ngModel)]="selectedModel">
-            @for (m of models(); track m.id) {
-              <option [value]="m.id">{{ m.label }}</option>
-            }
-          </select>
-        </div>
-
-        <!-- Optimization mode -->
-        <div class="mb-3">
-          <label class="form-label">Optimization Mode</label>
-          <select class="form-select" [(ngModel)]="selectedMode">
-            <option value="AUTO">Auto</option>
-            <option value="SAVE_TOKENS">Save Tokens</option>
-            <option value="FULL_CONTEXT">Full Context</option>
-            <option value="VANILLA">Vanilla</option>
-          </select>
-        </div>
-
-        <!-- Response mode -->
-        <div class="mb-3">
-          <label class="form-label">Response Mode</label>
-          <select class="form-select" [(ngModel)]="selectedResponseMode">
-            <option value="quick">Quick</option>
-            <option value="standard">Standard</option>
-            <option value="explain">Explain</option>
-            <option value="explore">Explore</option>
-            <option value="detail">Detail</option>
-          </select>
-        </div>
-
-        <div class="d-flex justify-content-end gap-2 mt-4">
-          <button class="btn btn-outline-secondary" (click)="close.emit()">Cancel</button>
-          <button class="btn btn-purple" (click)="apply()">Apply</button>
-        </div>
-      </div>
-    </div>
-  `,
-  styles: [`
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1050;
-      display: flex; align-items: center; justify-content: center; padding: 16px; }
-    .modal-card { border-radius: 16px; width: 100%; max-width: 440px; border: 1px solid #e4e9f2; }
-    .btn-purple { background: #7957c6; color: #fff; border: none; }
-    .btn-purple:hover { background: #6744b5; color: #fff; }
-  `]
+  imports: [IconComponent, RouterModelSelectorComponent],
+  templateUrl: './settings-modal.component.html',
+  styleUrl: './settings-modal.component.scss'
 })
-export class SettingsModalComponent implements OnInit {
-  @Output() close = new EventEmitter<void>();
+export class SettingsModalComponent {
+  readonly accentPresets = ACCENT_PRESETS;
+  readonly labShortcuts = LAB_SHORTCUTS;
+  readonly formatCost = formatCost;
 
-  models = signal<{ id: string; label: string }[]>([]);
-  selectedModel = '';
-  selectedMode = 'AUTO';
-  selectedResponseMode = 'standard';
+  fontPref = signal<'system' | 'open-sans'>(this.read('oala-font') === 'open-sans' ? 'open-sans' : 'system');
+  accent = signal(this.read('oala-accent') || '#8952ee');
+  clearConfirm = signal(false);
+  cleared = signal(false);
+  lifetime = signal<LifetimeStats | null>(null);
+  promptData = signal<PromptData | null>(null);
+  promptOpen = signal(false);
+  promptCopied = signal(false);
 
-  constructor(public lab: TokenLabService, private http: HttpClient, private auth: AuthService) {}
-
-  ngOnInit(): void {
-    this.selectedModel = this.lab.activeModelId();
-    this.selectedMode = this.lab.optimizationMode();
-    this.selectedResponseMode = this.lab.responseMode();
-    this.loadModels();
+  constructor(private api: ApiService, private auth: AuthService, public lab: TokenLabService) {
+    effect(() => {
+      if (!this.lab.isSettingsOpen()) return;
+      untracked(() => {
+        this.api.get<LifetimeStats>('/tokens/lifetime-stats').subscribe({ next: s => this.lifetime.set(s), error: e => { if (!(e?.status >= 200 && e?.status < 300)) this.lifetime.set(null); } }); // fetchLifetimeStats() resolves null on failure; its un-awaited res.json() rejects (ignored) on a bad 2xx body
+        // As the original: r.json() is stored whatever the status, so a JSON error body becomes the prompt data.
+        const token = this.auth.token;
+        fetch('/api/system-prompt', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.json()).then(p => this.promptData.set(p)).catch(() => {});
+      });
+    });
   }
 
-  async loadModels(): Promise<void> {
+  get storageSize(): string {
+    const b = this.lab.localStorageStats().bytes;
+    return b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(2)} MB`;
+  }
+
+  k(n: number): string {
+    return (n / 1000).toFixed(1);
+  }
+
+  toggleFont(): void {
+    const next = this.fontPref() === 'system' ? 'open-sans' : 'system';
+    this.fontPref.set(next);
     try {
-      const caps = await firstValueFrom(
-        this.http.get<any>('/api/config/capabilities', {
-          headers: new HttpHeaders({ Authorization: `Bearer ${this.auth.token}` })
-        })
-      );
-      this.models.set(caps.models ?? []);
-    } catch {
-      this.models.set([{ id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }]);
-    }
+      if (next === 'open-sans') localStorage.setItem('oala-font', 'open-sans');
+      else localStorage.removeItem('oala-font');
+    } catch { /* preference just won't persist */ }
+    document.documentElement.classList.toggle('font-open-sans', next === 'open-sans');
   }
 
-  apply(): void {
-    this.lab.activeModelId.set(this.selectedModel);
-    this.lab.optimizationMode.set(this.selectedMode);
-    this.lab.responseMode.set(this.selectedResponseMode);
-    this.close.emit();
+  applyAccent(hex: string): void {
+    this.accent.set(hex);
+    document.documentElement.style.setProperty('--accent', hex);
+    try { localStorage.setItem('oala-accent', hex); } catch { /* preference just won't persist */ }
+  }
+
+  onCustomAccent(e: Event): void {
+    this.applyAccent((e.target as HTMLInputElement).value);
+  }
+
+  close(): void {
+    this.lab.isSettingsOpen.set(false);
+  }
+
+  openLabTab(tab: string): void {
+    this.lab.isSettingsOpen.set(false);
+    this.lab.activeLabTab.set(tab);
+    this.lab.isAdvancedLabOpen.set(true);
+  }
+
+  openExportModal(): void {
+    this.lab.isSettingsOpen.set(false);
+    this.lab.isExportOpen.set(true);
+  }
+
+  handleClear(): void {
+    this.lab.clearLocalData();
+    this.clearConfirm.set(false);
+    this.cleared.set(true);
+    setTimeout(() => this.cleared.set(false), 2000);
+  }
+
+  copyPrompt(): void {
+    const data = this.promptData();
+    if (!data) return;
+    navigator.clipboard.writeText(data.content).then(() => {
+      this.promptCopied.set(true);
+      setTimeout(() => this.promptCopied.set(false), 2000);
+    });
+  }
+
+  private read(key: string): string | null {
+    try { return localStorage.getItem(key); } catch { return null; }
   }
 }

@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Port of protocol/presentationDefaults.ts.
  * Repairs only presentation details whose meaning is defined by the application:
- * fills a missing question_id/question text on handoff forms, and forces any
+ * fills an empty-string question_id/question text on handoff forms, and forces any
  * "location" field to the australian_location input type with no options.
  */
 public final class PresentationDefaults {
@@ -35,11 +35,11 @@ public final class PresentationDefaults {
         if ("handoff".equals(kind) && "fields".equals(inputType)
                 && fieldsNode instanceof ArrayNode && fieldsNode.size() > 0) {
 
-            if (q.path("question_id").asText("").isEmpty()) {
+            if (q.path("question_id").isTextual() && q.path("question_id").asText().isEmpty()) {
                 q.put("question_id", "request-details-" + turnId);
                 changes.add("Assigned a question ID to the request form.");
             }
-            if (q.path("question").asText("").isEmpty()) {
+            if (q.path("question").isTextual() && q.path("question").asText().isEmpty()) {
                 q.put("question", "Add the missing details for your draft.");
                 changes.add("Added the request form heading.");
             }
@@ -48,15 +48,14 @@ public final class PresentationDefaults {
                 if (!(fieldNode instanceof ObjectNode)) continue;
                 ObjectNode field = (ObjectNode) fieldNode;
                 String fieldId = field.path("id").asText("");
-                String fieldInputType = field.path("input_type").asText("");
+                String fieldInputType = field.path("input_type").isTextual() ? field.path("input_type").asText() : "";
                 boolean isKnownLocationInputType = "text".equals(fieldInputType)
                         || "australian_location".equals(fieldInputType)
                         || "single_select".equals(fieldInputType);
 
                 if ("location".equals(fieldId) && isKnownLocationInputType) {
                     JsonNode options = field.path("options");
-                    boolean optionsNonEmpty = options.isArray() && options.size() > 0;
-                    if (!"australian_location".equals(fieldInputType) || optionsNonEmpty) {
+                    if (!"australian_location".equals(fieldInputType) || !options.isArray() || options.size() > 0) {
                         field.put("input_type", "australian_location");
                         field.putArray("options");
                         changes.add("Location is a user-entered text field.");

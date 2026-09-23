@@ -1,135 +1,236 @@
-<aside class="token-inspector-panel" [class.is-open]="open">
-  <div class="panel-header">
-    <div class="d-flex align-items-center gap-2">
-      <div class="header-icon">⚡</div>
-      <div>
-        <h2 class="panel-title">Conversation Telemetry</h2>
-        <p class="panel-subtitle">Live turn usage &amp; context diagnostics</p>
+@if (open) {
+  <aside id="token-inspector-panel" class="ti-panel">
+    <!-- Header -->
+    <div class="ti-header">
+      <div class="ti-header-left">
+        <div class="ti-icon-box">
+          <app-icon name="Activity" class="ti-icon-md" />
+        </div>
+        <div>
+          <h2 class="ti-title">Conversation Telemetry</h2>
+          <p class="ti-subtitle">Live turn usage &amp; context diagnostics for this conversation</p>
+        </div>
       </div>
-    </div>
-    <button class="btn btn-sm btn-icon" (click)="close()" title="Close inspector" aria-label="Close inspector">✕</button>
-  </div>
 
-  <div class="panel-body">
-    @if (!tokenUsage) {
-      <div class="empty-state">
-        <div class="empty-icon">⚡</div>
-        <p>Send a message to view turn-level telemetry.</p>
-      </div>
-    } @else {
-      <!-- Latest turn consumption -->
-      <section class="section">
-        <div class="section-label">Latest Turn Consumption</div>
-        <div class="stat-grid">
-          <div class="stat-card stat-input">
-            <span class="stat-label">{{ (tokenUsage.cachedTokens ?? 0) > 0 ? 'Gross Input (incl. cache)' : 'Total Input' }}</span>
-            <span class="stat-value">{{ tokenUsage.promptTokens | number }} tokens</span>
-            @if ((tokenUsage.cachedTokens ?? 0) > 0) {
-              <span class="stat-footnote">{{ uncachedInput() | number }} actually consumed</span>
+      <button (click)="close()" class="ti-close" title="Close Inspector" aria-label="Close Inspector">
+        <app-icon name="X" class="ti-icon-md" />
+      </button>
+    </div>
+
+    <!-- Content Body -->
+    <div class="ti-body">
+      @if (usage; as u) {
+        <!-- 1. LATEST TURN HEADLINE CARDS -->
+        <div>
+          <div class="ti-latest-head">
+            <span class="ti-caps">Latest Turn Consumption</span>
+            <span class="ti-latency">{{ u.latencyMs ? u.latencyMs + 'ms' : '' }}</span>
+          </div>
+
+          <div class="ti-grid">
+            <div class="ti-card-sky">
+              <span class="ti-sky-label">{{ u.cachedTokens && u.cachedTokens > 0 ? 'Gross Input (incl. cache)' : 'Total Input' }}</span>
+              <span class="ti-sky-val">{{ u.inputTokens.toLocaleString() }} tokens</span>
+              @if (u.cachedTokens && u.cachedTokens > 0) {
+                <span class="ti-sky-sub">{{ (u.uncachedInputTokens ?? u.inputTokens - u.cachedTokens).toLocaleString() }} actually consumed</span>
+              } @else if (u.cachedTokens === 0) {<!-- React renders the falsy 0 of `cachedTokens && …` -->0}
+            </div>
+
+            <!-- Output Tokens -->
+            <div class="ti-card-slate">
+              <span class="ti-slate-label">Visible Output</span>
+              <span class="ti-slate-val">{{ u.outputTokens.toLocaleString() }} tokens</span>
+            </div>
+
+            <!-- Thinking Tokens -->
+            <div class="ti-card-amber">
+              <span class="ti-amber-label">Thinking / Reasoning</span>
+              <span class="ti-amber-val">{{ u.thinkingTokens !== null ? u.thinkingTokens + ' tokens' : '0 tokens' }}</span>
+            </div>
+
+            <!-- Cached Tokens — only shown on a real cache hit -->
+            @if (u.cachedTokens !== null && u.cachedTokens > 0) {
+              <div class="ti-card-emerald">
+                <div>
+                  <span class="ti-emerald-label">Served from Cache</span>
+                  <span class="ti-emerald-val">{{ u.cachedTokens.toLocaleString() }} tokens</span>
+                </div>
+                @if (u.cacheHitPercentage !== null && u.cacheHitPercentage! > 0) {
+                  <div class="ti-right">
+                    <span class="ti-emerald-of">of Input</span>
+                    <span class="ti-emerald-pct">{{ u.cacheHitPercentage }}%</span>
+                  </div>
+                }
+              </div>
             }
           </div>
-          <div class="stat-card stat-output">
-            <span class="stat-label">Visible Output</span>
-            <span class="stat-value">{{ tokenUsage.outputTokens | number }} tokens</span>
-          </div>
-          <div class="stat-card stat-thinking">
-            <span class="stat-label">Thinking / Reasoning</span>
-            <span class="stat-value">{{ tokenUsage.thinkingTokens ?? 0 | number }} tokens</span>
-          </div>
-          @if ((tokenUsage.cachedTokens ?? 0) > 0) {
-            <div class="stat-card stat-cache stat-wide">
-              <div>
-                <span class="stat-label">Served from Cache</span>
-                <span class="stat-value">{{ tokenUsage.cachedTokens | number }} tokens</span>
+        </div>
+
+        <!-- 2. LATENCY LIFECYCLE BREAKDOWN -->
+        @if (tele?.timeline; as tl) {
+          <div class="ti-section">
+            <span class="ti-section-title">
+              <app-icon name="Clock" class="ti-icon-sm is-sky" />
+              <span>Request Lifecycle Latency</span>
+            </span>
+
+            <div class="ti-timeline">
+              <div class="ti-tl-row">
+                <span>Pre-Provider Pipeline:</span>
+                <span class="ti-tl-val">{{ tl.preProviderLatencyMs ?? 0 }}ms</span>
               </div>
-              @if (cacheHitPercentage() !== null) {
-                <div class="text-end">
-                  <span class="stat-label d-block">of Input</span>
-                  <span class="stat-value">{{ cacheHitPercentage() }}%</span>
+              @if (tl.memoryAssemblyMs !== undefined) {
+                <div class="ti-tl-sub">
+                  <span>↳ Memory Assembly:</span>
+                  <span>{{ tl.memoryAssemblyMs }}ms</span>
                 </div>
               }
-            </div>
-          }
-        </div>
-      </section>
-
-      <!-- Context composition -->
-      <section class="section section-divider">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <span class="section-label mb-0">Context Composition</span>
-          <button class="link-btn" (click)="openContextInspector.emit()">Open Inspector</button>
-        </div>
-        <div class="legend-box">
-          <div class="legend-row"><span class="dot dot-system"></span>System prompt</div>
-          <div class="legend-row"><span class="dot dot-history"></span>Recent dialogue turns</div>
-          <div class="legend-row"><span class="dot dot-current"></span>Current message</div>
-          <p class="legend-note">
-            Per-section token counts aren't exposed by the backend yet — only the turn total above is exact.
-          </p>
-        </div>
-      </section>
-
-      <!-- Compaction summary -->
-      @if (compaction) {
-        <section class="section section-divider">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="section-label mb-0">📉 Context Compaction</span>
-            <button class="link-btn" (click)="openMemoryTimeline.emit()">View Timeline</button>
-          </div>
-          <div class="compaction-box">
-            <div class="compaction-row">
-              <span>Strategy</span>
-              <span class="fw-semibold">{{ compaction.strategy }}</span>
-            </div>
-            <div class="compaction-row">
-              <span>Turns kept / dropped</span>
-              <span class="fw-semibold">{{ compaction.turnsKept }} / {{ compaction.turnsDropped }}</span>
-            </div>
-            <div class="compaction-row">
-              <span>Tokens used / budget</span>
-              <span class="fw-semibold">{{ compaction.tokensUsed | number }} / {{ compaction.tokenBudget | number }}</span>
-            </div>
-          </div>
-        </section>
-      }
-
-      <!-- Session totals (dark terminal card) -->
-      <section class="section section-divider">
-        <span class="section-label" title="Cumulative totals since last Reset. Resets automatically on server restart.">
-          Session Totals (since last Reset)
-        </span>
-
-        @if (statsLoading()) {
-          <div class="terminal-card terminal-loading">Loading session stats…</div>
-        } @else if (statsError() || !sessionStats()) {
-          <div class="terminal-card terminal-loading">Session stats unavailable.</div>
-        } @else {
-          <div class="terminal-card">
-            <div class="terminal-row terminal-headline">
-              <span>Total Tokens</span>
-              <span class="terminal-value">{{ sessionStats()!.totalTokens | number }}</span>
-            </div>
-            <div class="terminal-sub">
-              <div class="terminal-row">
-                <span>Prompt Tokens</span>
-                <span>{{ sessionStats()!.promptTokens | number }}</span>
-              </div>
-              <div class="terminal-row">
-                <span>Output Tokens</span>
-                <span>{{ sessionStats()!.outputTokens | number }}</span>
-              </div>
-              <div class="terminal-row">
-                <span>Turns</span>
-                <span>{{ sessionStats()!.turns | number }}</span>
-              </div>
-              <div class="terminal-row">
-                <span>Estimated Cost</span>
-                <span>${{ sessionStats()!.estimatedCostUsd | number: '1.2-4' }}</span>
+              @if (tl.requestAssemblyMs !== undefined) {
+                <div class="ti-tl-sub">
+                  <span>↳ Request Assembly:</span>
+                  <span>{{ tl.requestAssemblyMs }}ms</span>
+                </div>
+              }
+              @if (tl.providerTtftMs !== null) {
+                <div class="ti-tl-row">
+                  <span>Provider TTFT:</span>
+                  <span class="ti-tl-val is-emerald">{{ tl.providerTtftMs }}ms</span>
+                </div>
+              }
+              @if (tl.providerGenMs !== null) {
+                <div class="ti-tl-row">
+                  <span>Provider Generation:</span>
+                  <span class="ti-tl-val is-indigo">{{ tl.providerGenMs }}ms</span>
+                </div>
+              }
+              @if (tl.validationDurationMs !== undefined) {
+                <div class="ti-tl-row">
+                  <span>Protocol Validation:</span>
+                  <span class="ti-tl-val">{{ tl.validationDurationMs }}ms</span>
+                </div>
+              }
+              <div class="ti-tl-total">
+                <span>Total Latency:</span>
+                <span>{{ tl.totalLatencyMs ?? u.latencyMs ?? 0 }}ms</span>
               </div>
             </div>
           </div>
         }
-      </section>
-    }
-  </div>
-</aside>
+
+        <!-- 3. CONTEXT BREAKDOWN -->
+        @if (tele?.contextMetrics; as context) {
+          <div class="ti-section">
+            <div class="ti-row-between">
+              <span class="ti-caps">Context Composition</span>
+              <button (click)="showContextInspector()" class="ti-link">Open Inspector</button>
+            </div>
+
+            <div class="ti-context">
+              <div class="ti-ctx-item">
+                <span class="ti-dot"></span>
+                System prompt
+              </div>
+              @if (context.careerContextTokens > 0) {
+                <div class="ti-ctx-item is-sky">
+                  <span class="ti-dot is-sky"></span>
+                  Career context capsule
+                </div>
+              }
+              @if (context.summaryTokens > 0) {
+                <div class="ti-ctx-item is-indigo">
+                  <span class="ti-dot is-indigo"></span>
+                  Conversation summary
+                </div>
+              }
+              @if (context.recentTurnsTokens > 0) {
+                <div class="ti-ctx-item">
+                  <span class="ti-dot"></span>
+                  Recent dialogue turns
+                </div>
+              }
+              <div class="ti-ctx-item">
+                <span class="ti-dot"></span>
+                Current message
+              </div>
+              <p class="ti-ctx-note">
+                Per-section token counts are not available from the Gemini API — only the total above is exact.
+              </p>
+            </div>
+          </div>
+        }
+
+        <!-- 3. COMPACTION EVENT -->
+        @if (hasCompaction) {
+          <div class="ti-section">
+            <div class="ti-row-between">
+              <span class="ti-section-title is-tight">
+                <app-icon name="TrendingDown" class="ti-icon-sm is-emerald" />
+                <span>Context Compaction</span>
+              </span>
+              <button (click)="showMemoryTimeline()" class="ti-link">View Timeline</button>
+            </div>
+
+            <div class="ti-compaction">
+              Older turns were archived this turn. A background summarisation job compressed the evicted dialogue into structured memory bullets. Token counts for this operation are not available synchronously.
+            </div>
+          </div>
+        }
+
+        <!-- 4. SESSION CUMULATIVE STATS -->
+        <div class="ti-section">
+          <span class="ti-caps-block" title="Cumulative totals since last Reset (sidebar). Resets automatically on server restart.">
+            Session Totals (since last Reset)
+          </span>
+
+          <div class="ti-dark">
+            <div class="ti-dark-head">
+              <span class="ti-dark-head-label" title="New uncached input + output + thinking + compaction overhead. Cache reads are listed separately below and are NOT included here. Resets when you click Reset in the sidebar.">Session Total (excl. cache reads)</span>
+              <span class="ti-dark-head-val">{{ (stats?.trueTotalConsumption || 0).toLocaleString() }}</span>
+            </div>
+
+            <div class="ti-dark-list">
+              <div class="ti-dark-row">
+                <span class="ti-k">New Input (full rate):</span>
+                <span>{{ newInput.toLocaleString() }}</span>
+              </div>
+              @if ((stats?.totalCachedTokens || 0) > 0) {
+                <div class="ti-dark-row">
+                  <span class="ti-em">⚡ Cache reads (cumulative):</span>
+                  <span class="ti-em">{{ (stats?.totalCachedTokens || 0).toLocaleString() }}</span>
+                </div>
+              }
+              @if ((stats?.totalCachedTokens || 0) > 0 && (stats?.userFacingChatCalls || 0) > 0) {
+                <div class="ti-dark-row">
+                  <span class="ti-per-turn-k">↳ per turn (system prompt):</span>
+                  <span class="ti-per-turn-v">{{ cachedPerTurn.toLocaleString() }}</span>
+                </div>
+              }
+              <div class="ti-dark-row">
+                <span class="ti-k">Output + Thinking:</span>
+                <span>{{ ((stats?.totalModelOutputTokens || 0) + (stats?.totalThinkingTokens || 0)).toLocaleString() }}</span>
+              </div>
+              <div class="ti-dark-row">
+                <span class="ti-k">Compaction Overhead:</span>
+                <span>{{ (stats?.compactionTotalTokens || 0).toLocaleString() }}</span>
+              </div>
+              <div class="ti-dark-row">
+                <span class="ti-k">Baseline (no caching):</span>
+                <span>{{ (stats?.baselineEstimatedTokens || 0).toLocaleString() }}</span>
+              </div>
+            </div>
+
+            <div class="ti-net">
+              <span class="ti-net-label">Net Tokens Saved:</span>
+              <span class="ti-net-val">+{{ (stats?.tokensSaved || 0).toLocaleString() }} ({{ stats?.netSavingsPercentage || 0 }}%)</span>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="ti-empty">
+          <app-icon name="Activity" class="ti-empty-icon" [strokeWidth]="1" />
+          <p>Send a message to view turn-level telemetry.</p>
+        </div>
+      }
+    </div>
+  </aside>
+}

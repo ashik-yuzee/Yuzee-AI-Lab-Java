@@ -1,77 +1,47 @@
-import { Component, Input, forwardRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input } from '@angular/core';
 
-/**
- * Angular port of the old React app's `PrimitiveRenderer.tsx` `ResultValue`/`EvidenceNote`
- * components: a small recursive renderer for the model's arbitrary, untyped `result`/`content`
- * JSON (objects become `<dt>`/`<dd>` pairs, arrays become lists, a `{source_status,...}` object
- * renders as an evidence note, everything else is a scalar).
- *
- * Split out as its own standalone component (rather than a template fragment) because Angular
- * needs a real component to recurse into itself from a template; it self-imports via `forwardRef`
- * for that recursion. Reused by both `WorkspaceResultComponent` (the domain result) and
- * `PrimitiveRendererComponent` (each primitive's `content` evidence notes).
- */
+const sourceLabels: Record<string, string> = { USER_CONFIRMED: 'You shared', AI_INFERRED: 'AI interpretation', SOURCED_CURRENT_FACT: 'Source-backed', UNKNOWN: 'Still unknown', GENERAL_GUIDANCE: 'General guidance' };
+
+/** PrimitiveRenderer.tsx EvidenceNote. Host is `display:contents`, so the DOM matches the original. */
+@Component({
+  selector: 'app-evidence-note',
+  standalone: true,
+  styles: [':host{display:contents}'],
+  template: `<div [class]="'objective-note ' + (note?.source_status?.toLowerCase() ?? 'undefined')">@if (note?.source_status !== 'USER_CONFIRMED') {<span>{{ label() }}</span>@if (note?.label) {<strong>{{ note.label }}</strong>}}<p>{{ note?.detail }}</p></div>`,
+})
+export class EvidenceNoteComponent {
+  @Input({ required: true }) note: any;
+  label(): string { return sourceLabels[this.note?.source_status] || 'Detail'; }
+}
+
+/** PrimitiveRenderer.tsx ResultValue (recursive). */
 @Component({
   selector: 'app-result-value',
   standalone: true,
-  imports: [CommonModule, forwardRef(() => ResultValueComponent)],
+  imports: [EvidenceNoteComponent],
+  styles: [':host{display:contents}'],
   templateUrl: './result-value.component.html',
-  styleUrl: './result-value.component.scss',
 })
 export class ResultValueComponent {
   @Input() value: any;
 
-  private readonly sourceLabels: Record<string, string> = {
-    USER_CONFIRMED: 'You shared',
-    AI_INFERRED: 'AI interpretation',
-    SOURCED_CURRENT_FACT: 'Source-backed',
-    UNKNOWN: 'Still unknown',
-    GENERAL_GUIDANCE: 'General guidance',
-  };
-
-  private static readonly SHOUTY_ENUM = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
-  private static readonly HIDDEN_KEYS = new Set(['comparison_scope', 'evidence_scope', 'evidence_refs']);
-
-  isEmpty(v: any): boolean {
-    return v === null || v === undefined || v === '';
+  kind(): 'unknown' | 'scalar' | 'note' | 'list' | 'emptyList' | 'fields' {
+    const v = this.value;
+    if (v === null || v === undefined || v === '') return 'unknown';
+    if (typeof v !== 'object') return 'scalar';
+    if (v.source_status) return 'note';
+    if (Array.isArray(v)) return v.length ? 'list' : 'emptyList';
+    return 'fields';
   }
 
-  isEvidenceNote(v: any): boolean {
-    return !!v && typeof v === 'object' && !Array.isArray(v) && !!v.source_status;
+  scalar(): string {
+    const v = this.value;
+    return typeof v === 'string' && /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(v) ? v.toLowerCase().replace(/_/g, ' ') : String(v);
   }
 
-  isArray(v: any): boolean {
-    return Array.isArray(v);
+  fields(): [string, any][] {
+    return Object.entries(this.value).filter(([k, v]) => !['comparison_scope', 'evidence_scope', 'evidence_refs'].includes(k) && v !== null && v !== '' && (!Array.isArray(v) || v.length > 0));
   }
 
-  isObject(v: any): boolean {
-    return !!v && typeof v === 'object' && !Array.isArray(v) && !v.source_status;
-  }
-
-  scalarText(v: any): string {
-    if (typeof v !== 'string') return String(v);
-    return ResultValueComponent.SHOUTY_ENUM.test(v) ? v.toLowerCase().replace(/_/g, ' ') : v;
-  }
-
-  sourceLabel(status: string | undefined): string {
-    return (status && this.sourceLabels[status]) || 'Detail';
-  }
-
-  fieldLabel(key: string): string {
-    return key.replace(/_/g, ' ');
-  }
-
-  entries(v: object): { k: string; v: any }[] {
-    return Object.entries(v)
-      .filter(([k, val]) => this.showEntry(k, val))
-      .map(([k, val]) => ({ k, v: val }));
-  }
-
-  private showEntry(key: string, val: any): boolean {
-    if (ResultValueComponent.HIDDEN_KEYS.has(key)) return false;
-    if (val === null || val === '') return false;
-    if (Array.isArray(val) && val.length === 0) return false;
-    return true;
-  }
+  key(k: string): string { return k.replace(/_/g, ' '); }
 }

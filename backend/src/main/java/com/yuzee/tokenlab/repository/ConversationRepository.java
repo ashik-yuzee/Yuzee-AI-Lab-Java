@@ -1,33 +1,35 @@
 package com.yuzee.tokenlab.repository;
 
+import com.yuzee.tokenlab.model.ChatMessage;
 import com.yuzee.tokenlab.model.Conversation;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
- * Persists Conversation aggregates (a conversation and all of its messages).
- * <p>
- * Two implementations, chosen in {@code config.PersistenceConfig} based on whether a
- * DataSource is available (i.e. whether DATABASE_URL / spring.datasource.url is set):
+ * db.ts conversation persistence, one method per db.ts export. ConversationService keeps the in-memory Map the
+ * original serves from; these calls are the original's fire-and-forget writes and its startup/list reads.
  * <ul>
- *   <li>{@link JdbcConversationRepository} — Postgres-backed.</li>
- *   <li>{@link FileConversationRepository} — a local JSON file, used when there is no DB.</li>
+ *   <li>{@link JdbcConversationRepository}: PostgreSQL (DATABASE_URL set).</li>
+ *   <li>{@link FileConversationRepository}: LocalConversationStore on data/conversations.json.</li>
  * </ul>
  */
 public interface ConversationRepository {
 
-    /** All non-expired conversations, most recently updated first. */
-    List<Conversation> listAll();
+    /** isDbEnabled(). */
+    boolean isDbEnabled();
 
-    Optional<Conversation> findById(String id);
+    /** loadConversations(): db.ts returns [] on a query failure; the file store throws on unreadable history, as the original. */
+    List<Conversation> loadConversations();
 
-    /** Upsert: inserts a new conversation or replaces the existing one, including its messages. */
-    Conversation save(Conversation conversation);
+    /** saveConversation(conv). */
+    void saveConversation(Conversation conversation);
 
-    /** @return true if a conversation with that id existed and was removed. */
-    boolean delete(String id);
+    /** saveMessage(msg, conversationId): a no-op without PostgreSQL. */
+    void saveMessage(ChatMessage message, String conversationId);
 
-    /** Deletes conversations past their 30-day TTL. @return the number removed. */
-    int pruneExpired();
+    /** deleteConversation(id). */
+    void deleteConversation(String id);
+
+    /** pruneExpired(): a no-op without PostgreSQL. */
+    void pruneExpired();
 }

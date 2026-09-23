@@ -1,88 +1,69 @@
-<div class="cq-card-root">
-  @if (bridgeMessage) {
-    <p class="bridge-message">{{ bridgeMessage }}</p>
-  }
-
-  @for (q of questions; track q.questionId; let qi = $index) {
-    <div class="question-block mb-2">
-      <div class="question-header">
-        <span class="question-index">{{ qi + 1 }}.</span>
-        <span class="question-text">{{ q.question }}</span>
-        <span class="ui-type-badge">{{ uiTypeOf(q).replace('_', ' ') }}</span>
+<div class="cq-root">
+  @if (bridgeMessage) { <p class="cq-bridge">{{ bridgeMessage }}</p> }
+  @for (q of qs; track $index; let qi = $index) {
+    <div class="cq-card">
+      <div class="cq-card-head">
+        <div class="cq-head-row">
+          <div>
+            <span class="cq-num">{{ qi + 1 }}.</span>
+            <span class="cq-question">{{ q.question }}</span>
+          </div>
+          <span [class]="'cq-type cq-type-' + q.ui_type">{{ uiLabel(q) }}</span>
+        </div>
+        @if (q.why_we_ask) { <p class="cq-why">{{ q.why_we_ask }}</p> }
       </div>
 
-      <div class="question-body">
-        @switch (uiTypeOf(q)) {
-
-          @case ('free_text') {
-            <textarea
-              rows="3"
-              class="form-control form-control-sm"
-              [ngModel]="answers[q.questionId]?.selfInput"
-              (ngModelChange)="onSelfInputChange(q, $event)"
-              [disabled]="disabled"
-              [placeholder]="q.selfInputLabel || 'Type your answer…'"
-            ></textarea>
-          }
-
-          @case ('ranked_select') {
-            <div class="ranked-list">
-              @for (val of rankedOrders[q.questionId]; track val; let ri = $index) {
-                <div class="ranked-item">
-                  <span class="rank-badge">{{ ri + 1 }}</span>
-                  <span class="flex-grow-1 small">{{ optionLabel(q, val) }}</span>
-                  <div class="rank-controls">
-                    <button type="button" class="btn btn-sm btn-link p-0" [disabled]="ri === 0 || disabled"
-                            (click)="moveRanked(q, ri, -1)" aria-label="Move up">▲</button>
-                    <button type="button" class="btn btn-sm btn-link p-0" [disabled]="ri === (rankedOrders[q.questionId]?.length ?? 0) - 1 || disabled"
-                            (click)="moveRanked(q, ri, 1)" aria-label="Move down">▼</button>
+      <div class="cq-body">
+        @if (q.ui_type === 'free_text') {
+          <textarea rows="3" [value]="answers[q.id].selfInput" (input)="setFreeText(q, $any($event.target).value)" [placeholder]="q.self_input_label || 'Type your answer…'" [disabled]="disabled" class="cq-textarea"></textarea>
+        } @else if (q.ui_type === 'ranked_select') {
+          <div class="cq-ranked">
+            @for (val of rankedOrders[q.id] || []; track $index; let idx = $index, last = $last) {
+              @if (option(q, val); as opt) {
+                <div class="cq-ranked-item">
+                  <span class="cq-ranked-num">{{ idx + 1 }}</span>
+                  <div class="cq-opt-copy">
+                    <p class="cq-opt-label">{{ opt.label }}</p>
+                    @if (opt.description) { <p class="cq-opt-desc">{{ opt.description }}</p> }
+                  </div>
+                  <div class="cq-move-col">
+                    <button (click)="moveRanked(q, idx, -1)" [disabled]="idx === 0 || disabled" class="cq-move"><app-icon name="ChevronUp" class="cq-icon-4" /></button>
+                    <button (click)="moveRanked(q, idx, 1)" [disabled]="last || disabled" class="cq-move"><app-icon name="ChevronDown" class="cq-icon-4" /></button>
                   </div>
                 </div>
               }
+            }
+          </div>
+        } @else {
+          @for (opt of q.options || []; track $index) {
+            <div [attr.role]="q.ui_type === 'multi_select' ? 'checkbox' : 'radio'" [attr.aria-checked]="isSelected(q, opt.value)" (click)="toggleSelect(q, opt.value)"
+              class="cq-option" [class.is-selected]="isSelected(q, opt.value)" [class.is-disabled]="disabled">
+              <div class="cq-option-mark">
+                @if (q.ui_type === 'multi_select') {
+                  <div class="cq-checkbox" [class.is-selected]="isSelected(q, opt.value)">
+                    @if (isSelected(q, opt.value)) { <svg viewBox="0 0 12 12" class="cq-check-svg" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> }
+                  </div>
+                } @else {
+                  <div class="cq-radio" [class.is-selected]="isSelected(q, opt.value)">
+                    @if (isSelected(q, opt.value)) { <div class="cq-radio-dot"></div> }
+                  </div>
+                }
+              </div>
+              <div class="cq-opt-copy">
+                <p class="cq-opt-label">{{ opt.label }}</p>
+                @if (opt.description) { <p class="cq-opt-desc cq-opt-desc-gap">{{ opt.description }}</p> }
+              </div>
             </div>
           }
-
-          @default {
-            <!-- single_select / multi_select -->
-            @for (opt of normalizedOptions(q); track opt.value) {
-              <div
-                class="option-row"
-                [class.selected]="isSelected(q, opt.value)"
-                [class.disabled]="disabled"
-                (click)="toggleSelect(q, opt.value)"
-              >
-                <span class="option-indicator" [class.multi]="uiTypeOf(q) === 'multi_select'">
-                  @if (isSelected(q, opt.value)) {
-                    <span class="option-check">✓</span>
-                  }
-                </span>
-                <div class="flex-grow-1 min-w-0">
-                  <p class="option-label mb-0">{{ opt.label ?? opt.value }}</p>
-                  @if (opt.description) {
-                    <p class="option-desc mb-0">{{ opt.description }}</p>
-                  }
-                </div>
-              </div>
-            }
-            @if (allowSelfInputFor(q)) {
-              <input
-                type="text"
-                class="form-control form-control-sm mt-1 self-input"
-                [ngModel]="answers[q.questionId]?.selfInput"
-                (ngModelChange)="onSelfInputChange(q, $event)"
-                [disabled]="disabled"
-                [placeholder]="q.selfInputLabel || 'Something else — type my answer'"
-              />
-            }
+          @if (q.allow_self_input !== false) {
+            <input type="text" [value]="answers[q.id].selfInput" (input)="setSelfInput(q, $any($event.target).value)" [placeholder]="q.self_input_label || 'Something else — type my answer'" [disabled]="disabled" class="cq-self-input" />
           }
         }
       </div>
     </div>
   }
 
-  <div class="d-flex justify-content-end pt-1">
-    <button type="button" class="btn btn-purple btn-sm" [disabled]="!allRequiredAnswered || disabled" (click)="submit()">
-      Submit answers
-    </button>
+  <div class="cq-footer">
+    <button (click)="handleSubmit()" [disabled]="!allRequired || disabled" class="cq-submit">Submit answers</button>
   </div>
 </div>

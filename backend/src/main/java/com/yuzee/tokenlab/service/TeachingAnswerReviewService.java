@@ -1,10 +1,14 @@
 package com.yuzee.tokenlab.service;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,6 +74,11 @@ public class TeachingAnswerReviewService {
 
     private static final Pattern SKIP_INTENT_PATTERN = Pattern.compile("SAFETY|PAUSE|CLOSURE|SERVICE_");
 
+    /** JavaScript's \s character class (Java's differs), used for split(/\s+/) and trim(). */
+    private static final String JS_WS = "[\\t\\n\\u000B\\f\\r \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]";
+    private static final Pattern JS_WS_RUN = Pattern.compile(JS_WS + "+");
+    private static final Pattern JS_TRIM = Pattern.compile("^" + JS_WS + "+|" + JS_WS + "+$");
+
     /** Fields walked when collecting the "visible text" of a content block for word counting. */
     private static final Set<String> TEXT_BEARING_FIELDS =
         Set.of("title", "text", "value", "label", "items", "rows", "cells", "steps");
@@ -83,71 +92,73 @@ public class TeachingAnswerReviewService {
         "cachedContentTokenCount", "totalTokenCount"
     );
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS); // JSON.parse rejects trailing content
 
-    /**
-     * Mirrors TeachingAnswerReview.ts#shouldReviewTeaching: triggers when the response is
-     * substantive -- at least 120 words across all text-bearing blocks, or at least 3 blocks
-     * with a non-empty title. Skips safety/pause/closure/service responses entirely.
-     */
-    public boolean shouldReviewTeaching(JsonNode parsedResponse) {
-        if (parsedResponse == null || !parsedResponse.path("content_blocks").isArray()) {
+    public boolean shouldReviewTeaching(JsonNode response) {
+        if (response == null || !response.path("content_blocks").isArray()) {
             return false;
         }
-        String intent = parsedResponse.path("response_intent").asText("");
-        if (SKIP_INTENT_PATTERN.matcher(intent).find()) {
+        if (SKIP_INTENT_PATTERN.matcher(response.path("response_intent").asText("")).find()) {
             return false;
         }
-        JsonNode blocks = parsedResponse.path("content_blocks");
-        long wordCount = countWords(visibleText(blocks));
-        long titledBlocks = 0;
+        // Count the visible teaching content, including comparisons and nested list items.
+        JsonNode blocks = response.path("content_blocks");
+        int words = JS_WS_RUN.split(visibleText(blocks), -1).length; // text.split(/\s+/).length
+        int titledBlocks = 0;
         for (JsonNode block : blocks) {
-            if (!block.path("title").asText("").trim().isEmpty()) {
+            JsonNode title = block.path("title");
+            if (title.isTextual() && !jsTrim(title.asText()).isEmpty()) {
                 titledBlocks++;
             }
         }
-        return wordCount >= 120 || titledBlocks >= 3;
+        return words >= 120 || titledBlocks >= 3;
     }
 
     /**
-     * Mirrors TeachingAnswerReview.ts#applyReviewedBlocks: validates the reviewed payload
-     * (must contain only a non-empty "content_blocks" array with at least one meaningful
-     * block), restores the canonical empty status value Gemini's schema adapter turns into
-     * null, then returns a copy of {@code original} with content_blocks replaced -- every
-     * other field of the original response is preserved untouched.
+     * Parses the raw review text (JSON.parse: throws {@link JsonProcessingException}, the
+     * SyntaxError equivalent), validates it and returns {...original, content_blocks}.
      *
-     * @throws IllegalStateException with message "Incomplete teaching review" or
-     *     "Empty teaching review" (matched by ReviewRetryService's INVALID_RESPONSE
-     *     classification) when the reviewed payload is malformed or empty.
+     * @throws IllegalStateException "Incomplete teaching review" / "Empty teaching review"
      */
-    public JsonNode applyReviewedBlocks(JsonNode original, JsonNode reviewedContentBlocks) {
-        if (reviewedContentBlocks == null || !reviewedContentBlocks.isObject()) {
+    public JsonNode applyReviewedBlocks(JsonNode original, String reviewText) throws JsonProcessingException {
+        JsonNode reviewed = mapper.readTree(reviewText == null ? "" : reviewText);
+        if (reviewed == null || reviewed.isMissingNode()) {
+            // JSON.parse("") throws a SyntaxError.
+            throw new JsonParseException(null, "Unexpected end of JSON input");
+        }
+        if (!reviewed.isObject()) {
             throw new IllegalStateException("Incomplete teaching review");
         }
-        Iterator<String> fieldNames = reviewedContentBlocks.fieldNames();
+        Iterator<String> fieldNames = reviewed.fieldNames();
         while (fieldNames.hasNext()) {
             if (!"content_blocks".equals(fieldNames.next())) {
                 throw new IllegalStateException("Incomplete teaching review");
             }
         }
-        JsonNode blocks = reviewedContentBlocks.path("content_blocks");
+        JsonNode blocks = reviewed.path("content_blocks");
         if (!blocks.isArray() || blocks.isEmpty()) {
             throw new IllegalStateException("Incomplete teaching review");
         }
-
+        // Count of headings is not a proxy for completeness. Allow a concise complete rewrite;
+        // content coverage is reviewed semantically, and the canonical schema is checked by the caller.
         boolean anyMeaningful = false;
         for (JsonNode block : blocks) {
-            if (isMeaningfulBlock(block)) {
-                anyMeaningful = true;
-                break;
+            if (block.isObject()) {
+                ObjectNode probe = mapper.createObjectNode();
+                for (String key : List.of("text", "items", "rows", "steps")) {
+                    if (block.has(key)) probe.set(key, block.get(key));
+                }
+                if (meaningful(probe)) {
+                    anyMeaningful = true;
+                    break;
+                }
             }
         }
         if (!anyMeaningful) {
             throw new IllegalStateException("Empty teaching review");
         }
-
-        // Gemini schema adapters represent the empty status enum as null; restore its exact
-        // canonical no-status value.
+        // Gemini schema adapters represent the empty status enum as null; restore its exact canonical no-status value.
         for (JsonNode block : blocks) {
             JsonNode items = block.path("items");
             if (items.isArray()) {
@@ -158,7 +169,7 @@ public class TeachingAnswerReviewService {
                 }
             }
         }
-
+        // Reviewer cannot modify control, user state, service actions or interaction.
         ObjectNode result = (original != null && original.isObject())
             ? ((ObjectNode) original).deepCopy()
             : mapper.createObjectNode();
@@ -166,18 +177,20 @@ public class TeachingAnswerReviewService {
         return result;
     }
 
-    /**
-     * Mirrors TeachingAnswerReview.ts#combineGenerationUsage: sums prompt/output/thoughts/
-     * cached/total token counts across the original answer call and the review call.
-     */
-    public Map<String, Object> combineGenerationUsage(Map<String, Object> originalUsage, Map<String, Object> reviewUsage) {
-        if (reviewUsage == null) {
-            return originalUsage;
+    /** Pre-existing already-parsed shape kept for other callers. */
+    public JsonNode applyReviewedBlocks(JsonNode original, JsonNode reviewed) throws JsonProcessingException {
+        return applyReviewedBlocks(original, reviewed == null ? "null" : reviewed.toString());
+    }
+
+    /** Sums Gemini usageMetadata token counts of the answer call and the review call. */
+    public Map<String, Object> combineGenerationUsage(Map<String, Object> first, Map<String, Object> second) {
+        if (second == null) {
+            return first;
         }
-        Map<String, Object> combined = originalUsage != null ? new LinkedHashMap<>(originalUsage) : new LinkedHashMap<>();
+        Map<String, Object> combined = first != null ? new LinkedHashMap<>(first) : new LinkedHashMap<>();
         for (String key : USAGE_KEYS) {
-            Object a = originalUsage != null ? originalUsage.get(key) : null;
-            Object b = reviewUsage.get(key);
+            Object a = first != null ? first.get(key) : null;
+            Object b = second.get(key);
             if (a != null || b != null) {
                 combined.put(key, toLong(a) + toLong(b));
             }
@@ -189,30 +202,23 @@ public class TeachingAnswerReviewService {
         return value instanceof Number ? ((Number) value).longValue() : 0L;
     }
 
-    private static long countWords(String text) {
-        if (text == null) {
-            return 0;
-        }
-        String trimmed = text.trim();
-        return trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+    private static String jsTrim(String text) {
+        return JS_TRIM.matcher(text).replaceAll("");
     }
 
-    private String visibleText(JsonNode value) {
-        if (value == null || value.isMissingNode() || value.isNull()) {
-            return "";
-        }
+    private static String visibleText(JsonNode value) {
         if (value.isTextual()) {
             return value.asText();
         }
         if (value.isArray()) {
-            List<String> parts = new java.util.ArrayList<>();
+            List<String> parts = new ArrayList<>();
             for (JsonNode item : value) {
                 parts.add(visibleText(item));
             }
             return String.join(" ", parts);
         }
         if (value.isObject()) {
-            List<String> parts = new java.util.ArrayList<>();
+            List<String> parts = new ArrayList<>();
             Iterator<Map.Entry<String, JsonNode>> fields = value.fields();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> entry = fields.next();
@@ -225,24 +231,9 @@ public class TeachingAnswerReviewService {
         return "";
     }
 
-    private boolean isMeaningfulBlock(JsonNode block) {
-        if (block == null || !block.isObject()) {
-            return false;
-        }
-        ObjectNode probe = mapper.createObjectNode();
-        probe.set("text", block.path("text"));
-        probe.set("items", block.path("items"));
-        probe.set("rows", block.path("rows"));
-        probe.set("steps", block.path("steps"));
-        return meaningful(probe);
-    }
-
-    private boolean meaningful(JsonNode v) {
-        if (v == null || v.isMissingNode() || v.isNull()) {
-            return false;
-        }
+    private static boolean meaningful(JsonNode v) {
         if (v.isTextual()) {
-            return !v.asText().trim().isEmpty();
+            return !jsTrim(v.asText()).isEmpty();
         }
         if (v.isArray()) {
             for (JsonNode item : v) {
@@ -260,13 +251,6 @@ public class TeachingAnswerReviewService {
                     return true;
                 }
             }
-            return false;
-        }
-        if (v.isNumber()) {
-            return v.asDouble() != 0;
-        }
-        if (v.isBoolean()) {
-            return v.asBoolean();
         }
         return false;
     }

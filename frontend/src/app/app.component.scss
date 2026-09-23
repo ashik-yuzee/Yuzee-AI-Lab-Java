@@ -1,8 +1,181 @@
-.app-shell { min-height: 100vh; background: #f4f6fb; }
-.main-layout { background: #f4f6fb; }
-.main-content { min-height: 0; }
-.flex-1 { flex: 1 1 0%; min-width: 0; }
-.login-card { border-radius: 16px; border: 1px solid #e4e9f2; width: 360px; }
-.btn-purple { background: #7957c6; color: #fff; border: none; }
-.btn-purple:hover { background: #6744b5; color: #fff; }
-.btn-purple:disabled { background: #b5a3e0; }
+// Port of App.tsx Tailwind classes (loading screen, login page, shell layout) — declarations
+// copied from the original compiled CSS.
+
+.app-loading {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--spacing) * 4);
+  background-color: var(--color-white);
+}
+.app-loading-mark {
+  background-color: var(--accent);
+  height: calc(var(--spacing) * 10);
+  width: calc(var(--spacing) * 10);
+  animation: var(--animate-pulse);
+  border-radius: var(--radius-2xl);
+}
+.app-loading-lines {
+  width: calc(var(--spacing) * 48);
+}
+:where(.app-loading-lines > :not(:last-child)) {
+  --tw-space-y-reverse: 0;
+  margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));
+  margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
+}
+.app-loading-line {
+  height: calc(var(--spacing) * 2.5);
+  animation: var(--animate-pulse);
+  border-radius: calc(infinity * 1px);
+  background-color: #f0f0f0;
+}
+.app-loading-line.short {
+  margin-inline: auto;
+  width: calc(3 / 4 * 100%);
+}
+.app-root {
+  display: flex;
+  height: 100dvh;
+  width: 100vw;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: #F9FAFB;
+  color: var(--color-slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+// ::ng-deep: selection:* reaches every descendant, including child components' elements.
+.app-root ::ng-deep ::selection {
+  background-color: var(--color-sky-100);
+}
+.app-root::selection {
+  background-color: var(--color-sky-100);
+}
+.app-root ::ng-deep ::selection {
+  color: var(--color-sky-900);
+}
+.app-root::selection {
+  color: var(--color-sky-900);
+}
+.renderer-root {
+  display: flex;
+  height: 100dvh;
+  width: 100vw;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: #F9FAFB;
+  color: var(--color-slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.workspace-shell {
+  position: relative;
+  display: flex;
+  min-height: 0px;
+  flex: 1;
+  overflow: clip;
+}
+.app-main {
+  position: relative;
+  display: flex;
+  min-height: 0px;
+  min-width: 0px;
+  flex: 1;
+  flex-direction: column;
+  background-color: var(--color-white);
+}
+.login-screen {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-slate-50);
+}
+.login-card {
+  width: 100%;
+  max-width: var(--container-sm);
+  border-radius: var(--radius-2xl);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-200);
+  background-color: var(--color-white);
+  padding: calc(var(--spacing) * 8);
+  --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.login-brand {
+  margin-bottom: calc(var(--spacing) * 6);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2.5);
+}
+.login-logo {
+  height: calc(var(--spacing) * 8);
+  width: calc(var(--spacing) * 8);
+  border-radius: var(--radius-lg);
+  --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.login-title {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-slate-900);
+}
+.login-subtitle {
+  font-size: 11px;
+  color: var(--color-slate-500);
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 3);
+}
+.login-input {
+  border-radius: var(--radius-lg);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-200);
+  padding-inline: calc(var(--spacing) * 3);
+  padding-block: calc(var(--spacing) * 2);
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+  --tw-outline-style: none;
+  outline-style: none;
+}
+.login-input:focus {
+  border-color: var(--color-sky-400);
+}
+.login-error {
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+  color: var(--color-red-600);
+}
+.login-submit {
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-sky-600);
+  padding-block: calc(var(--spacing) * 2);
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-white);
+  transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+}
+@media (hover: hover) {
+  .login-submit:hover {
+    background-color: var(--color-sky-700);
+  }
+}
+.login-submit:disabled {
+  opacity: 60%;
+}

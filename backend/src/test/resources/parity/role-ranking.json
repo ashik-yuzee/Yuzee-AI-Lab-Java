@@ -1,0 +1,881 @@
+{
+ "model": "Xenova/bge-small-en-v1.5",
+ "revision": "ea104dacec62c0de699686887e3f920caeb4f3e3",
+ "cases": [
+  {
+   "message": "I like helping people and caring for the elderly",
+   "skills": [
+    "patient care",
+    "empathy",
+    "active listening"
+   ],
+   "roles": [
+    {
+     "id": "r-nurse",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-aged",
+     "title": "Aged or Disabled Carer",
+     "description": "Provides general household assistance, emotional support, care and companionship for aged and disabled persons",
+     "tasks": [
+      "Help clients bathe and dress",
+      "Prepare meals",
+      "Provide companionship"
+     ]
+    },
+    {
+     "id": "r-retail",
+     "title": "Sales Assistant (General)",
+     "description": "Sells goods and services to customers in retail stores",
+     "tasks": [
+      "Greet customers",
+      "Operate cash register",
+      "Stock shelves"
+     ]
+    },
+    {
+     "id": "r-dev",
+     "title": "Software Engineer",
+     "description": "Designs, develops, modifies, documents, tests and maintains software applications",
+     "tasks": [
+      "Write code",
+      "Test programs",
+      "Review designs"
+     ]
+    }
+   ],
+   "queryTextLength": 111,
+   "ranked": [
+    {
+     "id": "r-aged",
+     "textLength": 209,
+     "score": 0.6811091446981203
+    },
+    {
+     "id": "r-nurse",
+     "textLength": 172,
+     "score": 0.6402587326653055
+    },
+    {
+     "id": "r-retail",
+     "textLength": 143,
+     "score": 0.5152755089554675
+    },
+    {
+     "id": "r-dev",
+     "textLength": 150,
+     "score": 0.4380170726028107
+    }
+   ],
+   "selected": [
+    "r-aged",
+    "r-nurse"
+   ]
+  },
+  {
+   "message": "I enjoy fixing computers and helping people with tech problems",
+   "skills": [
+    "troubleshooting",
+    "customer service",
+    "technical support"
+   ],
+   "roles": [
+    {
+     "id": "r-ict",
+     "title": "ICT Support Technician",
+     "description": "Provides support to computer users by diagnosing and resolving hardware and software problems",
+     "tasks": [
+      "Troubleshoot computer faults",
+      "Install software",
+      "Answer help desk queries",
+      "Maintain records"
+     ]
+    },
+    {
+     "id": "r-dev",
+     "title": "Software Engineer",
+     "description": "Designs, develops, modifies, documents, tests and maintains software applications",
+     "tasks": [
+      "Write code",
+      "Test programs",
+      "Review designs"
+     ]
+    },
+    {
+     "id": "r-retail",
+     "title": "Sales Assistant (General)",
+     "description": "Sells goods and services to customers in retail stores",
+     "tasks": [
+      "Greet customers",
+      "Operate cash register",
+      "Stock shelves"
+     ]
+    },
+    {
+     "id": "r-elec",
+     "title": "Electrician (General)",
+     "description": "Installs, tests, connects, commissions, maintains and modifies electrical equipment, wiring and control systems",
+     "tasks": [
+      "Read blueprints",
+      "Install wiring",
+      "Test circuits"
+     ]
+    },
+    {
+     "id": "r-csr",
+     "title": "Customer Service Representative",
+     "description": "Answers enquiries and resolves complaints from customers by phone, email and in person",
+     "tasks": [
+      "Respond to customer enquiries",
+      "Process orders",
+      "Resolve complaints"
+     ]
+    }
+   ],
+   "queryTextLength": 138,
+   "ranked": [
+    {
+     "id": "r-ict",
+     "textLength": 198,
+     "score": 0.7202026367175851
+    },
+    {
+     "id": "r-csr",
+     "textLength": 193,
+     "score": 0.6332955867518273
+    },
+    {
+     "id": "r-elec",
+     "textLength": 189,
+     "score": 0.561782228389428
+    },
+    {
+     "id": "r-dev",
+     "textLength": 150,
+     "score": 0.525829137681346
+    },
+    {
+     "id": "r-retail",
+     "textLength": 143,
+     "score": 0.5252634145124562
+    }
+   ],
+   "selected": [
+    "r-ict"
+   ]
+  },
+  {
+   "message": "hello",
+   "skills": [],
+   "roles": [
+    {
+     "id": "r-chef",
+     "title": "Chef",
+     "description": "Plans and organises the preparation and cooking of food in a dining or catering establishment",
+     "tasks": [
+      "Plan menus",
+      "Cook food",
+      "Supervise kitchen staff"
+     ]
+    },
+    {
+     "id": "r-acct",
+     "title": "Accountant (General)",
+     "description": "Plans and provides systems and services relating to the financial dealings of organisations and individuals",
+     "tasks": [
+      "Prepare financial statements",
+      "Audit accounts",
+      "Advise on tax"
+     ]
+    }
+   ],
+   "queryTextLength": 29,
+   "ranked": [
+    {
+     "id": "r-chef",
+     "textLength": 154,
+     "score": 0.5512024999927211
+    },
+    {
+     "id": "r-acct",
+     "textLength": 197,
+     "score": 0.5366118918048717
+    }
+   ],
+   "selected": [
+    "r-chef"
+   ]
+  },
+  {
+   "message": "I want to care for patients in a hospital",
+   "skills": [
+    "nursing"
+   ],
+   "roles": [
+    {
+     "id": "r-nurse",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-retail",
+     "title": "Sales Assistant (General)",
+     "description": "Sells goods and services to customers in retail stores",
+     "tasks": [
+      "Greet customers",
+      "Operate cash register",
+      "Stock shelves"
+     ]
+    },
+    {
+     "id": "r-nurse-twin",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-aged",
+     "title": "Aged or Disabled Carer",
+     "description": "Provides general household assistance, emotional support, care and companionship for aged and disabled persons",
+     "tasks": [
+      "Help clients bathe and dress",
+      "Prepare meals",
+      "Provide companionship"
+     ]
+    }
+   ],
+   "queryTextLength": 72,
+   "ranked": [
+    {
+     "id": "r-nurse",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-nurse-twin",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-aged",
+     "textLength": 209,
+     "score": 0.5901729097748913
+    },
+    {
+     "id": "r-retail",
+     "textLength": 143,
+     "score": 0.5136098489098235
+    }
+   ],
+   "selected": [
+    "r-nurse",
+    "r-nurse-twin"
+   ]
+  },
+  {
+   "message": "I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. I have worked in hospitality for years and I am thinking about moving into healthcare or community work where I can help people directly. ",
+   "skills": [
+    "case management",
+    "crisis support"
+   ],
+   "roles": [
+    {
+     "id": "r-long",
+     "title": "Community Services Worker",
+     "description": "Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. Supports individuals and families in the community with welfare, housing and health needs. ",
+     "tasks": [
+      "Case management",
+      "Referral to services",
+      "Crisis support",
+      "This fourth task is never embedded"
+     ]
+    },
+    {
+     "id": "r-nurse",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-chef",
+     "title": "Chef",
+     "description": "Plans and organises the preparation and cooking of food in a dining or catering establishment",
+     "tasks": [
+      "Plan menus",
+      "Cook food",
+      "Supervise kitchen staff"
+     ]
+    },
+    {
+     "id": "r-aged",
+     "title": "Aged or Disabled Carer",
+     "description": "Provides general household assistance, emotional support, care and companionship for aged and disabled persons",
+     "tasks": [
+      "Help clients bathe and dress",
+      "Prepare meals",
+      "Provide companionship"
+     ]
+    }
+   ],
+   "queryTextLength": 1855,
+   "ranked": [
+    {
+     "id": "r-long",
+     "textLength": 2895,
+     "score": 0.7005621340385938
+    },
+    {
+     "id": "r-nurse",
+     "textLength": 172,
+     "score": 0.5754624265582658
+    },
+    {
+     "id": "r-aged",
+     "textLength": 209,
+     "score": 0.5507749668443842
+    },
+    {
+     "id": "r-chef",
+     "textLength": 154,
+     "score": 0.5417923917268873
+    }
+   ],
+   "selected": [
+    "r-long"
+   ]
+  },
+  {
+   "message": "hands-on trade work with tools on construction sites",
+   "skills": [
+    "power tools",
+    "reading plans",
+    "repairing"
+   ],
+   "roles": [
+    {
+     "id": "r-elec",
+     "title": "Electrician (General)",
+     "description": "Installs, tests, connects, commissions, maintains and modifies electrical equipment, wiring and control systems",
+     "tasks": [
+      "Read blueprints",
+      "Install wiring",
+      "Test circuits"
+     ]
+    },
+    {
+     "id": "r-plumb",
+     "title": "Plumber (General)",
+     "description": "Installs and repairs water, drainage, gas and sewerage pipes and systems",
+     "tasks": [
+      "Install pipes",
+      "Repair leaks",
+      "Read plans"
+     ]
+    },
+    {
+     "id": "r-carp",
+     "title": "Carpenter",
+     "description": "Constructs, erects, installs and repairs structures and fixtures of wood on building sites",
+     "tasks": [
+      "Measure and cut timber",
+      "Build frameworks",
+      "Install fixtures"
+     ]
+    },
+    {
+     "id": "r-lab",
+     "title": "Building and Construction Labourer",
+     "description": "Performs routine tasks on construction sites using hand and power tools",
+     "tasks": [
+      "Clean sites",
+      "Carry materials",
+      "Operate power tools"
+     ]
+    },
+    {
+     "id": "r-acct",
+     "title": "Accountant (General)",
+     "description": "Plans and provides systems and services relating to the financial dealings of organisations and individuals",
+     "tasks": [
+      "Prepare financial statements",
+      "Audit accounts",
+      "Advise on tax"
+     ]
+    }
+   ],
+   "queryTextLength": 113,
+   "ranked": [
+    {
+     "id": "r-lab",
+     "textLength": 165,
+     "score": 0.7693157401998534
+    },
+    {
+     "id": "r-carp",
+     "textLength": 168,
+     "score": 0.7045947315717903
+    },
+    {
+     "id": "r-elec",
+     "textLength": 189,
+     "score": 0.6101655123263003
+    },
+    {
+     "id": "r-plumb",
+     "textLength": 139,
+     "score": 0.5667239940557206
+    },
+    {
+     "id": "r-acct",
+     "textLength": 197,
+     "score": 0.541294575572772
+    }
+   ],
+   "selected": [
+    "r-lab"
+   ]
+  },
+  {
+   "message": "Café barista with latte art — naïve question: what jobs?",
+   "skills": [
+    "espresso",
+    "customer service"
+   ],
+   "roles": [
+    {
+     "id": "r-barista",
+     "title": "Barista",
+     "description": "Prepares and serves espresso coffee and other café beverages",
+     "tasks": [
+      "Grind coffee",
+      "Steam milk",
+      "Create latte art"
+     ]
+    },
+    {
+     "id": "r-chef",
+     "title": "Chef",
+     "description": "Plans and organises the preparation and cooking of food in a dining or catering establishment",
+     "tasks": [
+      "Plan menus",
+      "Cook food",
+      "Supervise kitchen staff"
+     ]
+    },
+    {
+     "id": "r-cafe",
+     "title": "Café or Restaurant Manager",
+     "description": "Organises and controls the operations of a café or restaurant",
+     "tasks": [
+      "Roster staff",
+      "Order supplies",
+      "Handle customer complaints"
+     ]
+    },
+    {
+     "id": "r-dev",
+     "title": "Software Engineer",
+     "description": "Designs, develops, modifies, documents, tests and maintains software applications",
+     "tasks": [
+      "Write code",
+      "Test programs",
+      "Review designs"
+     ]
+    }
+   ],
+   "queryTextLength": 106,
+   "ranked": [
+    {
+     "id": "r-barista",
+     "textLength": 120,
+     "score": 0.8491724112893689
+    },
+    {
+     "id": "r-cafe",
+     "textLength": 154,
+     "score": 0.6776590598508462
+    },
+    {
+     "id": "r-chef",
+     "textLength": 154,
+     "score": 0.618811034480797
+    },
+    {
+     "id": "r-dev",
+     "textLength": 150,
+     "score": 0.521685944389157
+    }
+   ],
+   "selected": [
+    "r-barista"
+   ]
+  },
+  {
+   "message": "I like helping people and caring for the elderly",
+   "skills": [
+    "patient care",
+    "empathy",
+    "active listening"
+   ],
+   "roles": [
+    {
+     "id": "r-dev",
+     "title": "Software Engineer",
+     "description": "Designs, develops, modifies, documents, tests and maintains software applications",
+     "tasks": [
+      "Write code",
+      "Test programs",
+      "Review designs"
+     ]
+    },
+    {
+     "id": "r-retail",
+     "title": "Sales Assistant (General)",
+     "description": "Sells goods and services to customers in retail stores",
+     "tasks": [
+      "Greet customers",
+      "Operate cash register",
+      "Stock shelves"
+     ]
+    },
+    {
+     "id": "r-aged",
+     "title": "Aged or Disabled Carer",
+     "description": "Provides general household assistance, emotional support, care and companionship for aged and disabled persons",
+     "tasks": [
+      "Help clients bathe and dress",
+      "Prepare meals",
+      "Provide companionship"
+     ]
+    },
+    {
+     "id": "r-nurse",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    }
+   ],
+   "queryTextLength": 111,
+   "ranked": [
+    {
+     "id": "r-aged",
+     "textLength": 209,
+     "score": 0.6811091446981203
+    },
+    {
+     "id": "r-nurse",
+     "textLength": 172,
+     "score": 0.6402587326653055
+    },
+    {
+     "id": "r-retail",
+     "textLength": 143,
+     "score": 0.5152755089554675
+    },
+    {
+     "id": "r-dev",
+     "textLength": 150,
+     "score": 0.4380170726028107
+    }
+   ],
+   "selected": [
+    "r-aged",
+    "r-nurse"
+   ]
+  },
+  {
+   "message": "I want to care for patients in a hospital",
+   "skills": [
+    "nursing"
+   ],
+   "roles": [
+    {
+     "id": "r-aged",
+     "title": "Aged or Disabled Carer",
+     "description": "Provides general household assistance, emotional support, care and companionship for aged and disabled persons",
+     "tasks": [
+      "Help clients bathe and dress",
+      "Prepare meals",
+      "Provide companionship"
+     ]
+    },
+    {
+     "id": "r-nurse-4",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-nurse",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-nurse-twin",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    },
+    {
+     "id": "r-nurse-3",
+     "title": "Registered Nurse",
+     "description": "Provides nursing care to patients in hospitals, aged care and community settings",
+     "tasks": [
+      "Assess patient health",
+      "Administer medication",
+      "Record patient care",
+      "Educate families"
+     ]
+    }
+   ],
+   "queryTextLength": 72,
+   "ranked": [
+    {
+     "id": "r-nurse-4",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-nurse",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-nurse-twin",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-nurse-3",
+     "textLength": 172,
+     "score": 0.7444398540301835
+    },
+    {
+     "id": "r-aged",
+     "textLength": 209,
+     "score": 0.5901729097748913
+    }
+   ],
+   "selected": [
+    "r-nurse-4",
+    "r-nurse",
+    "r-nurse-twin"
+   ]
+  },
+  {
+   "message": "zzz 0000 ####",
+   "skills": [],
+   "roles": [
+    {
+     "id": "r-plumb",
+     "title": "Plumber (General)",
+     "description": "Installs and repairs water, drainage, gas and sewerage pipes and systems",
+     "tasks": [
+      "Install pipes",
+      "Repair leaks",
+      "Read plans"
+     ]
+    },
+    {
+     "id": "r-acct",
+     "title": "Accountant (General)",
+     "description": "Plans and provides systems and services relating to the financial dealings of organisations and individuals",
+     "tasks": [
+      "Prepare financial statements",
+      "Audit accounts",
+      "Advise on tax"
+     ]
+    },
+    {
+     "id": "r-elec",
+     "title": "Electrician (General)",
+     "description": "Installs, tests, connects, commissions, maintains and modifies electrical equipment, wiring and control systems",
+     "tasks": [
+      "Read blueprints",
+      "Install wiring",
+      "Test circuits"
+     ]
+    }
+   ],
+   "queryTextLength": 37,
+   "ranked": [
+    {
+     "id": "r-elec",
+     "textLength": 189,
+     "score": 0.5584245406359201
+    },
+    {
+     "id": "r-acct",
+     "textLength": 197,
+     "score": 0.546666622404478
+    },
+    {
+     "id": "r-plumb",
+     "textLength": 139,
+     "score": 0.49854053359865175
+    }
+   ],
+   "selected": [
+    "r-elec"
+   ]
+  },
+  {
+   "message": "my cat likes to sleep on the sofa",
+   "skills": [],
+   "roles": [
+    {
+     "id": "r-plumb",
+     "title": "Plumber (General)",
+     "description": "Installs and repairs water, drainage, gas and sewerage pipes and systems",
+     "tasks": [
+      "Install pipes",
+      "Repair leaks",
+      "Read plans"
+     ]
+    },
+    {
+     "id": "r-acct",
+     "title": "Accountant (General)",
+     "description": "Plans and provides systems and services relating to the financial dealings of organisations and individuals",
+     "tasks": [
+      "Prepare financial statements",
+      "Audit accounts",
+      "Advise on tax"
+     ]
+    }
+   ],
+   "queryTextLength": 57,
+   "ranked": [
+    {
+     "id": "r-plumb",
+     "textLength": 139,
+     "score": 0.4045982757351794
+    },
+    {
+     "id": "r-acct",
+     "textLength": 197,
+     "score": 0.40009652225825254
+    }
+   ],
+   "selected": []
+  },
+  {
+   "message": "Numbers, spreadsheets & tax; also C++/Java?",
+   "skills": [
+    "bookkeeping",
+    "Excel",
+    "programming"
+   ],
+   "roles": [
+    {
+     "id": "r-acct",
+     "title": "Accountant (General)",
+     "description": "Plans and provides systems and services relating to the financial dealings of organisations and individuals",
+     "tasks": [
+      "Prepare financial statements",
+      "Audit accounts",
+      "Advise on tax"
+     ]
+    },
+    {
+     "id": "r-dev",
+     "title": "Software Engineer",
+     "description": "Designs, develops, modifies, documents, tests and maintains software applications",
+     "tasks": [
+      "Write code",
+      "Test programs",
+      "Review designs"
+     ]
+    },
+    {
+     "id": "r-csr",
+     "title": "Customer Service Representative",
+     "description": "Answers enquiries and resolves complaints from customers by phone, email and in person",
+     "tasks": [
+      "Respond to customer enquiries",
+      "Process orders",
+      "Resolve complaints"
+     ]
+    },
+    {
+     "id": "r-empty",
+     "title": "",
+     "description": "",
+     "tasks": []
+    }
+   ],
+   "queryTextLength": 98,
+   "ranked": [
+    {
+     "id": "r-empty",
+     "textLength": 11,
+     "score": 0.68757770935671
+    },
+    {
+     "id": "r-acct",
+     "textLength": 197,
+     "score": 0.6525008586575554
+    },
+    {
+     "id": "r-dev",
+     "textLength": 150,
+     "score": 0.6060299337216768
+    },
+    {
+     "id": "r-csr",
+     "textLength": 193,
+     "score": 0.47311397838772173
+    }
+   ],
+   "selected": [
+    "r-empty",
+    "r-acct"
+   ]
+  }
+ ]
+}

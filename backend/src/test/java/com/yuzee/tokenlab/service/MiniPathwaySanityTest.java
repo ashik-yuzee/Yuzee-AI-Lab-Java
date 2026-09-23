@@ -84,46 +84,34 @@ class MiniPathwaySanityTest {
             new RoutingPolicyService(new BgeGateService()), new BgeGateService(),
             new ProtocolValidator(new SecurityStateService())));
 
-    @Test
-    void lowConfidenceAndRelevantIsAutomatic() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"A_CONVERSATION\"}");
-        assertEquals(PathwayPolicyService.Decision.AUTOMATIC,
-            policy.decideMiniPathway(response, "I'm not sure what career to pick", 20.0, true, false));
+    private static final String HINT = "{\"status\":\"selected\",\"score\":0.6,\"margin\":0.1}";
+    private static final String NO_HINT = "{\"status\":\"abstained\",\"reason\":\"not-pathway\"}";
+    private static final String LOW = "{\"current_mode\":\"%s\",\"state\":{\"user_confidence\":{\"score\":%s,\"band\":\"low\",\"evidence_strength\":\"some\"}}}";
+
+    private Object action(String mode, String score, String userText, String hint, boolean helped) throws Exception {
+        return policy.decide(mapper.readTree(LOW.formatted(mode, score)), userText, mapper.readTree(hint), helped).get("action");
     }
 
     @Test
-    void lowConfidenceButAlreadyHelpedIsOfferOnly() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"A_CONVERSATION\"}");
-        assertEquals(PathwayPolicyService.Decision.OFFER,
-            policy.decideMiniPathway(response, "still not sure", 20.0, true, true));
+    void decisionGateMatchesPolicyTs() throws Exception {
+        assertEquals("automatic", action("A_CONVERSATION", "20", "I'm not sure what career to pick", HINT, false));
+        assertEquals("offer", action("A_CONVERSATION", "20", "still not sure", HINT, true));
+        assertEquals("none", action("A_CONVERSATION", "20", "what's the weather", NO_HINT, false));
+        assertEquals("none", action("A_CONVERSATION", "20", "no pathway thanks", HINT, false));
+        assertEquals("none", action("S_SERVICE_HANDOFF", "10", "help me decide", HINT, false));
+        assertEquals("offer", action("A_CONVERSATION", "null", "help me choose a career", HINT, false));
     }
 
     @Test
-    void notPathwayRelevantIsNone() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"A_CONVERSATION\"}");
-        assertEquals(PathwayPolicyService.Decision.NONE,
-            policy.decideMiniPathway(response, "what's the weather", 20.0, false, false));
-    }
-
-    @Test
-    void explicitOptOutIsNoneEvenWhenRelevant() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"A_CONVERSATION\"}");
-        assertEquals(PathwayPolicyService.Decision.NONE,
-            policy.decideMiniPathway(response, "no pathway thanks", 20.0, true, false));
-    }
-
-    @Test
-    void serviceHandoffModeIsAlwaysNone() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"S_SERVICE_HANDOFF\"}");
-        assertEquals(PathwayPolicyService.Decision.NONE,
-            policy.decideMiniPathway(response, "help me decide", 10.0, true, false));
-    }
-
-    @Test
-    void unknownConfidenceIsOfferNotAutomatic() throws Exception {
-        JsonNode response = mapper.readTree("{\"current_mode\":\"A_CONVERSATION\"}");
-        assertEquals(PathwayPolicyService.Decision.OFFER,
-            policy.decideMiniPathway(response, "help me choose a career", null, true, false));
+    void originalHintContractDrivesTheDecision() throws Exception {
+        JsonNode low = mapper.readTree("{\"state\":{\"user_confidence\":{\"score\":20,\"band\":\"low\",\"evidence_strength\":\"some\"}}}");
+        JsonNode bge = mapper.readTree("{\"status\":\"selected\",\"score\":0.8,\"margin\":0.1,\"modelId\":\"Xenova/bge-small-en-v1.5\",\"profileVersion\":\"bge-pathway-v2\"}");
+        JsonNode weak = mapper.readTree("{\"status\":\"selected\",\"score\":0.6,\"margin\":0.1,\"modelId\":\"Xenova/bge-small-en-v1.5\",\"profileVersion\":\"bge-pathway-v2\"}");
+        assertEquals(Map.of("action", "automatic", "reason", "low-decision-confidence", "score", 20), policy.decide(low, "help me choose", bge, false));
+        assertEquals("already-helped", policy.decide(low, "help me choose", bge, true).get("reason"));
+        assertEquals("no-relevant-match", policy.decide(low, "help me choose", weak, false).get("reason"));
+        assertTrue(MiniPathwayService.outdatedHelpClaim("HECS repayments start at 1% of income"));
+        assertFalse(MiniPathwayService.outdatedHelpClaim("HECS repayments no longer start at 1% of income"));
     }
 
     // -- MiniPathwayService structural/content review (reportReview.ts port) -------------

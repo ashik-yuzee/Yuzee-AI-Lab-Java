@@ -1,76 +1,133 @@
 @if (open) {
-  <div class="modal-backdrop" (click)="close()">
-    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-          <div class="header-icon">⏱️</div>
+  <div class="mdl-overlay">
+    <div id="benchmark-matrix-modal" class="mdl-card bm-card">
+      <!-- Header -->
+      <div class="mdl-header">
+        <div class="mdl-header-left">
+          <div class="mdl-icon-box bm-icon-box">
+            <app-icon name="Gauge" class="mdl-icon-lg" />
+          </div>
           <div>
-            <h2 class="card-title-text mb-0">Benchmark Context Strategies</h2>
-            <p class="card-subtitle mb-0">Compare memory strategies side by side</p>
+            <h2 class="mdl-title">Benchmark Context Strategies Matrix</h2>
+            <p class="mdl-subtitle">Side-by-side comparison across 4 memory optimization modes</p>
           </div>
         </div>
-        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
+
+        <button (click)="close()" class="mdl-close" title="Close" aria-label="Close">
+          <app-icon name="X" class="mdl-icon-lg" />
+        </button>
       </div>
 
-      <div class="card-body">
-        <div class="prompt-card">
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <label class="section-label mb-0">Benchmark Test Prompt</label>
-            <div class="mode-toggle">
-              <button type="button" class="mode-btn" [class.active]="!isLive()" (click)="setLive(false)">
-                Modelled Estimate
+      <!-- Quota Warning -->
+      <div class="bm-quota">
+        <app-icon name="AlertTriangle" class="bm-quota-icon" />
+        <span>
+          <strong>Quota Notice:</strong> This benchmark simulates and evaluates multiple context strategies side-by-side.
+        </span>
+      </div>
+
+      <!-- Content Body -->
+      <div class="bm-body">
+        <!-- Prompt & Scenario Control -->
+        <div class="bm-ctrl">
+          <div class="bm-ctrl-top">
+            <label class="bm-label">Benchmark Test Prompt</label>
+
+            <!-- Mode Toggle -->
+            <div class="bm-mode">
+              <button type="button" (click)="isLive.set(false)" class="bm-mode-btn" [class.is-modelled]="!isLive()" [class.is-off]="isLive()">
+                Modelled Estimate (0 Calls)
               </button>
-              <button type="button" class="mode-btn mode-btn-live" [class.active]="isLive()" (click)="setLive(true)">
-                Live API
+              <button type="button" (click)="isLive.set(true)" class="bm-mode-btn" [class.is-live]="isLive()" [class.is-off]="!isLive()">
+                Live Gemini 3.6 API
               </button>
             </div>
           </div>
 
-          <div class="d-flex gap-2">
-            <input type="text" class="form-control form-control-sm"
-                   [ngModel]="prompt()" (ngModelChange)="setPrompt($event)" />
-            <button class="btn btn-run btn-sm" [disabled]="running() || !prompt().trim()" (click)="run()">
-              {{ running() ? (isLive() ? 'Executing…' : 'Evaluating…') : (isLive() ? 'Run Live Benchmark' : 'Run Modelled Matrix') }}
+          <div class="bm-input-row">
+            <input type="text" [value]="prompt()" (input)="onPrompt($event)" class="bm-input" />
+            <button id="btn-execute-benchmark" (click)="run()" [disabled]="isRunning() || !prompt().trim()" class="bm-run">
+              <app-icon name="Play" class="bm-run-icon" fill="currentColor" />
+              <span>{{ isRunning() ? (isLive() ? 'Executing Gemini...' : 'Evaluating...') : (isLive() ? 'Run Live Benchmark' : 'Run Modelled Matrix') }}</span>
             </button>
           </div>
 
-          <p class="strategies-note">
-            Strategies: {{ strategies.join(', ') }}
-          </p>
+          <!-- Built-in Scenario Progression Accordion -->
+          <details class="bm-details">
+            <summary class="bm-summary">View 10-Step Cybersecurity Transition Scenario Reference</summary>
+            <div class="bm-steps">
+              @for (step of scenarioSteps; track $index) {
+                <div class="bm-step">{{ step }}</div>
+              }
+            </div>
+          </details>
         </div>
 
-        @if (error()) {
-          <div class="alert-box alert-danger mt-3">{{ error() }}</div>
-        }
+        <!-- Results Comparison Grid -->
+        @if (results(); as rs) {
+          <div class="bm-results">
+            <div class="bm-row">
+              <h3 class="bm-h3">Benchmark Results ({{ rs.length }} Strategies)</h3>
+              <span class="bm-mode-badge" [class.is-live]="liveResults()" [class.is-modelled]="!liveResults()">
+                {{ liveResults() ? 'Real Gemini Provider Telemetry' : 'Modelled Context Estimation' }}
+              </span>
+            </div>
 
-        @if (message() && (!results() || results()!.length === 0)) {
-          <div class="alert-box alert-info mt-3">{{ message() }}</div>
-        }
+            <div class="bm-grid">
+              @for (res of rs; track $index) {
+                <div
+                  class="bm-res"
+                  [class.is-adaptive]="res.strategy === 'ADAPTIVE_HYBRID'"
+                  [class.is-baseline]="res.strategy === 'BASELINE'"
+                  [class.is-plain]="res.strategy !== 'ADAPTIVE_HYBRID' && res.strategy !== 'BASELINE'"
+                >
+                  <div class="bm-row">
+                    <div>
+                      <div class="bm-res-name">
+                        <span class="bm-res-label">{{ res.label }}</span>
+                        @if (res.mode === 'live') { <span class="bm-live-tag">LIVE</span> }
+                      </div>
+                      <span class="bm-res-notes">{{ res.notes }}</span>
+                    </div>
+                    @if (res.strategy === 'ADAPTIVE_HYBRID') { <span class="bm-recommended">Recommended</span> }
+                    @if (res.strategy === 'BASELINE') { <span class="bm-overhead">High Overhead</span> }
+                  </div>
 
-        @if (results() && results()!.length > 0) {
-          <div class="mt-3">
-            <h3 class="section-label">Results ({{ results()!.length }})</h3>
-            <div class="results-grid">
-              @for (res of results(); track $index) {
-                <div class="result-card">
-                  <div class="d-flex align-items-center justify-content-between mb-1">
-                    <span class="fw-bold">{{ res.label ?? res.strategy ?? 'Strategy' }}</span>
-                    @if (res.mode === 'live') {
-                      <span class="live-badge">LIVE</span>
-                    }
+                  <div class="bm-metrics">
+                    <div class="bm-cell">
+                      <span class="bm-cell-label">Total</span>
+                      <span class="bm-cell-val">{{ res.totalTokens.toLocaleString() }}</span>
+                    </div>
+
+                    <div class="bm-cell">
+                      <span class="bm-cell-label">Input</span>
+                      <span class="bm-cell-val is-sky">{{ res.inputTokens.toLocaleString() }}</span>
+                    </div>
+
+                    <div class="bm-cell">
+                      <span class="bm-cell-label">Output</span>
+                      <span class="bm-cell-val is-indigo">{{ res.outputTokens.toLocaleString() }}</span>
+                    </div>
+
+                    <div class="bm-cell">
+                      <span class="bm-cell-label">Latency</span>
+                      <span class="bm-cell-val is-slate">{{ res.latencyMs ? res.latencyMs + 'ms' : '-' }}</span>
+                    </div>
                   </div>
-                  @if (res.notes) {
-                    <p class="result-notes">{{ res.notes }}</p>
-                  }
-                  <div class="result-stats">
-                    <div><span class="stat-k">Total</span><span class="stat-v">{{ res.totalTokens ?? '-' }}</span></div>
-                    <div><span class="stat-k">Input</span><span class="stat-v">{{ res.inputTokens ?? '-' }}</span></div>
-                    <div><span class="stat-k">Output</span><span class="stat-v">{{ res.outputTokens ?? '-' }}</span></div>
-                    <div><span class="stat-k">Latency</span><span class="stat-v">{{ res.latencyMs ? res.latencyMs + 'ms' : '-' }}</span></div>
+
+                  @if (res.mode === 'live' && res.ttftMs) {
+                    <div class="bm-live-row">
+                      <span>TTFT: <strong>{{ res.ttftMs }}ms</strong></span>
+                      <span>Generation: <strong>{{ res.generationMs }}ms</strong></span>
+                      @if (res.thinkingTokens !== null) { <span>Thinking: <strong>{{ res.thinkingTokens }}t</strong></span> }
+                      @if (res.cachedTokens !== null) { <span>Cache: <strong>{{ res.cachedTokens }}t</strong></span> }
+                    </div>
+                  } @else if (res.mode === 'live' && res.ttftMs === 0) {<!-- React renders the falsy 0 of `… && res.ttftMs && …` -->0}
+
+                  <div class="bm-preview">
+                    <span class="bm-preview-label">Response Preview:</span>
+                    <p class="bm-preview-text">{{ res.responsePreview }}</p>
                   </div>
-                  @if (res.responsePreview) {
-                    <div class="result-preview">{{ res.responsePreview }}</div>
-                  }
                 </div>
               }
             </div>
@@ -78,8 +135,9 @@
         }
       </div>
 
-      <div class="card-footer d-flex align-items-center justify-content-end">
-        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+      <!-- Footer -->
+      <div class="mdl-footer bm-footer">
+        <button (click)="close()" class="mdl-btn-done mdl-pointer">Done</button>
       </div>
     </div>
   </div>

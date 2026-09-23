@@ -39,7 +39,7 @@ import java.util.Set;
 public class WarehouseIndexBuilder {
 
     private static final Logger log = LoggerFactory.getLogger(WarehouseIndexBuilder.class);
-    private static final int STAMP_VERSION = 1;
+    private static final int STAMP_VERSION = 2; // bumped so indexes from the earlier port are rebuilt
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final String sourcePath;
@@ -47,15 +47,25 @@ public class WarehouseIndexBuilder {
     private boolean loggedUnavailable = false;
     private volatile boolean ready = false;
 
-    public WarehouseIndexBuilder(
-            @Value("${warehouse.db-path:}") String sourcePath,
-            @Value("${warehouse.index-path:data/warehouse/catalogue.sqlite}") String indexPath) {
+    public WarehouseIndexBuilder(String sourcePath, String indexPath) {
         this.sourcePath = sourcePath == null ? "" : sourcePath.trim();
         this.indexPath = indexPath;
     }
 
+    /** service.ts: {@code process.env.YUZEE_WAREHOUSE_DB||path.join(os.homedir(),'.yuzee-monitor/training_gov.db')}. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public WarehouseIndexBuilder(
+            @Value("${warehouse.db-path:}") String sourcePath,
+            @Value("${warehouse.index-path:data/warehouse/catalogue.sqlite}") String indexPath,
+            @Value("${user.home}") String home) {
+        this(sourcePath == null || sourcePath.isBlank() ? Path.of(home, ".yuzee-monitor", "training_gov.db").toString() : sourcePath, indexPath);
+    }
+
     public String getIndexPath() { return indexPath; }
     public String getSourcePath() { return sourcePath; }
+
+    /** service.ts start(): {@code fs.existsSync(this.config.source)}. */
+    public boolean sourceExists() { return !sourcePath.isBlank() && new File(sourcePath).exists(); }
 
     /** True once the source database is configured, exists, and the derived index is ready to query. */
     public synchronized boolean ensureReady() {
@@ -169,18 +179,17 @@ public class WarehouseIndexBuilder {
                   course_id UNINDEXED, course_name, institution_name, national_code, course_code,
                   institution_id UNINDEXED, tokenize='unicode61 remove_diacritics 2')""");
         }
-        if (!tableNames(source).contains("live_courses")) return;
         try (Statement read = source.createStatement();
              ResultSet rs = read.executeQuery(
                  "SELECT id,course_name,institution_name,national_code,course_code,institution_id FROM live_courses");
              PreparedStatement insert = index.prepareStatement("INSERT INTO catalogue VALUES(?,?,?,?,?,?)")) {
             while (rs.next()) {
-                insert.setString(1, String.valueOf(rs.getObject("id")));
+                insert.setString(1, WarehouseText.jsString(rs.getObject("id")));
                 insert.setString(2, ns(rs.getString("course_name")));
                 insert.setString(3, ns(rs.getString("institution_name")));
                 insert.setString(4, ns(rs.getString("national_code")));
                 insert.setString(5, ns(rs.getString("course_code")));
-                insert.setString(6, String.valueOf(rs.getObject("institution_id")));
+                insert.setString(6, WarehouseText.jsString(WarehouseText.or(rs.getObject("institution_id"), "")));
                 insert.addBatch();
             }
             insert.executeBatch();
@@ -289,14 +298,14 @@ public class WarehouseIndexBuilder {
                  ResultSet rs = read.executeQuery("SELECT job_id,skill_name" + (hasDesc ? ",skill_desc" : "") + " FROM onet_job_skill");
                  PreparedStatement insert = index.prepareStatement("INSERT INTO role_skills VALUES(?,?,?,?)")) {
                 while (rs.next()) {
-                    String id = String.valueOf(rs.getObject("job_id"));
-                    String name = WarehouseText.text(rs.getString("skill_name"), 120);
+                    String id = WarehouseText.jsString(rs.getObject("job_id"));
+                    String name = WarehouseText.text(rs.getObject("skill_name"), 120);
                     if (name.isEmpty()) continue;
-                    String skillId = "skill:" + name.toLowerCase().trim();
+                    String skillId = "skill:" + name.toLowerCase(java.util.Locale.ROOT).trim();
                     insert.setString(1, id);
                     insert.setString(2, skillId);
                     insert.setString(3, name);
-                    insert.setString(4, hasDesc ? WarehouseText.text(rs.getString("skill_desc")) : null);
+                    insert.setString(4, hasDesc ? WarehouseText.text(rs.getObject("skill_desc"), 600) : "");
                     insert.addBatch();
                     skillGroups.computeIfAbsent(id, k -> new java.util.ArrayList<>()).add(name);
                 }
@@ -309,12 +318,12 @@ public class WarehouseIndexBuilder {
                  ResultSet rs = read.executeQuery("SELECT job_id,job_title,description" + (hasKeywords ? ",keywords" : "") + " FROM onet_occupation");
                  PreparedStatement insert = index.prepareStatement("INSERT INTO role_search VALUES(?,?,?,?,?)")) {
                 while (rs.next()) {
-                    String id = String.valueOf(rs.getObject("job_id"));
+                    String id = WarehouseText.jsString(rs.getObject("job_id"));
                     insert.setString(1, id);
                     insert.setString(2, WarehouseText.text(rs.getString("job_title"), 180));
                     insert.setString(3, String.join(" | ", skillGroups.getOrDefault(id, java.util.List.of())));
                     insert.setString(4, WarehouseText.text(rs.getString("description"), 800));
-                    insert.setString(5, hasKeywords ? WarehouseText.text(rs.getString("keywords"), 1000) : null);
+                    insert.setString(5, hasKeywords ? WarehouseText.text(rs.getObject("keywords"), 1000) : "");
                     insert.addBatch();
                 }
                 insert.executeBatch();
@@ -327,7 +336,7 @@ public class WarehouseIndexBuilder {
                 while (rs.next()) {
                     String code = rs.getString("national_code");
                     String skill = rs.getString("skill_name");
-                    if (code == null || skill == null) continue;
+                    if (code == null || code.isEmpty() || skill == null || skill.isEmpty()) continue;
                     insert.setString(1, code);
                     insert.setString(2, WarehouseText.text(skill, 240));
                     insert.setString(3, WarehouseText.text(rs.getString("skill_type"), 80));
@@ -343,9 +352,9 @@ public class WarehouseIndexBuilder {
                 try (Statement read = source.createStatement();
                      ResultSet rs = read.executeQuery("SELECT DISTINCT postcode,state_code,sa4_code FROM dim_location_asgs")) {
                     while (rs.next()) {
-                        String key = rs.getString("state_code") + ":" + rs.getString("postcode");
-                        String sa4 = rs.getString("sa4_code");
-                        if (sa4 != null) postcodeSa4.computeIfAbsent(key, k -> new LinkedHashSet<>()).add(sa4);
+                        String key = WarehouseText.jsString(rs.getObject("state_code")) + ":" + WarehouseText.jsString(rs.getObject("postcode"));
+                        Set<String> sa4s = postcodeSa4.computeIfAbsent(key, k -> new LinkedHashSet<>());
+                        if (WarehouseText.truthy(rs.getObject("sa4_code"))) sa4s.add(WarehouseText.jsString(rs.getObject("sa4_code")));
                     }
                 }
             }
@@ -356,19 +365,19 @@ public class WarehouseIndexBuilder {
                  PreparedStatement insertJob = index.prepareStatement("INSERT INTO job_search VALUES(?,?,?,?)");
                  PreparedStatement insertGeo = index.prepareStatement("INSERT OR IGNORE INTO job_geo VALUES(?,?,?,?,?)")) {
                 while (rs.next()) {
-                    String id = String.valueOf(rs.getObject("id"));
+                    String id = WarehouseText.jsString(rs.getObject("id"));
                     insertJob.setString(1, id);
                     insertJob.setString(2, WarehouseText.text(rs.getString("title"), 200));
-                    insertJob.setString(3, String.join(" | ", WarehouseText.list(rs.getString("skills_json"), 30)));
+                    insertJob.setString(3, String.join(" | ", WarehouseText.oppList(rs.getString("skills_json"), 30)));
                     insertJob.setString(4, WarehouseText.text(rs.getString("description"), 1800));
                     insertJob.addBatch();
 
-                    String state = rs.getString("state");
-                    String postal = rs.getString("postal_code");
-                    Set<String> sa4s = postcodeSa4.get(state + ":" + postal);
+                    Object state = rs.getObject("state");
+                    Object postal = rs.getObject("postal_code");
+                    Set<String> sa4s = postcodeSa4.get(WarehouseText.jsString(state) + ":" + WarehouseText.jsString(postal));
                     insertGeo.setString(1, id);
-                    insertGeo.setString(2, ns(rs.getString("city")).toLowerCase());
-                    insertGeo.setString(3, WarehouseText.text(state, 3).toUpperCase());
+                    insertGeo.setString(2, WarehouseText.text(rs.getObject("city"), 160).toLowerCase(java.util.Locale.ROOT));
+                    insertGeo.setString(3, WarehouseText.text(state, 3).toUpperCase(java.util.Locale.ROOT));
                     insertGeo.setString(4, WarehouseText.text(postal, 4));
                     insertGeo.setString(5, sa4s != null && sa4s.size() == 1 ? sa4s.iterator().next() : "");
                     insertGeo.addBatch();

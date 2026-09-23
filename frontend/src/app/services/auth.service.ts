@@ -4,7 +4,7 @@ import { BehaviorSubject, Observable, tap } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private _token: string | null = localStorage.getItem('yuzee_token');
+  private _token: string | null = localStorage.getItem('yuzee_auth');
   private _authenticated = new BehaviorSubject<boolean>(!!this._token);
   authenticated$ = this._authenticated.asObservable();
 
@@ -17,7 +17,7 @@ export class AuthService {
     return this.http.post<{ token: string; username: string }>('/api/auth/login', { username, password }).pipe(
       tap(res => {
         this._token = res.token;
-        localStorage.setItem('yuzee_token', res.token);
+        localStorage.setItem('yuzee_auth', res.token);
         this._authenticated.next(true);
       })
     );
@@ -25,7 +25,7 @@ export class AuthService {
 
   logout(): void {
     this._token = null;
-    localStorage.removeItem('yuzee_token');
+    localStorage.removeItem('yuzee_auth');
     this._authenticated.next(false);
   }
 

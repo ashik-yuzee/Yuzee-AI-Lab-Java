@@ -1,10 +1,13 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /** Result of a warehouse lookup/retrieve call. Ported from yuzee-ai-token-lab/src/warehouse/types.ts (WarehousePack)
  *  and service.ts (the `base()` helper). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class WarehousePack {
     private String status; // READY | NO_MATCH | NOT_NEEDED | UNAVAILABLE | PREPARING
     private String message = "";
@@ -12,15 +15,17 @@ public class WarehousePack {
     private List<WarehouseCourse> courses = new ArrayList<>();
     private String retrievedAt;
     private final String sourcePolicy = "USER_APPROVED_CATALOGUE";
-    private WarehouseConnections connected;
-    private WarehouseComparison comparison;
+    @JsonInclude(JsonInclude.Include.NON_NULL) private WarehouseConnections connected;
+    @JsonInclude(JsonInclude.Include.NON_NULL) private WarehouseComparison comparison;
 
     public static WarehousePack of(String status, String message, List<String> queries) {
         WarehousePack pack = new WarehousePack();
         pack.status = status;
         pack.message = message == null ? "" : message;
         pack.queries = queries == null ? new ArrayList<>() : queries;
-        pack.retrievedAt = java.time.Instant.now().toString();
+        // JS toISOString(): always millisecond precision.
+        pack.retrievedAt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+            .withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now());
         return pack;
     }
 

@@ -1,107 +1,69 @@
-import { signal, computed, Signal, WritableSignal } from '@angular/core';
+import { computed, signal } from '@angular/core';
 
-const DEFAULT_WIDTH_KEY = 'yuzee-mini-pathway-width';
-const MIN_WIDTH = 320;
-const DEFAULT_WIDTH = 440;
-const DOCK_RESERVE = 360; // leave room to read the chat when the panel is docked
+const WIDTH_KEY = 'yuzee-mini-pathway-width';
 
 /**
- * Port of the old React app's miniPathway/useDrawerResize.ts hook. A plain instantiable class
- * (one per component instance) rather than a directive or a full hook re-implementation —
- * the panel just needs a width signal plus a few pointer/keyboard handlers wired directly onto
- * its own resize-handle element in the template.
- *
- * Usage: `resize = new DrawerResizeController();` then bind `resize.width()` to the panel's
- * width style, and `(pointerdown)="resize.onPointerDown($event)"` etc. on the drag handle.
+ * Port of the original miniPathway/useDrawerResize.ts. Create one per component; call `reset()`
+ * whenever open/expanded change (the hook's effect), `destroy()` on teardown.
  */
 export class DrawerResizeController {
-  private readonly widthKey: string;
-  private dragging = false;
-  private dragStartX = 0;
-  private dragStartWidth = 0;
+  private viewport = signal(window.innerWidth);
+  private preferred = signal<number | null>(null);
+  readonly resizing = signal(false);
+  private drag: { id: number; x: number; width: number } | null = null;
+  private onWindowResize = () => { this.viewport.set(window.innerWidth); this.cancel(); };
 
-  private preferred: WritableSignal<number | null>;
-  resizing = signal(false);
+  // Leave room to read the chat when docked; small screens use the existing overlay.
+  readonly maximum = computed(() => Math.max(1, this.viewport() >= this.dockBreakpoint ? this.viewport() - 360 : this.viewport()));
+  readonly minimum = computed(() => Math.min(320, this.maximum()));
+  readonly width = computed(() => {
+    const v = this.viewport();
+    const defaultWidth = v >= 1600 ? 490 : v < this.dockBreakpoint ? 480 : 440;
+    return this.clamp(this.preferred() ?? defaultWidth);
+  });
 
-  constructor(widthKey: string = DEFAULT_WIDTH_KEY) {
-    this.widthKey = widthKey;
-    this.preferred = signal<number | null>(this.readStored());
+  constructor(private storageKey = WIDTH_KEY, private dockBreakpoint = 1200) {
+    try { const value = Number(localStorage.getItem(storageKey)); this.preferred.set(Number.isFinite(value) && value >= 320 ? value : null); } catch { /* storage unavailable */ }
+    this.setPreferred(this.preferred()); // the hook's storage effect also runs on mount (removes an invalid saved width)
+    window.addEventListener('resize', this.onWindowResize);
   }
 
-  width: Signal<number> = computed(() => this.clamp(this.preferred() ?? DEFAULT_WIDTH));
+  destroy(): void { window.removeEventListener('resize', this.onWindowResize); }
 
-  private maxWidth(): number {
-    const viewport = typeof window !== 'undefined' ? window.innerWidth : 1200;
-    return Math.max(MIN_WIDTH, viewport - DOCK_RESERVE);
+  private clamp(value: number): number { return Math.round(Math.max(this.minimum(), Math.min(this.maximum(), value))); }
+
+  private setPreferred(value: number | null): void {
+    this.preferred.set(value);
+    try { if (value === null) localStorage.removeItem(this.storageKey); else localStorage.setItem(this.storageKey, String(value)); } catch { /* Resizing still works if browser storage is unavailable. */ }
   }
 
-  private clamp(value: number): number {
-    return Math.round(Math.max(MIN_WIDTH, Math.min(this.maxWidth(), value)));
-  }
+  /** The hook resets any drag when open, expanded or the viewport change. */
+  cancel(): void { this.drag = null; this.resizing.set(false); }
 
-  private readStored(): number | null {
-    try {
-      const value = Number(localStorage.getItem(this.widthKey));
-      return Number.isFinite(value) && value >= MIN_WIDTH ? value : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private store(value: number | null): void {
-    try {
-      if (value === null) localStorage.removeItem(this.widthKey);
-      else localStorage.setItem(this.widthKey, String(value));
-    } catch {
-      /* Resizing still works if browser storage is unavailable. */
-    }
-  }
-
-  onPointerDown(event: PointerEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
+  private finish(event: PointerEvent): void {
+    if (this.drag?.id !== event.pointerId) return;
+    this.drag = null; this.resizing.set(false);
     const el = event.currentTarget as HTMLElement;
-    el.setPointerCapture(event.pointerId);
-    this.dragging = true;
-    this.dragStartX = event.clientX;
-    this.dragStartWidth = this.width();
-    this.resizing.set(true);
+    if (el.hasPointerCapture(event.pointerId)) el.releasePointerCapture(event.pointerId);
   }
 
+  onPointerDown(event: PointerEvent, expanded: boolean): void {
+    if (event.button !== 0 || expanded) return;
+    const el = event.currentTarget as HTMLElement;
+    event.preventDefault(); el.focus(); el.setPointerCapture(event.pointerId);
+    this.drag = { id: event.pointerId, x: event.clientX, width: this.width() }; this.resizing.set(true);
+  }
   onPointerMove(event: PointerEvent): void {
-    if (!this.dragging) return;
-    const next = this.clamp(this.dragStartWidth + (this.dragStartX - event.clientX));
-    this.preferred.set(next);
-    this.store(next);
+    if (this.drag?.id !== event.pointerId) return;
+    this.setPreferred(this.clamp(this.drag.width + this.drag.x - event.clientX));
   }
-
-  onPointerUp(event: PointerEvent): void {
-    if (!this.dragging) return;
-    this.dragging = false;
-    this.resizing.set(false);
-    const el = event.currentTarget as HTMLElement;
-    if (el?.hasPointerCapture?.(event.pointerId)) el.releasePointerCapture(event.pointerId);
-  }
-
+  onPointerUp(event: PointerEvent): void { this.finish(event); }
+  onPointerCancel(event: PointerEvent): void { this.finish(event); }
+  onLostPointerCapture(): void { this.cancel(); }
   onKeyDown(event: KeyboardEvent): void {
-    const step = event.shiftKey ? 80 : 20;
-    const current = this.width();
-    const next =
-      event.key === 'ArrowLeft' ? current + step :
-      event.key === 'ArrowRight' ? current - step :
-      event.key === 'Home' ? MIN_WIDTH :
-      event.key === 'End' ? this.maxWidth() :
-      null;
-    if (next === null) return;
-    event.preventDefault();
-    const clamped = this.clamp(next);
-    this.preferred.set(clamped);
-    this.store(clamped);
+    const step = event.shiftKey ? 80 : 20, width = this.width();
+    const next = event.key === 'ArrowLeft' ? width + step : event.key === 'ArrowRight' ? width - step : event.key === 'Home' ? this.minimum() : event.key === 'End' ? this.maximum() : null;
+    if (next === null) return; event.preventDefault(); this.setPreferred(this.clamp(next));
   }
-
-  /** Double-click on the handle resets to the default width. */
-  reset(): void {
-    this.preferred.set(null);
-    this.store(null);
-  }
+  onDoubleClick(): void { this.setPreferred(null); }
 }

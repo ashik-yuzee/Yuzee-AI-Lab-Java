@@ -1,6 +1,9 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /** One scored quality dimension for a course. Ported from yuzee-ai-token-lab/src/warehouse/types.ts (CourseQuality). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class CourseQuality {
     private String key;
     private String label;

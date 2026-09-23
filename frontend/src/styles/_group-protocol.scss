@@ -1,0 +1,77 @@
+// Global styles for the "protocol" component group, ported from the original app.
+// Owned by that group's port; see styles.scss for import order.
+
+// ---- Markdown tables inside `text` blocks (react-markdown `table/thead/tr/th/td` overrides in
+// ProtocolV13Renderer.tsx). Rendered through [innerHTML], so these must be global.
+.md-table-wrap {
+  margin-block: calc(var(--spacing) * 4);
+  border-radius: var(--radius-xl);
+  border: 1px solid #e5ddd5;
+}
+.md-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.md-thead { background: #faf8f5; }
+.md-tr { border-bottom: 1px solid #e5ddd5; }
+.md-tr:hover { background: #f5f0eb; }
+.md-th {
+  text-align: left;
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+  padding-inline: calc(var(--spacing) * 4);
+  padding-block: calc(var(--spacing) * 2.5);
+  white-space: nowrap;
+  color: #000000;
+  border-right: 1px solid #e5ddd5;
+}
+.md-td {
+  padding-inline: calc(var(--spacing) * 4);
+  padding-block: calc(var(--spacing) * 2.5);
+  vertical-align: top;
+  color: #000000;
+  border-right: 1px solid #e5ddd5;
+}
+
+// GFM footnotes heading (`<h2 class="sr-only">`) emitted inside markdown `text` blocks: Tailwind's
+// global `sr-only` utility in the original. That utility was layered, so the unlayered
+// `.response-prose h2` margins still won over its `margin: -1px`; it is left out here for the same result.
+.footnotes > .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+// ---- Same overrides chat-experience.css applies to the progress block's `.overflow-x-auto` row
+// (hooked on our own class: Bootstrap's `.overflow-x-auto` is !important and would fight them).
+.counselling-output [data-output-type="progress"] .pr-stage-track {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  overflow: visible;
+}
+.counselling-output [data-output-type="progress"] .pr-stage-track > div {
+  max-width: none;
+  min-width: 0;
+  align-items: flex-start;
+}
+.counselling-output [data-output-type="progress"] .pr-stage-track > div.pr-stage-connector {
+  display: none;
+}
+
+// ---- Renderer page. In the original, `.output-review :where(.border)` and
+// `[data-review-preview] .grid` were unlayered, so they beat every Tailwind utility colour /
+// column count. Component styles load after the global sheet here, so the same effect needs
+// !important / a stronger selector. `.tw-border` marks elements that had Tailwind's `border`
+// (Bootstrap's own `.border` utility is !important and cannot be used as the hook).
+.output-review .tw-border:not(.border-transparent) {
+  border-color: #dce4ee !important;
+}
+@container (max-width: 600px) {
+  // The scorecard grid keeps the more specific `.counselling-output [data-output-type="scorecard"] .grid` rule.
+  [data-review-preview] .grid:not(.pr-score-grid) {
+    grid-template-columns: 1fr;
+  }
+}

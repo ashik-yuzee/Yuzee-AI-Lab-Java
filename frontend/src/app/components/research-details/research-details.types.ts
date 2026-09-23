@@ -66,7 +66,7 @@ export interface DetailResult extends DetailAnswer {
   retrievedAt: string;
   sources: DetailSource[];
   evidence: Evidence[];
-  /** searchSuggestionsHtml is intentionally not rendered here — see ResearchAnswerCardComponent. */
+  /** Rendered in a sandboxed, script-free iframe by ResearchAnswerCardComponent, as in the original. */
   searchSuggestionsHtml: string;
   usage: DetailUsage;
 }
@@ -99,5 +99,5 @@ export interface ResearchOfferResearch {
 export interface ResearchOffer {
   question: string;
   scope: ResearchOfferScope;
-  research: ResearchOfferResearch;
+  research?: ResearchOfferResearch;
 }

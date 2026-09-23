@@ -96,216 +96,71 @@ public class ObjectiveCatalogueService {
     public JsonNode findWorkbookEntry(String toolId) { return workbookByToolId.get(toolId); }
     public JsonNode findSelectionMetadata(String toolId) { return selectionMetadataByToolId.get(toolId); }
 
-    public List<JsonNode> availableCatalogueObjectives() {
+    /** server.ts catalogue route: every catalogue objective with available = no contract blockers. */
+    public List<JsonNode> catalogueWithAvailability() {
         List<JsonNode> out = new ArrayList<>();
-        for (JsonNode o : catalogueByToolId.values()) if (o.path("available").asBoolean(false)) out.add(o);
+        for (JsonNode o : catalogueByToolId.values()) {
+            out.add(((com.fasterxml.jackson.databind.node.ObjectNode) o.deepCopy()).put("available", contractBlockers(o.path("tool_id").asText()).isEmpty()));
+        }
         return out;
     }
 
-    /** catalogue.json's version string, i.e. routing.ts's OBJECTIVE_VERSION (minus the retrieval-strategy suffix, which belonged to the vector-ranking half this port doesn't own). */
-    public String catalogueVersion() { return catalogueRoot.path("version").asText(""); }
+    /** routing.ts OBJECTIVE_VERSION. */
+    public String objectiveVersion() { return catalogueRoot.path("version").asText("") + "-retrieval5-rto"; }
+
+    /** workbook.json source_sha256 (service.ts audit records). */
+    public String workbookSha256() { return workbookRoot.path("source_sha256").asText(null); }
 
     public String globalSystemPrompt() { return globalSystemPrompt; }
 
     // ------------------------------------------------------------------
-    // schema.mjs's compileResult()/readinessAllowed() — just enough of the DSL compiler to get
-    // top-level result keys (for the RESULT_CONTRACT check and workspaceInstructions()) and parse
-    // warnings (for contractBlockers()). The full typed-schema half of compileResult is skipped:
-    // this port doesn't send a responseSchema to Gemini (see ObjectiveService), so no JSON Schema
-    // needs to be built from the DSL, only its plain-text field names and malformed-annotation warnings.
+    // schema.mjs's compileResult()/readinessAllowed(), ported in full in ObjectiveSchema.
     // ------------------------------------------------------------------
 
     public static final class ContractResult {
         public final List<String> completionKeys;
-        public final List<String> warnings;
-        ContractResult(List<String> completionKeys, List<String> warnings) {
+        public final List<Map<String, Object>> warnings;
+        ContractResult(List<String> completionKeys, List<Map<String, Object>> warnings) {
             this.completionKeys = completionKeys;
             this.warnings = warnings;
         }
     }
 
-    private static final Pattern FIELD_PATTERN = Pattern.compile("^([a-zA-Z]\\w*)(\\[])?\\s*(.*)$", Pattern.DOTALL);
-    private static final Pattern ENUM_ANNOTATION = Pattern.compile("^[A-Z][A-Z_]*(\\|[A-Z_]+)+$");
-
-    /** Splits a DSL contract string on top-level commas/semicolons, respecting {}-nesting — port of schema.mjs's splitTop. */
-    private static List<String> splitTop(String text) {
-        int depth = 0, start = 0;
-        List<String> out = new ArrayList<>();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '{') depth++;
-            if (c == '}') depth--;
-            if (depth < 0) throw new IllegalArgumentException("Unbalanced output contract");
-            if (depth == 0 && (c == ',' || c == ';')) {
-                out.add(text.substring(start, i).trim());
-                start = i + 1;
-            }
-        }
-        if (depth != 0) throw new IllegalArgumentException("Unbalanced output contract");
-        String last = text.substring(start).trim();
-        if (!last.isEmpty()) out.add(last);
-        return out.stream().filter(s -> !s.isEmpty()).collect(Collectors.toList());
-    }
-
-    /** Port of schema.mjs's compileResult(), minus the typed-schema construction (see class javadoc). */
+    /** schema.mjs compileResult(contract): result keys and DSL warnings ({path, text}), nested objects included. */
     public static ContractResult compileResult(String contract) {
-        List<String> warnings = new ArrayList<>();
-        List<String> keys = new ArrayList<>();
-        if (contract == null || contract.isBlank()) return new ContractResult(keys, warnings);
-        for (String segment : splitTop(contract)) {
-            var m = FIELD_PATTERN.matcher(segment);
-            if (!m.matches()) {
-                warnings.add("result: " + segment);
-                continue;
-            }
-            String key = m.group(1);
-            String tail = m.group(3) == null ? "" : m.group(3);
-            if (keys.contains(key)) {
-                warnings.add("result: Duplicate field " + key);
-                continue;
-            }
-            keys.add(key);
-            if (tail.startsWith("{")) {
-                int depth = 0, end = -1;
-                for (int i = 0; i < tail.length(); i++) {
-                    if (tail.charAt(i) == '{') depth++;
-                    if (tail.charAt(i) == '}' && --depth == 0) { end = i; break; }
-                }
-                if (end < 0) throw new IllegalArgumentException("Unbalanced object contract");
-                if (!tail.substring(end + 1).trim().isEmpty()) {
-                    warnings.add("result." + key + ": " + tail.substring(end + 1).trim());
-                }
-                // Nested object shape isn't compiled to a typed schema here (see class javadoc) —
-                // only its top-level field name and brace-balance are needed by this port.
-            } else {
-                String annotation = tail.trim().replaceFirst("^:\\s*", "");
-                if (annotation.isEmpty() || ENUM_ANNOTATION.matcher(annotation).matches() || annotation.equals("=true")) {
-                    // recognised: plain scalar/array, an ENUM|LIST annotation, or a =true const — no warning
-                } else {
-                    warnings.add("result." + key + ": " + annotation);
-                }
-            }
-        }
-        return new ContractResult(keys, warnings);
+        ObjectiveSchema.Compiled c = ObjectiveSchema.compileResult(contract);
+        return new ContractResult(c.completionKeys, c.warnings);
     }
 
-    private static final Pattern READINESS_BANNED = Pattern.compile(
-        "^(NONE\\b|No psychometric score|Goal-state routing only|Exploration only)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern READINESS_NO_SCORE = Pattern.compile(
-        "no (?:numeric )?readiness score", Pattern.CASE_INSENSITIVE);
-
-    /** Port of schema.mjs's readinessAllowed(). */
+    /** schema.mjs readinessAllowed(o). */
     public static boolean readinessAllowed(JsonNode workbookEntry) {
-        String policy = workbookEntry.path("qa_readiness_policy_v2").asText("");
-        return !READINESS_BANNED.matcher(policy).find() && !READINESS_NO_SCORE.matcher(policy).find();
+        return ObjectiveSchema.readinessAllowed(workbookEntry);
     }
 
     /** Port of service.ts's contractBlockers(id): DSL parse warnings that must block running the objective. */
-    public List<String> contractBlockers(String toolId) {
+    public List<Map<String, Object>> contractBlockers(String toolId) {
         JsonNode entry = workbookByToolId.get(toolId);
-        if (entry == null) return List.of("No workbook entry for " + toolId);
-        return compileResult(entry.path("qa_output_contract_v2").asText("")).warnings;
+        return compileResult(entry == null ? "" : entry.path("qa_output_contract_v2").asText("")).warnings;
     }
 
     // ------------------------------------------------------------------
-    // routing.ts — shortlist / fusion / selection-boundary. The vector-ranking half
-    // (rankObjectivesFromVectors/mergeObjectiveRanks) is the client-side embedding work owned
-    // elsewhere; only the parts that operate on already-scored candidates are ported here.
+    // routing.ts objectiveSelectionBoundary(). Ranking, fusion and objectiveShortlist() run in the client and in
+    // ObjectiveService.select() respectively.
     // ------------------------------------------------------------------
 
-    /** Port of routing.ts's objectiveShortlist(): preview retrieval gate, not a probability. */
-    public List<ObjectiveMatch> shortlist(List<ObjectiveMatch> matches) {
-        if (matches == null) return List.of();
-        LinkedHashSet<String> seen = new LinkedHashSet<>();
-        List<ObjectiveMatch> out = new ArrayList<>();
-        for (ObjectiveMatch m : matches) {
-            if (m == null || m.getId() == null) continue;
-            JsonNode cat = catalogueByToolId.get(m.getId());
-            if (cat == null || !cat.path("available").asBoolean(false)) continue;
-            double score = m.getScore();
-            if (!Double.isFinite(score) || score < 0.5 || score > 1.001) continue;
-            if (!seen.add(m.getId())) continue;
-            out.add(m);
-            if (out.size() >= SHORTLIST_LIMIT) break;
-        }
-        return out;
-    }
-
-    private static final Pattern REFERENCE_PATTERN = Pattern.compile(
-        "^(both|either|that one|this one|the first|the second|same|yes|no)(?:[,.! ]|$)", Pattern.CASE_INSENSITIVE);
-
-    /** Port of routing.ts's fuseObjectiveMatches() — reciprocal-rank fusion across the user-text and context-derived rankings. */
-    public List<ObjectiveMatch> fuse(List<ObjectiveMatch> user, List<ObjectiveMatch> context, String userText) {
-        return fuse(user, context, SHORTLIST_LIMIT, userText);
-    }
-
-    public List<ObjectiveMatch> fuse(List<ObjectiveMatch> user, List<ObjectiveMatch> context, int limit, String userText) {
-        user = user == null ? List.of() : user;
-        context = context == null ? List.of() : context;
-        Map<String, ObjectiveMatch> byId = new LinkedHashMap<>();
-        Map<String, Double> fusion = new LinkedHashMap<>();
-        Map<String, LinkedHashSet<String>> sources = new LinkedHashMap<>();
-
-        List<ObjectiveMatch> combinedOrder = new ArrayList<>();
-        combinedOrder.addAll(user);
-        combinedOrder.addAll(context);
-        for (String sourceName : List.of("user", "context")) {
-            List<ObjectiveMatch> ranking = "user".equals(sourceName) ? user : context;
-            for (int i = 0; i < ranking.size(); i++) {
-                ObjectiveMatch c = ranking.get(i);
-                ObjectiveMatch row = byId.get(c.getId());
-                if (row == null) {
-                    row = new ObjectiveMatch(c.getId(), c.getScore());
-                    byId.put(c.getId(), row);
-                }
-                row.setScore(Math.max(row.getScore(), c.getScore()));
-                sources.computeIfAbsent(c.getId(), k -> new LinkedHashSet<>()).add(sourceName);
-                double weight = ("user".equals(sourceName) ? 1.2 : 1.0) / (60.0 + i + 1);
-                fusion.merge(c.getId(), weight, Double::sum);
-            }
-        }
-        for (Map.Entry<String, LinkedHashSet<String>> e : sources.entrySet()) {
-            byId.get(e.getKey()).setSources(new ArrayList<>(e.getValue()));
-        }
-
-        List<ObjectiveMatch> fused = new ArrayList<>(byId.values());
-        fused.sort((a, b) -> Double.compare(fusion.getOrDefault(b.getId(), 0.0), fusion.getOrDefault(a.getId(), 0.0)));
-
-        boolean reference = userText != null && userText.trim().length() < 80
-            && REFERENCE_PATTERN.matcher(userText.trim()).find();
-
-        List<ObjectiveMatch> ordered;
-        if (reference && !context.isEmpty()) {
-            ordered = new ArrayList<>();
-            context.stream().limit(Math.max(1, limit - 4)).forEach(c -> ordered.add(byId.get(c.getId())));
-            user.stream().limit(4).forEach(c -> ordered.add(byId.get(c.getId())));
-            ordered.addAll(fused);
-        } else {
-            ordered = fused;
-        }
-
-        LinkedHashSet<String> dedup = new LinkedHashSet<>();
-        List<ObjectiveMatch> result = new ArrayList<>();
-        for (ObjectiveMatch m : ordered) {
-            if (m != null && dedup.add(m.getId())) result.add(m);
-            if (result.size() >= limit) break;
-        }
-        return result;
-    }
-
-    private static final Pattern SOCIAL_PATTERN = Pattern.compile(
-        "^(hi|hello|hey|thanks?|thank you|ok|okay|yes|no|stop|cancel|never mind)[!. ]*$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DECLINED_PATTERN_1 = Pattern.compile(
+    private static final Pattern SOCIAL_PATTERN = RoutingPolicyService.jsRegex(
+        "^(hi|hello|hey|thanks?|thank you|ok|okay|yes|no|stop|cancel|never mind)[!. ]*$", true);
+    private static final Pattern DECLINED_PATTERN_1 = RoutingPolicyService.jsRegex(
         "\\b(?:do not|don['’]?t)\\s+(?:need|want|open|suggest|offer|show|start|run)\\b.{0,45}\\b(?:activit(?:y|ies)|tools?|workspace|suggestions?)\\b",
-        Pattern.CASE_INSENSITIVE);
-    private static final Pattern DECLINED_PATTERN_2 = Pattern.compile(
-        "\\b(stop suggesting|no more (tools|suggestions)|do not suggest|don.t suggest)\\b", Pattern.CASE_INSENSITIVE);
+        true);
+    private static final Pattern DECLINED_PATTERN_2 = RoutingPolicyService.jsRegex(
+        "\\b(stop suggesting|no more (tools|suggestions)|do not suggest|don.t suggest)\\b", true);
 
     /** Port of routing.ts's objectiveSelectionBoundary(): returns a reason code, or null to allow selection to proceed. */
     public String selectionBoundary(String text) {
-        String t = text == null ? "" : text.trim();
+        String t = RoutingPolicyService.jsTrim(text == null ? "" : text);
         if (t.isEmpty() || t.length() > 16000) return "input-limit";
-        if (SOCIAL_PATTERN.matcher(t).matches()) return "conversation";
+        if (SOCIAL_PATTERN.matcher(t).find()) return "conversation";
         if (DECLINED_PATTERN_1.matcher(t).find()) return "declined";
         if (DECLINED_PATTERN_2.matcher(t).find()) return "declined";
         return null;

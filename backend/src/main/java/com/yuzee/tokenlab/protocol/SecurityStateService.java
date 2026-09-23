@@ -85,7 +85,7 @@ public class SecurityStateService {
         ObjectNode progressNode = (ObjectNode) progress;
 
         JsonNode breachCount = progressNode.path("security_breach_count");
-        if (!breachCount.isInt() && !breachCount.isLong()) {
+        if (!breachCount.isNumber()) {
             progressNode.put("security_breach_count", 0);
         }
 

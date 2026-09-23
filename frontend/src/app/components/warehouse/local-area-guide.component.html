@@ -1,135 +1,49 @@
-@if (region; as area) {
+@if (area) {
   <div class="local-area-guide">
-    <section aria-label="Local introduction">
-      <h3><span aria-hidden="true">📍</span> Explore possibilities in {{ area.name }}</h3>
-      <p>You don't need to choose a career yet. Start with the activities that catch your interest; we can use those to explore what you might enjoy doing and which local options are worth a closer look.</p>
+    <section aria-label="Local introduction"><h3><app-icon name="MapPin" [size]="20" aria-hidden="true" /> Explore possibilities in {{ area.name }}</h3>
+      <p>You don’t need to choose a career yet. Start with the activities that catch your interest; we can use those to explore what you might enjoy doing and which local options are worth a closer look.</p>
       <p class="warehouse-muted">The local information below is here when you need it. You can explore your interests without working through every place or job first.</p>
     </section>
-
-    <details class="local-supporting-guide">
-      <summary>Explore local places, work and outlook</summary>
-
-      @if (overview?.profile; as profile) {
-        <details>
-          <summary>More about the area</summary>
-          <p>
-            {{ profile.scope !== area.tier || profile.area !== area.name ? 'For the wider ' + profile.area + ' area' : 'For ' + area.name }}
-            {{ profile.population != null ? ', the recorded population was ' + formatNumber(profile.population) + ' in ' + profile.period : '' }}.
-            @if (profile.setting) { The regional profile describes it as {{ profile.setting.toLowerCase() }}. }
-          </p>
-          <small>{{ profile.source }} · {{ profile.period }}</small>
-        </details>
-      }
-
-      <section aria-label="Around your community">
-        <h3><span aria-hidden="true">👥</span> Around your community</h3>
-        @if (groups().length) {
+    <details class="local-supporting-guide"><summary>Explore local places, work and outlook</summary>
+      @if (overview?.profile; as profile) {<details><summary>More about the area</summary><p>{{ profileText() }}</p><small>{{ profile.source }} · {{ profile.period }}</small></details>}
+      <section aria-label="Around your community"><h3><app-icon name="Users" [size]="20" aria-hidden="true" /> Around your community</h3>
+        @if (groups.length) {
           <p>Here are examples of places recorded for {{ area.name }}. They offer different starting points for exploring learning, work and community life.</p>
           <dl class="local-community-list">
-            @for (g of groups(); track trackByKey(g)) {
-              <div>
-                <dt>{{ g.label }}</dt>
-                <dd>
-                  <p>{{ groupPreview(g) }}</p>
-                  <small>{{ groupPurpose[g.key] }}</small>
-                  <details>
-                    <summary>See recorded places and sources</summary>
-                    <ul>
-                      @for (o of g.examples; track trackText(o.name)) {
-                        <li>
-                          <strong>{{ o.name }}</strong>
-                          <small>{{ sourceLabel(o.source) }}{{ o.updatedAt ? ' · ' + date(o.updatedAt.slice(0, 10)) : '' }}</small>
-                        </li>
-                      }
-                    </ul>
-                    <small>{{ g.recordedCount }} distinct named records in this group{{ overview?.limited ? ' within the retrieved sample' : '' }}; this is not a total of all businesses or services in the area.</small>
-                  </details>
-                </dd>
-              </div>
+            @for (g of groups; track g.key) {
+              <div><dt>{{ g.label }}</dt><dd><p>{{ examples(g) }}</p><small>{{ groupPurpose[g.key] }}</small><details><summary>See recorded places and sources</summary><ul>@for (o of g.examples; track $index) {<li><strong>{{ o.name }}</strong><small>{{ source(o.source) }}{{ o.updatedAt ? ' · ' + date(o.updatedAt.slice(0, 10)) : '' }}</small></li>}</ul><small>{{ g.recordedCount }} distinct named records in this group{{ overview?.limited ? ' within the retrieved sample' : '' }}; this is not a total of all businesses or services in the area.</small></details></dd></div>
             }
           </dl>
         } @else {
           <p>Community places are not included in these results yet. That does not mean there are no local services or opportunities.</p>
         }
       </section>
-
-      <section aria-label="Work and employers">
-        <h3><span aria-hidden="true">💼</span> Work and employers</h3>
-        @if (demandSignals().length) {
+      <section aria-label="Work and employers"><h3><app-icon name="BriefcaseBusiness" [size]="20" aria-hidden="true" /> Work and employers</h3>
+        @if (demand.length) {
           <p>These job-advertisement records show types of work to explore. Read the area and date beside each row: some figures cover a wider region than {{ area.name }}.</p>
-          <div class="local-demand-scroll" role="region" aria-label="Recorded jobs and employers" tabindex="0">
-            <table>
-              <thead>
-                <tr><th scope="col">Type of work</th><th scope="col">Job ads</th><th scope="col">Employers</th></tr>
-              </thead>
-              <tbody>
-                @for (s of demandSignals(); track trackById(s)) {
-                  <tr>
-                    <th scope="row">
-                      {{ roleLabel(s) }}
-                      <small>{{ s.region }} · {{ scopeName(s.scope) }} · {{ date(s.period) }}</small>
-                      @if (!s.metrics) { <small>{{ s.text }}</small> }
-                    </th>
-                    <td>{{ formatNumber(s.metrics?.advertisements) }}</td>
-                    <td>{{ formatNumber(s.metrics?.employers) }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          <div class="local-demand-scroll" role="region" aria-label="Recorded jobs and employers" tabindex="0"><table><thead><tr><th scope="col">Type of work</th><th scope="col">Job ads</th><th scope="col">Employers</th></tr></thead><tbody>
+            @for (s of demand; track s.id) {<tr><th scope="row">{{ role(s) }}<small>{{ s.region }} · {{ names[s.scope] || s.scope }} · {{ date(s.period) }}</small>@if (!s.metrics) {<small>{{ s.text }}</small>}</th><td>{{ number(s.metrics?.advertisements) }}</td><td>{{ number(s.metrics?.employers) }}</td></tr>}
+          </tbody></table></div>
           <p class="warehouse-muted">Recorded advertisements are not confirmed open today. Employers can appear in more than one row, so these figures should not be added into a company total.</p>
         } @else {
           <p>For the roles in this view, these results do not include job-advertisement or employer counts. That does not mean there are no jobs nearby.</p>
         }
-
-        @if (namedCareers().length) {
-          <details class="local-role-details">
-            <summary>What these jobs involve</summary>
-            @for (c of namedCareers(); track trackById(c)) {
-              <article>
-                <h4>{{ c.title }}</h4>
-                @if (c.description) { <p>{{ c.description }}</p> }
-                @if (c.tasks.length) {
-                  <ul>@for (t of c.tasks.slice(0, 3); track trackText(t)) { <li>{{ t }}</li> }</ul>
-                }
-                @if (c.skills.length) { <p><strong>Skills used:</strong> {{ c.skills.slice(0, 5).join(', ') }}.</p> }
-              </article>
-            }
-          </details>
+        @if (namedCareers.length > 0) {
+          <details class="local-role-details"><summary>What these jobs involve</summary>@for (c of namedCareers; track c.id) {<article><h4>{{ c.title }}</h4>@if (c.description) {<p>{{ c.description }}</p>}@if (c.tasks.length > 0) {<ul>@for (t of c.tasks.slice(0, 3); track t) {<li>{{ t }}</li>}</ul>}@if (c.skills.length > 0) {<p><strong>Skills used:</strong> {{ c.skills.slice(0, 5).join(', ') }}.</p>}</article>}</details>
         }
       </section>
-
-      <section aria-label="Demand and future outlook">
-        <h3><span aria-hidden="true">📈</span> Demand and future outlook</h3>
-        <p>{{ demandSignals().length ? 'The dated records above describe recent recorded demand. Use them to spot work worth exploring; they do not show every vacancy or which role would suit you.' : 'A dated demand count is not available for these roles in the current results.' }}</p>
-
-        @if (outlookSignals().length) {
+      <section aria-label="Demand and future outlook"><h3><app-icon name="TrendingUp" [size]="20" aria-hidden="true" /> Demand and future outlook</h3>
+        <p>{{ demand.length ? 'The dated records above describe recent recorded demand. Use them to spot work worth exploring; they do not show every vacancy or which role would suit you.' : 'A dated demand count is not available for these roles in the current results.' }}</p>
+        @if (outlook.length) {
           <p>The longer-term projections below describe how employment may change. Their geography may be state-wide or national.</p>
           <div class="local-outlook-list">
-            @for (s of outlookSignals(); track trackById(s)) {
-              <article>
-                <h4>{{ roleLabel(s) }}</h4>
-                @if (hasOutlookMetrics(s)) {
-                  <p><strong>{{ outlookHeadline(s) }}</strong> {{ outlookDetail(s) }}</p>
-                } @else {
-                  <p>{{ s.text }}</p>
-                }
-                <small>{{ signalRegionLabel(s) }} · Published {{ date(s.period) }}</small>
-              </article>
-            }
+            @for (s of outlook; track s.id) {<article><h4>{{ role(s) }}</h4>@if (s.metrics?.growthPercent != null && s.metrics?.horizonYears != null) {<p><strong>{{ growth(s) }}</strong> projected over {{ s.metrics?.horizonYears }} years{{ s.metrics?.baseYear ? ' from ' + s.metrics?.baseYear : '' }}.</p>} @else {<p>{{ s.text }}</p>}<small>{{ outlookPlace(s) }} · Published {{ date(s.period) }}</small></article>}
           </div>
           <p class="warehouse-muted">A projection is a forecast, not a guarantee of future vacancies or employment.</p>
         } @else {
           <p class="warehouse-muted">No future employment projection is included for these roles. Missing forecast data does not mean there is no future opportunity.</p>
         }
-
-        <details>
-          <summary>Sources and coverage</summary>
-          @for (s of allDatedSignals(); track trackById(s)) {
-            <p><strong>{{ roleLabel(s) }}</strong> — {{ s.source }} · {{ s.region }} · {{ date(s.period) }}.</p>
-          }
-          <p>Community examples come from the warehouse directory. Counts describe the returned records, not every company in the community. Personal fit depends on what you enjoy and the circumstances you choose to share.</p>
-        </details>
+        <details><summary>Sources and coverage</summary>@for (s of demand.concat(outlook); track s.id) {<p><strong>{{ role(s) }}</strong> — {{ s.source }} · {{ s.region }} · {{ date(s.period) }}.</p>}<p>Community examples come from the warehouse directory. Counts describe the returned records, not every company in the community. Personal fit depends on what you enjoy and the circumstances you choose to share.</p></details>
       </section>
     </details>
   </div>

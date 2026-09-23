@@ -1,15 +1,8 @@
 /**
- * Types ported from yuzee-ai-token-lab/src/warehouse/types.ts, field-for-field, so these
- * components render correctly against real `warehouse_data` whenever it starts flowing (see the
- * Java WarehousePack/WarehouseCourse/etc. models under
- * backend/src/main/java/com/yuzee/tokenlab/model/warehouse/ for the server-side mirror of this
- * shape). Nothing here is backend-only plumbing.
- *
- * Deliberately NOT ported: `warehouseEvidence()` (protocol evidence-provenance bookkeeping — a
- * chat/backend concern, not something a presentational component computes) and
- * `WarehouseInput`/`WarehouseRetriever` (server-side lookup-request plumbing; these components
- * only ever render an already-fetched `WarehousePack`, they never call the retrieval endpoint
- * themselves).
+ * Types ported from yuzee-ai-token-lab/src/warehouse/types.ts, field-for-field (see the Java
+ * WarehousePack/WarehouseCourse/etc. models under backend/src/main/java/com/yuzee/tokenlab/model/warehouse/
+ * for the server-side mirror). `warehouseEvidence()`, `WarehouseInput` and `WarehouseRetriever` are
+ * used only by the original's server (objectives/service.ts); their Java equivalents live in ObjectiveService.
  */
 
 export type CourseQuality = { key: string; label: string; value: number; explanation: string };
@@ -248,13 +241,4 @@ export interface WarehouseConnections {
   }>;
   relationships: Array<{ from: string; to: string; relation: string; method: string; confidence: number | null }>;
   scopeNote: string;
-}
-
-/** Shape of `GET /api/warehouse/status` (see `WarehouseService.status()` in the Java backend).
- *  Components fetch this themselves only when no `pack` input has been supplied at all, to show
- *  an honest "not connected" state instead of silently rendering nothing forever. */
-export interface WarehouseStatus {
-  status: 'READY' | 'UNAVAILABLE';
-  scope: string;
-  sourcePolicy: string;
 }

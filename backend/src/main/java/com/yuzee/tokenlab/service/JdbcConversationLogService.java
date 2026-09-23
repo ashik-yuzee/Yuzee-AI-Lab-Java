@@ -3,12 +3,10 @@ package com.yuzee.tokenlab.service;
 import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Postgres-backed ConversationLogService. Mirrors the conversation_logs table from the old db.ts. */
+/** db.ts logTurn / loadLifetimeStats / loadDailyCost / loadSessionStats against conversation_logs, query for query. */
 public class JdbcConversationLogService implements ConversationLogService {
 
     private final JdbcTemplate jdbc;
@@ -17,35 +15,10 @@ public class JdbcConversationLogService implements ConversationLogService {
         this.jdbc = jdbc;
     }
 
+    /** initDb() (whichever JDBC bean is built first runs it; see DbSchema). */
     @PostConstruct
     public void initSchema() {
-        // See JdbcConversationRepository.initSchema for why every column — not just ones added
-        // after the fact — goes through ADD COLUMN IF NOT EXISTS: on a database where this table
-        // already exists from a prior/other deployment, CREATE TABLE IF NOT EXISTS is a no-op.
-        jdbc.execute("CREATE TABLE IF NOT EXISTS conversation_logs (id BIGSERIAL PRIMARY KEY)");
-        for (String ddl : List.of(
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW()",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS ip TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS conversation_id TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS message_id TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS model TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS input_tokens INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS uncached_input_tokens INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS cached_tokens INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS output_tokens INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS thinking_tokens INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS estimated_cost_usd NUMERIC(12,8)",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS latency_ms INT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS finish_reason TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS is_mock BOOLEAN NOT NULL DEFAULT FALSE",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS is_whiteboard BOOLEAN NOT NULL DEFAULT FALSE",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS user_input TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS assistant_output TEXT",
-                "ALTER TABLE conversation_logs ADD COLUMN IF NOT EXISTS error_code TEXT",
-                "CREATE INDEX IF NOT EXISTS idx_convlog_ip ON conversation_logs (ip, logged_at DESC)",
-                "CREATE INDEX IF NOT EXISTS idx_convlog_conv ON conversation_logs (conversation_id)")) {
-            jdbc.execute(ddl);
-        }
+        com.yuzee.tokenlab.repository.DbSchema.init(jdbc);
     }
 
     @Override
@@ -54,6 +27,7 @@ public class JdbcConversationLogService implements ConversationLogService {
                          Integer outputTokens, Integer thinkingTokens, Double estimatedCostUsd, Integer latencyMs,
                          String finishReason, boolean isMock, boolean isWhiteboard,
                          String userInput, String assistantOutput, String errorCode) {
+        try {
         jdbc.update("""
             INSERT INTO conversation_logs (
               ip, conversation_id, message_id, model,
@@ -61,11 +35,17 @@ public class JdbcConversationLogService implements ConversationLogService {
               estimated_cost_usd, latency_ms, finish_reason, is_mock, is_whiteboard,
               user_input, assistant_output, error_code
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT DO NOTHING
             """,
             ip, conversationId, messageId, modelId,
             promptTokens, uncachedInputTokens, cachedTokens, outputTokens, thinkingTokens,
-            estimatedCostUsd, latencyMs, finishReason, isMock, isWhiteboard,
+            // node-postgres sends String(number); a numeric parameter keeps NUMERIC(12,8) rounding identical
+            estimatedCostUsd != null ? new java.math.BigDecimal(JsJson.number(estimatedCostUsd)) : null,
+            latencyMs, finishReason, isMock, isWhiteboard,
             truncate(userInput, 2000), truncate(assistantOutput, 4000), errorCode);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(JdbcConversationLogService.class).error("[db] logTurn failed:", e);
+        }
     }
 
     @Override
@@ -84,28 +64,27 @@ public class JdbcConversationLogService implements ConversationLogService {
               COALESCE(SUM(estimated_cost_usd) FILTER (WHERE is_whiteboard AND NOT is_mock), 0)    AS wb_cost
             FROM conversation_logs
             """);
-        Map<String, Object> stats = new HashMap<>();
+        Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("calls", asLong(row.get("calls")));
         stats.put("inputTokens", asLong(row.get("input_tokens")));
         stats.put("outputTokens", asLong(row.get("output_tokens")));
         stats.put("cachedTokens", asLong(row.get("cached_tokens")));
         stats.put("thinkingTokens", asLong(row.get("thinking_tokens")));
         stats.put("costUsd", asDouble(row.get("cost_usd")));
-        stats.put("whiteboard", Map.of(
-            "calls", asLong(row.get("wb_calls")),
-            "inputTokens", asLong(row.get("wb_input")),
-            "outputTokens", asLong(row.get("wb_output")),
-            "costUsd", asDouble(row.get("wb_cost"))
-        ));
+        Map<String, Object> whiteboard = new LinkedHashMap<>();
+        whiteboard.put("calls", asLong(row.get("wb_calls")));
+        whiteboard.put("inputTokens", asLong(row.get("wb_input")));
+        whiteboard.put("outputTokens", asLong(row.get("wb_output")));
+        whiteboard.put("costUsd", asDouble(row.get("wb_cost")));
+        stats.put("whiteboard", whiteboard);
         return stats;
     }
 
     @Override
     public double loadDailyCost() {
-        Double total = jdbc.queryForObject(
-            "SELECT COALESCE(SUM(estimated_cost_usd), 0)::float8 FROM conversation_logs " +
-            "WHERE logged_at >= ? AND NOT is_mock",
-            Double.class, java.sql.Date.valueOf(LocalDate.now()));
+        Double total = jdbc.queryForObject("""
+            SELECT COALESCE(SUM(estimated_cost_usd), 0)::float AS total
+                   FROM conversation_logs WHERE logged_at >= CURRENT_DATE AND NOT is_mock""", Double.class);
         return total != null ? total : 0.0;
     }
 
@@ -121,7 +100,7 @@ public class JdbcConversationLogService implements ConversationLogService {
               COALESCE(SUM(cached_tokens)         FILTER (WHERE NOT is_mock), 0) AS cached
             FROM conversation_logs
             """);
-        Map<String, Object> stats = new HashMap<>();
+        Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("calls", asLong(row.get("calls")));
         stats.put("modelInput", asLong(row.get("model_input")));
         stats.put("uncachedInput", asLong(row.get("uncached_input")));
@@ -132,7 +111,7 @@ public class JdbcConversationLogService implements ConversationLogService {
     }
 
     private static String truncate(String s, int max) {
-        if (s == null) return null;
+        if (s == null || s.isEmpty()) return null; // db.ts: turn.userInput ? slice : null
         return s.length() > max ? s.substring(0, max) : s;
     }
 

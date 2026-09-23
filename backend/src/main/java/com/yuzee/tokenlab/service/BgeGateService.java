@@ -2,6 +2,7 @@ package com.yuzee.tokenlab.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuzee.tokenlab.model.Candidate;
 import com.yuzee.tokenlab.model.RouteClaimRequest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -9,9 +10,15 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Port of bgeProfiles.ts (the gate/threshold half -- not the embedding ranking, which stays
@@ -27,6 +34,8 @@ public class BgeGateService {
     public static final String BGE_MODEL_ID = "Xenova/bge-small-en-v1.5";
     /** Immutable v1 skill calibration remains the rollback point. No model weights changed. */
     public static final String BGE_RELEASE = "bge-single-encoder-v2";
+    /** bgeDomain.ts: broad out-of-scope competitors. These are not a keyword denylist or a safety classifier. */
+    public static final String BGE_OUT_OF_SCOPE = "__OUT_OF_SCOPE__";
 
     public static final class Gate {
         public final double score;
@@ -92,6 +101,29 @@ public class BgeGateService {
     }
 
     public static final String NEEDS_PROFILE_VERSION = "bge-input-needs-v3";
+
+    /** bgeMatching.ts bgeGateResult() result; score/margin/domainMargin are null when the ranking is incomplete. */
+    public record GateResult(boolean selected, String reason, String toolId, Double score, Double margin, Double domainMargin) {}
+
+    /** Port of bgeMatching.ts's bgeGateResult(). */
+    public static GateResult bgeGateResult(List<Candidate> candidates, Gate gate) {
+        List<Candidate> valid = candidates.stream()
+            .filter(c -> Double.isFinite(c.getScore()) && c.getScore() >= -1 && c.getScore() <= 1)
+            .collect(Collectors.toList());
+        Candidate domain = valid.stream()
+            .filter(c -> BGE_OUT_OF_SCOPE.equals(c.getToolId())).findFirst().orElse(null);
+        List<Candidate> ranked = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        valid.stream().filter(c -> !BGE_OUT_OF_SCOPE.equals(c.getToolId()))
+            .sorted(Comparator.comparingDouble(Candidate::getScore).reversed())
+            .forEach(c -> { if (seen.add(c.getToolId())) ranked.add(c); });
+        if (ranked.size() < 2 || domain == null) return new GateResult(false, "incomplete-ranking", null, null, null, null);
+        Candidate a = ranked.get(0), b = ranked.get(1);
+        double margin = a.getScore() - b.getScore(), domainMargin = a.getScore() - domain.getScore();
+        String reason = a.getScore() < gate.score ? "low-similarity" : domainMargin < gate.domainMargin ? "outside-scope"
+            : margin < gate.margin ? "ambiguous" : "clear-semantic-match";
+        return new GateResult("clear-semantic-match".equals(reason), reason, a.getToolId(), a.getScore(), margin, domainMargin);
+    }
 
     /**
      * Port of bgeContract.ts's validBgeReady(). The browser worker must report every one of these

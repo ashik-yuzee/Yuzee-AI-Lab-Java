@@ -1,97 +1,119 @@
-<ion-app class="app-shell" [class.authenticated]="auth.isAuthenticated">
+<ion-app>
 <ion-content [scrollY]="false" [fullscreen]="true">
 
-  @if (!auth.isAuthenticated) {
-    <div class="login-screen d-flex align-items-center justify-content-center vh-100">
-      <div class="login-card card p-4 shadow">
-        <div class="text-center mb-4">
-          <h4 class="fw-bold mb-1" style="color:#7957c6">Yuzee AI Token Lab</h4>
-          <p class="text-muted small">Sign in to continue</p>
+  @if (authed() === null || (authed() && page() === 'chat' && lab.isLoading())) {
+    <!-- AppLoadingScreen -->
+    <div class="app-loading">
+      <div class="app-loading-mark"></div>
+      <div class="app-loading-lines">
+        <div class="app-loading-line"></div>
+        <div class="app-loading-line short"></div>
+      </div>
+    </div>
+  } @else if (!authed()) {
+    <!-- LoginPage -->
+    <div class="login-screen">
+      <div class="login-card">
+        <div class="login-brand">
+          <img src="/favicon.svg" alt="Oala" class="login-logo" />
+          <div>
+            <p class="login-title">Oala AI Lab</p>
+            <p class="login-subtitle">Admin Access</p>
+          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Username</label>
-          <input class="form-control" type="text" [(ngModel)]="loginUsername" placeholder="yuzeeadmin">
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Password</label>
-          <input class="form-control" type="password" [(ngModel)]="loginPassword" (keyup.enter)="doLogin()">
-        </div>
-        @if (loginError()) {
-          <div class="alert alert-danger py-2 small">{{ loginError() }}</div>
+        <form (submit)="handleSubmit($event)" class="login-form">
+          <input
+            type="text"
+            placeholder="Username"
+            [value]="u()"
+            (input)="onInput('u', $event)"
+            class="login-input"
+            required
+            autocomplete="username"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            [value]="p()"
+            (input)="onInput('p', $event)"
+            class="login-input"
+            required
+            autocomplete="current-password"
+          />
+          @if (err()) {
+            <p class="login-error">{{ err() }}</p>
+          }
+          <button type="submit" [disabled]="loading()" class="login-submit">
+            {{ loading() ? 'Signing in…' : 'Sign in' }}
+          </button>
+        </form>
+      </div>
+    </div>
+  } @else if (page() === 'renderer') {
+    <div id="yuzee-token-lab-root" class="renderer-root">
+      <app-renderer-page (back)="backFromRenderer()" />
+    </div>
+  } @else {
+    <!-- AuthedApp -->
+    <div id="yuzee-token-lab-root" class="app-root">
+      <app-navbar (openRenderer)="page.set('renderer')" />
+      <!-- Only the inner panes scroll. Hidden overflow would let anchor/focus
+           navigation scroll this shell and leave a blank area below it. -->
+      <div class="workspace-shell" data-workspace-shell>
+        <app-sidebar />
+        <main class="app-main">
+          <app-objective-toolbar />
+          <chat-area />
+        </main>
+        <app-token-inspector
+          [open]="lab.isTokenInspectorOpen()"
+          (closed)="lab.isTokenInspectorOpen.set(false)" />
+        <app-pathway-whiteboard
+          [open]="lab.isWhiteboardOpen()"
+          [conversationId]="lab.activeConversationId()"
+          [generateTick]="lab.whiteboardGenerateTick()"
+          (closed)="lab.isWhiteboardOpen.set(false)"
+          (hasPathwayChange)="lab.whiteboardHasPathway.set($event)" />
+        @if (!objectives.enabled()) {
+          <app-mini-pathway-experience
+            [conversationId]="lab.activeConversationId()"
+            (opened)="onMiniPathwayOpened()" />
         }
-        <button class="btn btn-purple w-100" [disabled]="loggingIn()" (click)="doLogin()">
-          {{ loggingIn() ? 'Signing in…' : 'Sign in' }}
-        </button>
+        <app-objective-workspace />
       </div>
+      <app-advanced-lab-modal
+        [open]="lab.isAdvancedLabOpen()"
+        (closed)="lab.isAdvancedLabOpen.set(false)" />
+      <app-user-profile-modal (closed)="lab.isProfileOpen.set(false)" />
+      <app-context-inspector-modal
+        [open]="lab.isContextInspectorOpen()"
+        (closed)="lab.isContextInspectorOpen.set(false)" />
+      <app-career-context-modal (closed)="lab.isCareerContextOpen.set(false)" />
+      <app-memory-timeline-modal
+        [open]="lab.isMemoryTimelineOpen()"
+        (closed)="lab.isMemoryTimelineOpen.set(false)" />
+      <app-benchmark-modal
+        [open]="lab.isBenchmarkOpen()"
+        (closed)="lab.isBenchmarkOpen.set(false)" />
+      <app-analytics-dashboard-modal
+        [open]="lab.isAnalyticsOpen()"
+        (closed)="lab.isAnalyticsOpen.set(false)" />
+      <app-export-modal
+        [open]="lab.isExportOpen()"
+        (closed)="lab.isExportOpen.set(false)" />
+      <app-settings-modal />
+      @if (lab.pendingClarificationQuestions(); as pending) {
+        <app-clarification-questions-modal
+          [questions]="pending.questions"
+          [bridgeMessage]="pending.bridgeMessage"
+          [originalMessage]="pending.originalMessage"
+          [hasDeferredMessage]="lab.hasDeferredMessage()"
+          (submitted)="onClarificationSend($event)"
+          (sendText)="onClarificationSend($event)"
+          (proceedDeferred)="lab.proceedWithDeferredMessage()" />
+      }
+      <app-location-prompt-modal />
     </div>
-  }
-
-  @if (auth.isAuthenticated) {
-    <div class="main-layout d-flex flex-column vh-100">
-      <app-navbar (openTool)="onOpenTool($event)" />
-      <div class="main-content flex-1 d-flex overflow-hidden">
-        <chat-area class="flex-1" />
-      </div>
-    </div>
-    @if (!lab.locationProvided() && showLocationPrompt()) {
-      <app-location-prompt-modal (locationSet)="onLocationSet($event)" (dismiss)="dismissLocation()" />
-    }
-
-    @if (activeTool() === 'settings') {
-      <app-settings-modal (closed)="closeTool()" />
-    }
-    @if (activeTool() === 'profile') {
-      <app-user-profile-modal (closed)="closeTool()" />
-    }
-    @if (activeTool() === 'career-context') {
-      <app-career-context-modal [conversationId]="lab.activeConversationId()" (closed)="closeTool()" />
-    }
-    <app-token-inspector
-      [open]="activeTool() === 'token-inspector'"
-      [tokenUsage]="lastAssistantTokenUsage"
-      [compaction]="lastCompaction"
-      (closed)="closeTool()"
-      (openContextInspector)="onOpenTool('context-inspector')"
-      (openMemoryTimeline)="onOpenTool('memory-timeline')" />
-    <app-context-inspector-modal
-      [open]="activeTool() === 'context-inspector'"
-      [compaction]="lastCompaction"
-      (closed)="closeTool()" />
-    <app-memory-timeline-modal
-      [open]="activeTool() === 'memory-timeline'"
-      [conversationId]="lab.activeConversationId()"
-      [compaction]="lastCompaction"
-      (closed)="closeTool()" />
-    <app-analytics-dashboard-modal
-      [open]="activeTool() === 'analytics'"
-      (closed)="closeTool()" />
-    <app-benchmark-modal
-      [open]="activeTool() === 'benchmark'"
-      [conversationId]="lab.activeConversationId()"
-      [modelId]="lab.activeModelId()"
-      (closed)="closeTool()" />
-    <app-mini-pathway-experience
-      [open]="activeTool() === 'mini-pathway'"
-      [conversationId]="lab.activeConversationId()"
-      (closed)="closeTool()" />
-    <app-pathway-whiteboard
-      [open]="activeTool() === 'pathway-whiteboard'"
-      [conversationId]="lab.activeConversationId()"
-      (closed)="closeTool()" />
-    <app-objective-workspace
-      [open]="activeTool() === 'objectives'"
-      [conversationId]="lab.activeConversationId()"
-      (closed)="closeTool()"
-      (handoffReady)="onObjectiveHandoff($event)" />
-    <app-advanced-lab-modal
-      [open]="activeTool() === 'advanced-lab'"
-      [conversationId]="lab.activeConversationId()"
-      [modelId]="lab.activeModelId()"
-      (closed)="closeTool()"
-      (openBenchmark)="onOpenTool('benchmark')" />
-    <app-export-modal
-      [open]="activeTool() === 'export'"
-      (closed)="closeTool()" />
   }
 
 </ion-content>

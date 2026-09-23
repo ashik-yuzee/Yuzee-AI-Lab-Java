@@ -1,16 +1,11 @@
-import { Component, ElementRef, HostListener, Input, OnChanges, Output, EventEmitter, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { IconComponent } from '../icon/icon.component';
 
-/**
- * Port of AppleConfirmDialog.tsx as a reusable Bootstrap-modal-shaped dialog.
- * Deliberately built from plain markup + custom SCSS (no Ionic, no bootstrap.js
- * Modal API) so visibility is driven entirely by the `isOpen` input, matching
- * the original's own hand-rolled overlay/focus/escape behavior.
- */
+/** 1:1 port of AppleConfirmDialog.tsx (onConfirm/onCancel → (confirmed)/(cancelled)). */
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent],
   templateUrl: './confirm-dialog.component.html',
   styleUrl: './confirm-dialog.component.scss'
 })
@@ -30,17 +25,19 @@ export class ConfirmDialogComponent implements OnChanges {
 
   get dialogText(): string { return this.description || this.message || ''; }
 
-  ngOnChanges(): void {
-    if (this.isOpen) {
+  ngOnChanges(changes: SimpleChanges): void {
+    // Focus safe cancel button by default
+    if (changes['isOpen'] && this.isOpen) {
       setTimeout(() => this.cancelBtnRef?.nativeElement.focus(), 50);
     }
   }
 
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    if (this.isOpen) this.cancelled.emit();
+  @HostListener('window:keydown', ['$event'])
+  onKeydown(e: KeyboardEvent): void {
+    if (!this.isOpen) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.cancelled.emit();
+    }
   }
-
-  onConfirm(): void { this.confirmed.emit(); }
-  onCancel(): void { this.cancelled.emit(); }
 }

@@ -1,108 +1,56 @@
-<article class="answer-card">
-  <header class="answer-header">
-    <span class="status-badge" [class.is-supported]="result.status === 'answered'">
-      {{ statusLabel }}
-    </span>
-    <span class="answer-date">Checked {{ result.retrievedAt | date: 'd MMM y' }}</span>
+<article class="research-answer" [attr.aria-labelledby]="id + '-title'">
+  <header class="research-answer-header">
+    <span class="research-status" [class.is-supported]="result.status === 'answered'" [class.is-pending]="result.status !== 'answered'">@if (result.status === 'answered') {<app-icon name="Check" [size]="14" aria-hidden="true" />} @else {<app-icon name="CircleHelp" [size]="14" aria-hidden="true" />}{{ status }}</span>
+    <span class="research-date">Checked {{ checked }}</span>
   </header>
-
-  <p class="answer-course">{{ result.request.target }}</p>
-  @if (scopeNote) {
-    <p class="answer-scope-note">{{ scopeNote }}</p>
-  }
-
-  <h3 class="answer-title">{{ titleText }}</h3>
-  <p class="answer-summary">{{ result.summary }}</p>
-
-  <details class="answer-original-question">
-    <summary>View your question</summary>
-    <p>{{ result.request.question }}</p>
-  </details>
-
-  @if (result.gaps.length > 0) {
-    <section class="answer-gaps">
-      <div class="section-heading">
-        <h4>Still to confirm</h4>
-        <span class="count-pill">{{ result.gaps.length }} {{ result.gaps.length === 1 ? 'item' : 'items' }}</span>
-      </div>
-      <ul>
-        @for (gap of result.gaps; track $index) {
-          <li>{{ gap }}</li>
-        }
-      </ul>
-    </section>
-  }
-
-  @if (result.facts.length > 0) {
-    <details class="answer-evidence">
-      <summary>
-        <span class="disclosure-label">Details &amp; sources <span class="count-pill">{{ result.facts.length }} findings</span></span>
-      </summary>
-      <div class="evidence-content">
-        <p class="help-text">Source-based findings are AI summaries. Interpretations and general career expectations are labelled separately.</p>
-        <ol class="findings-list">
-          @for (fact of result.facts; track $index) {
-            <li>
-              <span class="finding-kind">{{ factKindLabels[fact.kind] }}</span>
-              <p>{{ fact.text }}</p>
-              <div class="citations">
-                @for (source of factSources(fact); track source.id) {
-                  <a [href]="source.url" target="_blank" rel="noopener noreferrer">
-                    <span class="citation-number">{{ sourceNumber(source.id) }}</span>{{ source.title }}
-                  </a>
-                }
-              </div>
-              <details class="passages">
-                <summary>Read supporting passages</summary>
-                @for (evidence of factEvidence(fact); track evidence.id) {
-                  <blockquote>{{ evidence.text }}</blockquote>
-                }
-              </details>
-            </li>
-          }
-        </ol>
-      </div>
+  <div class="research-answer-main">
+    <p class="research-course">{{ result.request.target }}</p>
+    @if (result.request.studyYear || result.request.location) {<p class="research-scope-note">{{ scopeNote }}</p>}
+    <h3 [id]="id + '-title'">{{ title }}</h3>
+    <p class="research-answer-summary">{{ result.summary }}</p>
+    <details class="research-original-question">
+      <summary>View your question <app-icon name="ChevronDown" [size]="14" aria-hidden="true" /></summary>
+      <p>{{ result.request.question }}</p>
     </details>
-  }
-
-  @if (clarifications.length > 0) {
-    <section class="answer-clarifications">
-      <h4>Help us make this more useful</h4>
-      @for (q of clarifications; track $index) {
-        <div class="clarification-row">
-          <p>{{ q.text }}</p>
-          <button type="button" class="text-button" [disabled]="disabled" (click)="onAskQuestion(q.text, 'ask_user')">
-            Answer
-          </button>
-        </div>
-      }
-    </section>
-  }
-
-  @if (result.facts.length > 0) {
-    <div class="plan-action">
-      <button type="button" class="btn-primary" [disabled]="disabled" (click)="onUse()">
-        Use this in my plan
-      </button>
-      <p>Continue in your conversation with these findings.</p>
-    </div>
-  }
-
-  @if (suggested.length > 0) {
-    <section class="answer-next">
-      <h4>Explore next</h4>
-      @for (q of suggested; track $index) {
-        <button type="button" class="next-question" [disabled]="disabled" (click)="onAskQuestion(q.text, 'suggested_question')">
-          {{ q.text }}
-        </button>
-      }
-    </section>
-  }
-
-  <footer class="answer-footer">
-    <p>AI summary &middot; Details can change. Check the sources before deciding.</p>
-    @if (result.searchSuggestionsHtml) {
-      <p class="search-suggestions-fallback">Google Search suggestions unavailable.</p>
+    @if (result.gaps.length > 0) {
+      <section class="research-gaps" [attr.aria-labelledby]="id + '-gaps'">
+        <div class="research-section-heading"><h4 [id]="id + '-gaps'">Still to confirm</h4><span>{{ result.gaps.length }} {{ result.gaps.length === 1 ? 'item' : 'items' }}</span></div>
+        <ul>@for (gap of result.gaps; track $index) {<li><app-icon name="CircleHelp" [size]="18" aria-hidden="true" /><span>{{ gap }}</span></li>}</ul>
+      </section>
     }
+    @if (result.facts.length > 0) {
+      <details class="research-evidence">
+        <summary><span class="research-disclosure-label"><app-icon name="BookOpen" [size]="18" aria-hidden="true" />Details &amp; sources <span class="research-count">{{ result.facts.length }} findings</span></span><app-icon name="ChevronDown" [size]="18" aria-hidden="true" /></summary>
+        <div class="research-evidence-content">
+          <p class="research-help">Source-based findings are AI summaries. Interpretations and general career expectations are labelled separately.</p>
+          <ol class="research-findings">
+            @for (fact of result.facts; track $index) {
+              <li>
+                <span class="research-finding-kind">{{ kindLabels[fact.kind] }}</span>
+                <p>{{ fact.text }}</p>
+                <div class="research-citations">@for (source of sources(fact); track source.id) {<a [href]="source.url" target="_blank" rel="noopener noreferrer"><span>{{ sourceNumber(source.id) }}</span>{{ source.title }}<app-icon name="ArrowUpRight" [size]="13" aria-hidden="true" /></a>}</div>
+                <details class="research-passages"><summary>Read supporting passages</summary>@for (e of evidence(fact); track e.id) {<blockquote>{{ e.text }}</blockquote>}</details>
+              </li>
+            }
+          </ol>
+        </div>
+      </details>
+    }
+    @if (clarifications.length > 0) {
+      <section class="research-clarifications" [attr.aria-labelledby]="id + '-clarify'">
+        <h4 [id]="id + '-clarify'"><app-icon name="MessageCircle" [size]="18" aria-hidden="true" />Help us make this more useful</h4>
+        @for (q of clarifications; track $index) {<div class="research-clarification-row"><p>{{ q.text }}</p><button type="button" class="research-text-button" [disabled]="disabled || using" (click)="askQuestion.emit({ text: q.text, kind: 'ask_user' })">Answer <app-icon name="ArrowRight" [size]="16" aria-hidden="true" /></button></div>}
+      </section>
+    }
+    @if (result.facts.length > 0) {
+      <div class="research-plan-action"><button type="button" class="research-primary" [disabled]="disabled || using" (click)="use()"><app-icon name="Sparkles" [size]="16" aria-hidden="true" />{{ using ? 'Adding to your conversation…' : 'Use this in my plan' }}<app-icon name="ArrowRight" [size]="16" aria-hidden="true" /></button><p>Continue in your conversation with these findings.</p></div>
+    }
+    @if (suggested.length > 0) {
+      <section class="research-next" aria-label="Suggested follow-up questions"><h4>Explore next</h4>@for (q of suggested; track $index) {<button type="button" [disabled]="disabled || using" (click)="askQuestion.emit({ text: q.text, kind: 'suggested_question' })"><span>{{ q.text }}</span><app-icon name="ArrowUpRight" [size]="18" aria-hidden="true" /></button>}</section>
+    }
+  </div>
+  <footer class="research-answer-footer">
+    <p>AI summary · Details can change. Check the sources before deciding.</p>
+    @if (suggestionsDoc) {<iframe title="Google Search suggestions" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" class="research-search-attribution" [srcdoc]="suggestionsDoc"></iframe>}
   </footer>
 </article>

@@ -1,12 +1,9 @@
-import {
-  Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, signal
-} from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, signal } from '@angular/core';
+import { IconComponent } from '../../icon/icon.component';
 
 export type SelectBadgeColor = 'blue' | 'emerald' | 'amber' | 'purple' | 'slate';
 
-/** ponytail: `icon?: ComponentType` from the React version is simplified to a CSS class
- * name, same trade-off as SegmentOption in segmented-control.component.ts. */
+/** `icon` is the PascalCase lucide name (React passed the icon component itself). */
 export interface SelectOption {
   value: string;
   label: string;
@@ -23,19 +20,15 @@ interface OptionGroup {
   items: SelectOption[];
 }
 
-let nextSelectId = 0;
-
 /**
- * Port of AppleSelect.tsx — a real custom dropdown (not a wrapped <select>): optional search
- * box once options.length >= showSearchThreshold, grouped options, keyboard nav (Up/Down/
- * Enter/Escape), click-outside-to-close, badges. footerNote is plain text here (React's
- * ReactNode footerNote has no direct Angular equivalent without a TemplateRef — add one if a
- * consumer needs richer footer content than a string).
+ * 1:1 port of AppleSelect.tsx (value/onChange → [value]/(valueChange)).
+ * `popoverWidth` takes the original's Tailwind width tokens (w-72, w-80, w-84, sm:w-84, sm:w-96).
+ * `footerNote` is text (the original accepted a ReactNode; no caller passes one).
  */
 @Component({
   selector: 'app-searchable-select',
   standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent],
   templateUrl: './searchable-select.component.html',
   styleUrl: './searchable-select.component.scss'
 })
@@ -48,7 +41,8 @@ export class SearchableSelectComponent {
   @Input() leadingIcon?: string;
   @Input() compact = false;
   @Input() disabled = false;
-  @Input() popoverWidthPx = 340;
+  @Input() className = '';
+  @Input() popoverWidth = 'w-84 sm:w-96';
   @Input() footerNote?: string;
   @Input() showSearchThreshold = 7;
 
@@ -57,43 +51,41 @@ export class SearchableSelectComponent {
   @ViewChild('searchInput') searchInputRef?: ElementRef<HTMLInputElement>;
   @ViewChild('triggerBtn') triggerBtnRef?: ElementRef<HTMLButtonElement>;
 
-  readonly selectId = `apple-select-${nextSelectId++}`;
-
   isOpen = signal(false);
   searchQuery = signal('');
-  focusedIndex = signal(-1);
+  // The original tracks this for Enter-to-select but never renders a highlight for it.
+  private focusedIndex = -1;
 
   constructor(private elRef: ElementRef<HTMLElement>) {}
 
+  // Close when clicking outside
   @HostListener('document:mousedown', ['$event'])
   onDocumentMouseDown(e: MouseEvent): void {
-    if (this.isOpen() && !this.elRef.nativeElement.contains(e.target as Node)) {
-      this.close();
-    }
+    if (this.isOpen() && !this.elRef.nativeElement.contains(e.target as Node)) this.close();
+  }
+
+  get popoverClasses(): string {
+    return this.popoverWidth.replace(/:/g, '-');
   }
 
   get selectedOption(): SelectOption | undefined {
     return this.options.find(o => o.value === this.value);
   }
 
-  get showSearch(): boolean {
-    return this.options.length >= this.showSearchThreshold;
-  }
-
   get filteredOptions(): SelectOption[] {
-    const q = this.searchQuery().trim().toLowerCase();
-    if (!q) return this.options;
+    if (!this.searchQuery().trim()) return this.options;
+    const q = this.searchQuery().toLowerCase();
     return this.options.filter(o =>
       o.label.toLowerCase().includes(q) ||
-      !!o.description?.toLowerCase().includes(q) ||
-      !!o.group?.toLowerCase().includes(q)
+      (!!o.description && o.description.toLowerCase().includes(q)) ||
+      (!!o.group && o.group.toLowerCase().includes(q))
     );
   }
 
   get groupedOptions(): OptionGroup[] {
     const groups: OptionGroup[] = [];
     for (const opt of this.filteredOptions) {
-      const groupName = opt.group ?? '';
+      const groupName = opt.group || '';
       let g = groups.find(x => x.groupName === groupName);
       if (!g) {
         g = { groupName, items: [] };
@@ -104,28 +96,24 @@ export class SearchableSelectComponent {
     return groups;
   }
 
-  private get selectableOptions(): SelectOption[] {
-    return this.filteredOptions.filter(o => !o.disabled);
-  }
-
-  focusedValue(): string | undefined {
-    const selectable = this.selectableOptions;
-    const idx = this.focusedIndex();
-    return idx >= 0 && idx < selectable.length ? selectable[idx].value : undefined;
-  }
-
   toggleOpen(): void {
     if (this.disabled) return;
-    this.isOpen.update(v => !v);
-    if (this.isOpen()) {
-      this.focusedIndex.set(-1);
-      if (this.showSearch) {
-        setTimeout(() => this.searchInputRef?.nativeElement.focus(), 50);
-      }
+    this.setOpen(!this.isOpen());
+  }
+
+  onSearchInput(e: Event): void {
+    this.searchQuery.set((e.target as HTMLInputElement).value);
+  }
+
+  private setOpen(open: boolean): void {
+    this.isOpen.set(open);
+    // Focus search input when opening
+    if (open && this.options.length >= this.showSearchThreshold) {
+      setTimeout(() => this.searchInputRef?.nativeElement.focus(), 50);
     }
   }
 
-  close(): void {
+  private close(): void {
     this.isOpen.set(false);
     this.searchQuery.set('');
   }
@@ -134,51 +122,37 @@ export class SearchableSelectComponent {
     if (opt.disabled) return;
     this.valueChange.emit(opt.value);
     this.close();
-    setTimeout(() => this.triggerBtnRef?.nativeElement.focus());
+    this.triggerBtnRef?.nativeElement.focus();
   }
 
-  onSearchInput(e: Event): void {
-    this.searchQuery.set((e.target as HTMLInputElement).value);
-    this.focusedIndex.set(-1);
-  }
-
+  // Keyboard navigation
   onKeydown(e: KeyboardEvent): void {
     if (!this.isOpen()) {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
         e.preventDefault();
-        this.toggleOpen();
+        this.setOpen(true);
       }
       return;
     }
 
-    const selectable = this.selectableOptions;
+    const selectable = this.filteredOptions.filter(o => !o.disabled);
     if (e.key === 'Escape') {
       e.preventDefault();
       this.close();
       this.triggerBtnRef?.nativeElement.focus();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!selectable.length) return;
-      this.focusedIndex.update(i => (i + 1) % selectable.length);
+      if (selectable.length === 0) return;
+      this.focusedIndex = (this.focusedIndex + 1) % selectable.length;
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (!selectable.length) return;
-      this.focusedIndex.update(i => (i - 1 + selectable.length) % selectable.length);
+      if (selectable.length === 0) return;
+      this.focusedIndex = (this.focusedIndex - 1 + selectable.length) % selectable.length;
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const idx = this.focusedIndex();
-      if (idx >= 0 && idx < selectable.length) this.selectOption(selectable[idx]);
-    }
-  }
-
-  badgeClass(color?: SelectBadgeColor): string {
-    switch (color) {
-      case 'emerald': return 'badge-emerald';
-      case 'amber': return 'badge-amber';
-      case 'purple': return 'badge-purple';
-      case 'slate': return 'badge-slate';
-      case 'blue':
-      default: return 'badge-blue';
+      if (this.focusedIndex >= 0 && this.focusedIndex < selectable.length) {
+        this.selectOption(selectable[this.focusedIndex]);
+      }
     }
   }
 }

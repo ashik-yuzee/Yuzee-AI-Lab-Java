@@ -1,61 +1,90 @@
-<div class="modal-backdrop" (click)="closed.emit()">
-  <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-
-    <!-- Header -->
-    <div class="modal-header d-flex align-items-center justify-content-between px-4 py-3">
-      <div>
-        <h5 class="mb-0 fw-semibold">Career Context Capsule</h5>
-        <p class="text-muted small mb-0">Structured career parameters — only populated fields are sent to the model</p>
-      </div>
-      <button class="btn btn-sm btn-outline-secondary" (click)="closed.emit()" aria-label="Close">✕</button>
-    </div>
-
-    <!-- Token cost pill -->
-    <div class="token-pill px-4 py-2 d-flex align-items-center justify-content-between small">
-      <span>Capsule token footprint: <strong>~{{ estimatedTokens() }} tokens</strong></span>
-      <span class="text-muted">Injected stably for cache hits</span>
-    </div>
-
-    <!-- Form -->
-    <div class="modal-body px-4 py-3">
-      <div class="row g-3">
-        @for (field of fields; track field.key) {
-          <div class="col-12" [class.col-sm-6]="!field.textarea">
-            <label class="form-label small fw-semibold">{{ field.label }}</label>
-            @if (field.textarea) {
-              <textarea
-                class="form-control"
-                rows="2"
-                [placeholder]="field.placeholder"
-                [(ngModel)]="form[field.key]"
-                (ngModelChange)="onFieldChange()"
-              ></textarea>
-            } @else {
-              <input
-                type="text"
-                class="form-control"
-                [placeholder]="field.placeholder"
-                [(ngModel)]="form[field.key]"
-                (ngModelChange)="onFieldChange()"
-              />
-            }
+@if (lab.isCareerContextOpen()) {
+  <div class="mdl-overlay">
+    <div id="career-context-modal" class="mdl-card cc-card">
+      <!-- Header -->
+      <div class="mdl-header">
+        <div class="mdl-header-left">
+          <div class="mdl-icon-box cc-icon-box">
+            <app-icon name="Briefcase" class="mdl-icon-lg" />
           </div>
-        }
-      </div>
-    </div>
+          <div>
+            <h2 class="mdl-title">Career Context Capsule</h2>
+            <p class="mdl-subtitle">Structured user career parameters (Only populated fields are sent to Gemini)</p>
+          </div>
+        </div>
 
-    <!-- Footer -->
-    <div class="modal-footer d-flex align-items-center justify-content-between px-4 py-3">
-      <button class="btn btn-link btn-sm text-danger text-decoration-none px-0" (click)="clear()">
-        Clear capsule
-      </button>
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-secondary" (click)="closed.emit()">Cancel</button>
-        <button class="btn btn-purple" [disabled]="saving()" (click)="save()">
-          {{ savedNotice() ? 'Saved ✓' : (saving() ? 'Saving…' : 'Save Capsule') }}
+        <button (click)="close()" class="mdl-close" title="Close" aria-label="Close">
+          <app-icon name="X" class="mdl-icon-lg" />
         </button>
       </div>
-    </div>
 
+      <!-- Token Cost Pill -->
+      <div class="cc-pill">
+        <span>
+          Capsule Token Footprint: <strong>~{{ estimatedTokens }} tokens</strong>
+        </span>
+        <span class="cc-pill-note">Injected stably for Gemini implicit cache hits</span>
+      </div>
+
+      <!-- Form Fields -->
+      <div class="cc-body">
+        <div class="cc-grid">
+          <div>
+            <label class="cc-label">Career Goal / Ambition</label>
+            <input type="text" [value]="form().goal" (input)="set('goal', $event)" placeholder="e.g., Transition from IT Helpdesk to SOC Analyst Tier 1" class="cc-input" />
+          </div>
+
+          <div>
+            <label class="cc-label">Target Role Title</label>
+            <input type="text" [value]="form().targetRole" (input)="set('targetRole', $event)" placeholder="e.g., Junior Security Operations Center Analyst" class="cc-input" />
+          </div>
+        </div>
+
+        <div class="cc-grid">
+          <div>
+            <label class="cc-label">Current Stage / Experience</label>
+            <input type="text" [value]="form().currentStage" (input)="set('currentStage', $event)" placeholder="e.g., 2 years desktop support, CompTIA Network+" class="cc-input" />
+          </div>
+
+          <div>
+            <label class="cc-label">Key Verified Skills</label>
+            <input type="text" [value]="form().keySkills" (input)="set('keySkills', $event)" placeholder="e.g., TCP/IP, Linux basics, Active Directory, Wireshark" class="cc-input" />
+          </div>
+        </div>
+
+        <div class="cc-grid">
+          <div>
+            <label class="cc-label">Study Timeline</label>
+            <input type="text" [value]="form().timeline" (input)="set('timeline', $event)" placeholder="e.g., 6-9 months part-time (10 hrs/week)" class="cc-input" />
+          </div>
+
+          <div>
+            <label class="cc-label">Budget / Constraints</label>
+            <input type="text" [value]="form().constraints" (input)="set('constraints', $event)" placeholder="e.g., Budget under $1,000; self-paced online only" class="cc-input" />
+          </div>
+        </div>
+
+        <div>
+          <label class="cc-label">Decisions Already Made</label>
+          <textarea rows="2" [value]="form().decisions" (input)="set('decisions', $event)" placeholder="e.g., Decided on CompTIA Security+ first before attempting CySA+" class="cc-textarea"></textarea>
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="mdl-footer cc-footer">
+        <button (click)="handleClear()" class="cc-clear">
+          <app-icon name="RotateCcw" class="cc-icon-sm" />
+          <span>Clear Capsule</span>
+        </button>
+
+        <div class="cc-actions">
+          <button (click)="close()" class="mdl-btn-outline">Cancel</button>
+          <button id="btn-save-career-capsule" (click)="handleSave()" class="cc-save">
+            <app-icon [name]="savedNotice() ? 'Check' : 'Save'" class="cc-icon-md" />
+            <span>{{ savedNotice() ? 'Saved!' : 'Save Capsule' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+}

@@ -1,10 +1,13 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /** Row-based comparison table. Ported from yuzee-ai-token-lab/src/warehouse/types.ts (WarehouseComparison)
  *  and comparison.ts (buildComparison). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class WarehouseComparison {
     private final String snippetId = "rto_course_comparison";
     private String title;
@@ -31,6 +34,8 @@ public class WarehouseComparison {
     public List<Qualification> getQualifications() { return qualifications; }
     public void setQualifications(List<Qualification> qualifications) { this.qualifications = qualifications; }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Option {
         private String id;
         private String title;
@@ -45,6 +50,8 @@ public class WarehouseComparison {
         public void setSubtitle(String subtitle) { this.subtitle = subtitle; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Row {
         private String key;
         private String label;
@@ -66,6 +73,8 @@ public class WarehouseComparison {
         public void setMeaning(String meaning) { this.meaning = meaning; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Qualification {
         private String code;
         private String evidenceId;
@@ -81,6 +90,8 @@ public class WarehouseComparison {
         public void setScope(String scope) { this.scope = scope; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Unit {
         private String code;
         private String title;

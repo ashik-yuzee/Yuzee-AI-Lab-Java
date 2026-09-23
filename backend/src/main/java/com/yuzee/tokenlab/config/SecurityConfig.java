@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
@@ -30,12 +31,24 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
-                .requestMatchers("/api/auth/login", "/api/db-status", "/actuator/**").permitAll()
+                // Same bypass as the original: /api/auth/* and /api/db-status are public.
+                .requestMatchers("/api/auth/**", "/api/db-status", "/actuator/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
+            // Original requireAuth: 401 {"error":"Unauthorized"}.
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((req, res, e) -> writeUnauthorized(res))
+                .accessDeniedHandler((req, res, e) -> writeUnauthorized(res)))
             .addFilterBefore(hmacTokenFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(rateLimitFilter, HmacTokenFilter.class);
+            // Route-level makeRateLimit runs after the global auth check, as in the original.
+            .addFilterAfter(rateLimitFilter, AuthorizationFilter.class);
         return http.build();
+    }
+
+    private static void writeUnauthorized(jakarta.servlet.http.HttpServletResponse res) throws java.io.IOException {
+        res.setStatus(401);
+        res.setContentType("application/json");
+        res.getWriter().write("{\"error\":\"Unauthorized\"}");
     }
 }

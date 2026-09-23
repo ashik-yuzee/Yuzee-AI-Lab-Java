@@ -1,135 +1,152 @@
-<div class="modal-backdrop" (click)="closed.emit()">
-  <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-
-    <!-- Header -->
-    <div class="modal-header d-flex align-items-center justify-content-between px-4 py-3">
-      <div>
-        <h5 class="mb-0 fw-semibold">User Profile</h5>
-        <p class="text-muted small mb-0">What Oala has learned about you</p>
+@if (lab.isProfileOpen()) {
+  <div class="up-overlay">
+    <div class="up-card">
+      <!-- Header -->
+      <div class="up-header">
+        <div class="up-header-left">
+          <div class="up-avatar">
+            <app-icon name="User" class="up-icon-md" />
+          </div>
+          <div>
+            <h2 class="up-title">User Profile</h2>
+            <p class="up-subtitle">What Oala has learned about you</p>
+          </div>
+        </div>
+        <button (click)="close()" class="up-close">
+          <app-icon name="X" class="up-icon-lg" />
+        </button>
       </div>
-      <button class="btn btn-sm btn-outline-secondary" (click)="closed.emit()" aria-label="Close">✕</button>
-    </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs px-3 pt-2">
-      <li class="nav-item">
-        <button class="nav-link" [class.active]="activeTab === 'profile'" (click)="activeTab = 'profile'">
+      <!-- Tabs -->
+      <div class="up-tabs">
+        <button (click)="activeTab.set('profile')" class="up-tab" [class.is-active]="activeTab() === 'profile'" [class.is-inactive]="activeTab() !== 'profile'">
           Profile
         </button>
-      </li>
-      <li class="nav-item">
-        <button class="nav-link" [class.active]="activeTab === 'contradictions'" (click)="activeTab = 'contradictions'">
-          Contradictions
-          @if (unresolvedCount() > 0) {
-            <span class="badge text-bg-danger ms-1">{{ unresolvedCount() }}</span>
-          }
+        <button (click)="activeTab.set('contradictions')" class="up-tab" [class.is-active]="activeTab() === 'contradictions'" [class.is-inactive]="activeTab() !== 'contradictions'">
+          Contradictions{{ unresolvedCount() > 0 ? ' (' + unresolvedCount() + ')' : '' }}
         </button>
-      </li>
-    </ul>
+      </div>
 
-    <div class="modal-body px-4 py-3">
-      @if (activeTab === 'profile') {
-
-        <!-- Location -->
-        <div class="mb-3">
-          <label class="form-label small fw-bold text-uppercase">📍 Your location</label>
-          <div class="d-flex gap-2">
-            <input type="text" class="form-control form-control-sm" [(ngModel)]="locationDraft"
-                   (keyup.enter)="saveLocation()" placeholder="e.g. Melbourne, Victoria" />
-            <button class="btn btn-purple btn-sm" (click)="saveLocation()">Save</button>
-          </div>
-          <p class="text-muted mt-1" style="font-size: 11px;">Injected into each message for local context.</p>
-        </div>
-
-        <!-- Detect from conversation -->
-        <button class="btn btn-outline-purple btn-sm w-100 mb-3" [disabled]="detecting()" (click)="detectFromConversation()">
-          {{ detecting() ? 'Detecting…' : '✨ Detect facts from this conversation' }}
-        </button>
-
-        <!-- Facts by category -->
-        @for (cat of categories; track cat) {
-          <div class="mb-3">
-            <label class="small fw-bold text-uppercase d-flex align-items-center gap-1">
-              <span>{{ categoryIcon[cat] }}</span>
-              {{ categoryLabel[cat] }}
-              <span class="badge text-bg-light text-muted fw-normal">{{ factsByCategory(cat).length }}</span>
+      <div class="up-body">
+        @if (activeTab() === 'profile') {
+          <!-- Location -->
+          <div class="up-section">
+            <label class="up-section-label">
+              <app-icon name="MapPin" class="up-icon-sm is-sky" />
+              Your Location
             </label>
-            @if (factsByCategory(cat).length === 0) {
-              <p class="text-muted small mb-1">None yet — learned automatically from conversations.</p>
-            }
-            @for (fact of factsByCategory(cat); track fact.id) {
-              <div class="fact-row d-flex align-items-center gap-2 p-2 mb-1">
-                @if (editingId === fact.id) {
-                  <input type="text" class="form-control form-control-sm" [(ngModel)]="editingText"
-                         (keyup.enter)="saveEdit()" (keyup.escape)="cancelEdit()" autofocus />
-                  <button class="btn btn-sm btn-outline-success" (click)="saveEdit()">✓</button>
-                } @else {
-                  <span class="dot" [class]="'dot-' + cat"></span>
-                  <span class="flex-grow-1 small">{{ fact.text }}</span>
-                  <button class="btn btn-sm btn-link text-secondary p-0 px-1" (click)="startEdit(fact)">✎</button>
-                  <button class="btn btn-sm btn-link text-danger p-0 px-1" (click)="deleteFact(fact.id)">🗑</button>
-                }
-              </div>
-            }
-          </div>
-        }
-
-        <!-- Add manually -->
-        <div class="mb-2">
-          <label class="small fw-semibold">Add manually</label>
-          <div class="d-flex gap-2">
-            <select class="form-select form-select-sm w-auto" [(ngModel)]="newCategory">
-              <option value="general">Fact</option>
-              <option value="like">Like</option>
-              <option value="dislike">Dislike</option>
-            </select>
-            <input type="text" class="form-control form-control-sm" [(ngModel)]="newFactText"
-                   (keyup.enter)="addFact()" placeholder="Add a fact, like, or dislike…" />
-            <button class="btn btn-sm btn-purple" (click)="addFact()">+</button>
-          </div>
-        </div>
-
-        @if (facts().length > 0) {
-          <button class="btn btn-link btn-sm text-danger text-decoration-none px-0" (click)="clearAllFacts()">
-            Clear all facts
-          </button>
-        }
-
-      } @else {
-
-        <!-- Contradictions tab -->
-        @if (contradictions().length === 0) {
-          <p class="text-muted small text-center py-4">No contradictions detected yet.</p>
-        } @else {
-          @if (unresolvedCount() > 0) {
-            <div class="alert alert-warning py-2 small">
-              Oala detected conflicts between what you said and stored facts. Resolve to keep your profile accurate.
+            <div class="up-row">
+              <input
+                type="text"
+                [value]="locationDraft()"
+                (input)="locationDraft.set(inputValue($event))"
+                (keydown)="$event.key === 'Enter' && saveLocation()"
+                placeholder="e.g. London, UK"
+                class="up-loc-input"
+              />
+              <button (click)="saveLocation()" class="up-loc-save">Save</button>
             </div>
-          }
-          @for (c of contradictions(); track c.id) {
-            <div class="contra-card p-2 mb-2" [class.resolved]="c.resolved">
-              <p class="text-muted mb-0" style="font-size: 11px;">Stored fact</p>
-              <p class="small mb-2">{{ factText(c.factId) }}</p>
-              <p class="text-danger mb-0" style="font-size: 11px;">You said</p>
-              <p class="small mb-2">{{ c.conflictingStatement }}</p>
-              @if (!c.resolved) {
-                <div class="d-flex gap-2">
-                  <button class="btn btn-sm btn-dark" (click)="resolveContradiction(c.id)">Mark resolved</button>
-                  <button class="btn btn-sm btn-link text-secondary text-decoration-none" (click)="dismissContradiction(c.id)">Dismiss</button>
+            <p class="up-hint">Injected into each message for local context.</p>
+          </div>
+
+          <!-- Facts grouped by category (FactList: remounted on every render, see renderKey) -->
+          @for (key of [renderKey()]; track key) {
+          @for (cat of categories; track cat) {
+            <div class="up-facts">
+              <label class="up-section-label">
+                <app-icon [name]="categoryConfig[cat].icon" class="up-icon-sm" [class]="'is-' + categoryConfig[cat].color" />
+                {{ categoryConfig[cat].label }} <span class="up-count">{{ factsByCategory(cat).length }}</span>
+              </label>
+              @if (factsByCategory(cat).length === 0) {
+                <p class="up-empty">None yet — learned automatically from conversations.</p>
+              }
+              @for (fact of factsByCategory(cat); track fact.id) {
+                <div class="up-fact group">
+                  @if (editingId() === fact.id) {
+                    <input
+                      appAutofocus
+                      [value]="editingText()"
+                      (input)="editingText.set(inputValue($event))"
+                      (keydown)="onEditKeydown($event)"
+                      class="up-edit-input"
+                    />
+                    <button (click)="saveEdit()" class="up-edit-save"><app-icon name="Check" class="up-icon-sm" /></button>
+                  } @else {
+                    <div class="up-dot" [class]="'is-' + cat"></div>
+                    <span class="up-fact-text">{{ fact.text }}</span>
+                    <button (click)="startEdit(fact)" class="up-fact-edit"><app-icon name="Pencil" class="up-icon-xs" /></button>
+                    <button (click)="deleteFact(fact.id)" class="up-fact-delete"><app-icon name="Trash2" class="up-icon-xs" /></button>
+                  }
                 </div>
-              } @else {
-                <p class="text-muted mb-0" style="font-size: 10px;">Resolved</p>
               }
             </div>
           }
-          @if (hasResolvedContradictions()) {
-            <button class="btn btn-link btn-sm text-muted text-decoration-none px-0" (click)="clearResolved()">
-              Clear resolved
-            </button>
           }
-        }
-      }
-    </div>
 
+          <!-- Add manually -->
+          <div class="up-add">
+            <label class="up-add-label">Add manually</label>
+            <div class="up-row">
+              <select [value]="newCategory()" (change)="newCategory.set($any(inputValue($event)))" class="up-add-select">
+                <option value="general">Fact</option>
+                <option value="like">Like</option>
+                <option value="dislike">Dislike</option>
+              </select>
+              <input
+                type="text"
+                [value]="newFact()"
+                (input)="newFact.set(inputValue($event))"
+                (keydown)="$event.key === 'Enter' && addFact()"
+                placeholder="Add a fact, like, or dislike…"
+                class="up-add-input"
+              />
+              <button (click)="addFact()" class="up-add-btn">
+                <app-icon name="Plus" class="up-icon-sm" />
+              </button>
+            </div>
+          </div>
+
+          @if (userProfile().length > 0) {
+            <button (click)="saveFacts([])" class="up-clear-all">Clear all facts</button>
+          }
+        } @else {
+          <!-- Contradictions tab -->
+          <div class="up-contra">
+            @if (userContradictions().length === 0) {
+              <p class="up-contra-empty">No contradictions detected yet.</p>
+            } @else {
+              @if (unresolvedCount() > 0) {
+                <div class="up-contra-alert">
+                  <app-icon name="AlertTriangle" class="up-contra-alert-icon" />
+                  <span>Oala detected conflicts between what you said and stored facts. Resolve to keep your profile accurate.</span>
+                </div>
+              }
+              @for (c of userContradictions(); track c.id) {
+                <div class="up-contra-card" [class.is-resolved]="c.resolved" [class.is-open]="!c.resolved">
+                  <div class="up-contra-block">
+                    <p class="up-contra-label">Stored fact</p>
+                    <p class="up-contra-text">{{ c.fact }}</p>
+                  </div>
+                  <div class="up-contra-block">
+                    <p class="up-contra-label is-said">You said</p>
+                    <p class="up-contra-text">{{ c.contradiction }}</p>
+                  </div>
+                  @if (!c.resolved) {
+                    <div class="up-contra-actions">
+                      <button (click)="resolveContradiction(c.id)" class="up-resolve">Mark resolved</button>
+                      <button (click)="dismissContradiction(c.id)" class="up-dismiss">Dismiss</button>
+                    </div>
+                  }
+                  @if (c.resolved) { <p class="up-resolved-note">Resolved</p> }
+                </div>
+              }
+              @if (hasResolved()) {
+                <button (click)="clearResolved()" class="up-clear-resolved">Clear resolved</button>
+              }
+            }
+          </div>
+        }
+      </div>
+    </div>
   </div>
-</div>
+}

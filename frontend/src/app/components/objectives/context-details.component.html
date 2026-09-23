@@ -1,52 +1,18 @@
-@if (hasContent()) {
+@if (details.length || corrections.length || session.pendingCorrection) {
   <details class="objective-known-details" [attr.open]="session.pendingCorrection ? '' : null">
-    <summary>Details I'm using · Edit</summary>
-
-    @if (details().length > 0) {
-      <ul>
-        @for (detail of details(); track $index) {
-          <li>{{ detail }}</li>
-        }
-      </ul>
-    }
-
-    @if (corrections().length > 0) {
-      <p>Your corrections</p>
-      <ul>
-        @for (c of corrections(); track $index) {
-          <li>{{ c.text }}</li>
-        }
-      </ul>
-    }
-
+    <summary>Details I’m using · Edit</summary>
+    @if (details.length > 0) {<ul>@for (detail of details; track $index) {<li>{{ detail }}</li>}</ul>}
+    @if (corrections.length > 0) {<p>Your corrections</p><ul>@for (c of corrections; track $index) {<li>{{ c.text }}</li>}</ul>}
     @if (session.pendingCorrection) {
-      <div role="status" class="objective-pending-correction">
-        <p>Your correction is saved. The result has not been updated yet.</p>
-        <p>{{ session.pendingCorrection.text }}</p>
-        <button type="button" [disabled]="disabled" (click)="requestRetry()">Retry updating result</button>
-      </div>
+      <div role="status"><p>Your correction is saved. The result has not been updated yet.</p><p>{{ session.pendingCorrection.text }}</p><button [disabled]="disabled" (click)="retry.emit()">Retry updating result</button></div>
     } @else if (editing) {
-      <form (ngSubmit)="submit()">
-        <label class="objective-text-answer">
-          What should I change?
-          <textarea
-            rows="3"
-            required
-            maxlength="4000"
-            [(ngModel)]="text"
-            name="correctionText"
-            placeholder="For example: I'm considering Mathematical Methods, not General Mathematics."
-          ></textarea>
-        </label>
-        <div class="objective-actions">
-          <button class="objective-primary" type="submit" [disabled]="disabled || !text.trim()">Save correction</button>
-          <button type="button" [disabled]="disabled" (click)="cancelEditing()">Cancel</button>
-        </div>
+      <form (submit)="submit($event)">
+        <label class="objective-text-answer">What should I change?<textarea #textarea rows="3" required maxlength="4000" [value]="text" (input)="input($event)" placeholder="For example: I’m considering Mathematical Methods, not General Mathematics."></textarea></label>
+        <div class="objective-actions"><button class="objective-primary" [disabled]="disabled || !text.trim()" type="submit">Save correction</button><button type="button" [disabled]="disabled" (click)="editing = false">Cancel</button></div>
       </form>
     } @else {
-      <button type="button" [disabled]="disabled" (click)="startEditing()">Edit details</button>
+      <button [disabled]="disabled" (click)="startEditing()">Edit details</button>
     }
-
     <p class="objective-muted">Corrections are saved with this conversation and used when relevant. Your earlier answers remain in its history.</p>
   </details>
 }

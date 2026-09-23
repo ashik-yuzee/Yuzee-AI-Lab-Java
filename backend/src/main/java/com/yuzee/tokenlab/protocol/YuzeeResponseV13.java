@@ -1,6 +1,8 @@
 package com.yuzee.tokenlab.protocol;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +20,7 @@ import java.util.Map;
  * on the envelope fields that do NOT vary by block type.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class YuzeeResponseV13 {
 
     private String schemaVersion = "1.3";
@@ -52,6 +55,7 @@ public class YuzeeResponseV13 {
     // ---- interaction ----
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeInteraction {
         private String kind = "none";
         private String inputType = "none";
@@ -84,6 +88,7 @@ public class YuzeeResponseV13 {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeOption {
         private String id;
         private String label;
@@ -102,6 +107,7 @@ public class YuzeeResponseV13 {
 
     /** field.id is one of goal|location|residency; input_type is text|australian_location|single_select. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeField {
         private String id;
         private String label;
@@ -122,6 +128,7 @@ public class YuzeeResponseV13 {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class RecommendedAction {
         private String id;
         private String label;
@@ -138,6 +145,7 @@ public class YuzeeResponseV13 {
     // ---- service_trigger ----
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeService {
         private boolean serviceIntentDetected;
         private String primaryRequestedService = "NONE";
@@ -164,6 +172,7 @@ public class YuzeeResponseV13 {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class ServiceAction {
         private String id;
         private String title;
@@ -189,6 +198,7 @@ public class YuzeeResponseV13 {
     // ---- rmo_readiness ----
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeRmoReadiness {
         private String readiness;
         private boolean readyToGenerate;
@@ -208,6 +218,7 @@ public class YuzeeResponseV13 {
     // ---- state ----
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeState {
         private Map<String, Object> activityContext;
         private String activeResponseMode;
@@ -234,6 +245,7 @@ public class YuzeeResponseV13 {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class UserConfidenceState {
         private int score = -1;
         private String band = "unknown";
@@ -255,6 +267,7 @@ public class YuzeeResponseV13 {
 
     /** security_breach_count/active_security_penalty are server-authoritative — see SecurityStateService. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeProgress {
         private boolean explained;
         private int failedAttempts;
@@ -277,6 +290,7 @@ public class YuzeeResponseV13 {
     // ---- followups ----
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class YuzeeFollowups {
         private boolean enabled;
         private boolean cancelOnUserMessage;
@@ -298,6 +312,7 @@ public class YuzeeResponseV13 {
 
     /** delay_seconds is one of 10|300|600 in the TS type; kept as int here. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class FollowupTrigger {
         private int delaySeconds;
         private String message;

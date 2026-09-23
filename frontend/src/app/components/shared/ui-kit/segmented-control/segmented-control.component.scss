@@ -1,74 +1,81 @@
-.segmented-control {
+:host { display: contents; }
+.seg {
   display: inline-flex;
-  padding: 3px;
-  background: rgba(228, 231, 236, 0.7);
-  border: 1px solid rgba(203, 210, 221, 0.4);
-  border-radius: 12px;
-  gap: 2px;
+  border-radius: var(--radius-xl);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: color-mix(in oklab, var(--color-zinc-300) 40%, transparent);
+  background-color: color-mix(in oklab, var(--color-zinc-200) 70%, transparent);
+  padding: var(--spacing);
+  -webkit-user-select: none;
   user-select: none;
 }
-
-.segmented-control-btn {
-  display: inline-flex;
+.seg-btn {
+  display: flex;
+  cursor: pointer;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #5b6472;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  border: none;
-  background: transparent;
-  line-height: 1.2;
-
-  &:hover {
-    color: #27364a;
-    background: rgba(255, 255, 255, 0.4);
+  gap: calc(var(--spacing) * 1.5);
+  border-radius: var(--radius-lg);
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+  transition-property: all;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: 150ms;
+  --tw-duration: 150ms;
+}
+.seg-btn.is-sm {
+  padding-inline: calc(var(--spacing) * 2.5);
+  padding-block: var(--spacing);
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+}
+.seg-btn.is-md {
+  padding-inline: calc(var(--spacing) * 3);
+  padding-block: calc(var(--spacing) * 1.5);
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+}
+.seg-btn.is-selected {
+  background-color: var(--color-white);
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-zinc-900);
+  --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.seg-btn.is-unselected {
+  color: var(--color-zinc-600);
+  @media (hover: hover) {
+    &:hover {
+      background-color: color-mix(in oklab, var(--color-white) 40%, transparent);
+      color: var(--color-zinc-900);
+    }
   }
 }
-
-// .btn-check:checked + label is the Bootstrap-provided selected-state hook; everything past
-// that is custom so the selected segment reads as a raised white pill, matching the original.
-.btn-check:checked + .segmented-control-btn {
-  background: #fff;
-  color: #1c1f26;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+.seg-icon {
+  height: calc(var(--spacing) * 3.5);
+  width: calc(var(--spacing) * 3.5);
 }
-
-.btn-check:focus-visible + .segmented-control-btn {
-  outline: 2px solid var(--accent, #7957c6);
-  outline-offset: 1px;
+.seg-icon.is-selected {
+  color: var(--color-blue-600);
 }
-
-.segmented-control-sm .segmented-control-btn {
-  padding: 4px 10px;
-  font-size: 11px;
+.seg-icon.is-unselected {
+  color: var(--color-zinc-500);
 }
-
-.segmented-control-icon {
-  font-size: 13px;
-  color: #7a8699;
-}
-
-.btn-check:checked + .segmented-control-btn .segmented-control-icon {
-  color: var(--accent, #7957c6);
-}
-
-.segmented-control-badge {
+.seg-badge {
+  border-radius: calc(infinity * 1px);
+  padding-inline: calc(var(--spacing) * 1.5);
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 400;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(203, 210, 221, 0.5);
-  color: #5b6472;
+  --tw-font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-normal);
 }
-
-.btn-check:checked + .segmented-control-btn .segmented-control-badge {
-  background: #f2edff;
-  color: #5b6472;
+.seg-badge.is-selected {
+  background-color: var(--color-zinc-100);
+  color: var(--color-zinc-600);
+}
+.seg-badge.is-unselected {
+  background-color: color-mix(in oklab, var(--color-zinc-300) 60%, transparent);
+  color: var(--color-zinc-600);
 }

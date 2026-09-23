@@ -1,201 +1,466 @@
-<aside class="pathway-whiteboard-panel" [class.is-open]="open" [style.width.px]="panelWidth()">
-  <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
+@if (isOpen()) {
+<aside #panel class="wb-panel" [style.width.px]="panelWidth()">
 
-  <div class="panel-header">
-    <div class="header-title">
-      <div class="header-icon">&#x1F5FA;&#xFE0F;</div>
-      <div>
-        <h2 class="panel-title">Career Pathway</h2>
-        <p class="panel-subtitle">{{ nodes().length }} step{{ nodes().length === 1 ? '' : 's' }}</p>
+  <!-- Resize handle -->
+  <div class="wb-resize" (mousedown)="onResizeStart($event)">
+    <div class="wb-resize-line"></div>
+  </div>
+
+  <!-- ── Left palette toolbar ── -->
+  <div class="wb-palette">
+    @for (p of palette; track p.type) {
+      <div class="wb-pal-item" draggable="true"
+        (dragstart)="onPaletteDragStart($event, p.type)"
+        (dragend)="onPaletteDragEnd()"
+        (click)="addNodeAtEnd(p.type)"
+        [title]="typeLabels[p.type] + ' — click to add, drag to place'"
+        [style.color]="nodeMeta[p.type].statusColor">
+        <app-icon class="wb-icon-3-5" [name]="p.icon" />
+        <div class="wb-pal-tip">
+          <div class="wb-pal-tip-arrow"></div>
+          <div class="wb-pal-tip-label">{{ typeLabels[p.type] }}</div>
+        </div>
+      </div>
+    }
+    <div class="wb-pal-divider"></div>
+    <div title="Drag nodes above onto the pathway" class="wb-pal-grip">
+      <app-icon class="wb-pal-grip-icon" name="GripHorizontal" />
+    </div>
+  </div>
+
+  <!-- ── Main panel ── -->
+  <div class="wb-main">
+
+    <!-- Header -->
+    <div class="wb-header">
+      <div class="wb-logo">
+        <app-icon class="wb-icon-white" name="Network" />
+      </div>
+      <span class="wb-title">Career Pathway</span>
+      @if (actionNodeCount() > 0) {
+        <span class="wb-steps-badge">{{ actionNodeCount() }} steps</span>
+      }
+      @if (wbTokens(); as t) {
+        @if (t.calls > 0) {
+          <span class="wb-tokens" [title]="'Pathway AI — ' + t.calls + ' generation' + (t.calls !== 1 ? 's' : '') + ' this session'"><span class="wb-tokens-wb">WB</span>In <strong>{{ toLocale(t.inputTokens) }}</strong>· Out <strong>{{ toLocale(t.outputTokens) }}</strong>@if (wbCost() != null) {<span class="wb-tokens-cost">{{ formatCost(wbCost()!) }}</span>}</span>
+        }
+      }
+
+      <div class="wb-actions">
+        <button class="wb-tts-btn" [class.on]="ttsEnabled()" [class.off]="!ttsEnabled()" (click)="toggleTts()">
+          @if (ttsEnabled()) { <app-icon class="wb-icon-3" name="Volume2" /> } @else { <app-icon class="wb-icon-3" name="VolumeX" /> }
+        </button>
+        <button class="wb-clear-btn" (click)="clearPathway()" [disabled]="!hasPathway() && !genError()">
+          <app-icon class="wb-icon-3" name="Trash2" />
+        </button>
+        <button class="wb-close-btn" (click)="close()">
+          <app-icon class="wb-icon-3-5" name="X" />
+        </button>
       </div>
     </div>
-    <div class="header-actions">
-      @if (ttsAvailable) {
-        <button class="btn btn-sm btn-icon" (click)="readAll()" [disabled]="!nodes().length" title="Read whole pathway aloud" aria-label="Read whole pathway aloud">&#x1F50A;</button>
-      }
-      <button class="btn btn-sm btn-icon" (click)="clearGraph()" [disabled]="!nodes().length" title="Clear pathway" aria-label="Clear pathway">&#x1F5D1;&#xFE0F;</button>
-      <button class="btn btn-sm btn-icon" (click)="close()" title="Close whiteboard" aria-label="Close whiteboard">&#x2715;</button>
-    </div>
-  </div>
 
-  <div class="generate-row">
-    <input
-      class="form-control form-control-sm goal-input"
-      type="text"
-      placeholder="Describe your career goal…"
-      [(ngModel)]="goalText"
-      (keydown.enter)="generate()"
-    />
-    <select class="form-select form-select-sm style-select" [(ngModel)]="style" title="Pathway style">
-      @for (s of styles; track s.id) {
-        <option [value]="s.id">{{ s.label }}</option>
-      }
-    </select>
-    <button class="btn btn-sm btn-generate" (click)="generate()" [disabled]="!goalText.trim() || generating()">
-      @if (generating()) { <span class="spinner"></span> Generating&hellip; } @else { &#x2728; Generate }
-    </button>
-    <button class="btn btn-sm btn-outline-accent" (click)="recommend()" [disabled]="!nodes().length || recommendLoading()">
-      @if (recommendLoading()) { <span class="spinner"></span> } @else { &#x1F4A1; Recommend next }
-    </button>
-  </div>
-
-  @if (stats(); as s) {
-    @if ((s.calls ?? 0) > 0) {
-      <div class="stats-chip">Pathway AI &middot; {{ s.calls }} generation{{ s.calls === 1 ? '' : 's' }} this session</div>
+    <!-- Error -->
+    @if (genError()) {
+      <div class="wb-error wb-fade"><app-icon class="wb-icon-3-shrink" name="AlertCircle" />{{ genError() }}</div>
     }
-  }
 
-  @if (error()) {
-    <div class="error-banner">{{ error() }}</div>
-  }
+    <!-- ── Scrollable ── -->
+    <div #scroll class="wb-scroll">
 
-  @if (recommendations().length) {
-    <div class="recommend-panel">
-      <div class="recommend-title">Suggested next steps</div>
-      @for (s of recommendations(); track trackSuggestion(s, $index)) {
-        <div class="recommend-item">
-          <div class="recommend-body">
-            <div class="recommend-label">{{ s.label }}</div>
-            @if (s.reason) { <div class="recommend-reason">{{ s.reason }}</div> }
-          </div>
-          <div class="recommend-actions">
-            <button class="btn btn-xs btn-accent" (click)="addRecommendation(s)">Add</button>
-            <button class="btn btn-xs btn-icon" (click)="dismissRecommendation(s)" aria-label="Dismiss suggestion">&#x2715;</button>
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <div class="panel-body">
-    <div class="palette-rail">
-      @for (t of paletteTypes; track t) {
-        @if (typeMetaOf(t); as meta) {
-          <div
-            class="palette-item"
-            cdkDrag
-            [cdkDragData]="t"
-            (cdkDragEnded)="onPaletteDropped(t, $event, canvas)"
-            (click)="addNode(t)"
-            [style.color]="meta.color"
-            [title]="meta.label + ' — click to add, drag onto canvas to place'"
-          >
-            <span class="palette-glyph">{{ meta.glyph }}</span>
-          </div>
-        }
-      }
-    </div>
-
-    <div class="canvas-wrap">
-      <div class="canvas" #canvas (click)="onCanvasClick()">
-        <svg class="edges-overlay">
-          @for (edge of edgePaths(); track trackEdge(edge)) {
-            @if (edge.d) {
-              <path [attr.d]="edge.d" class="edge-path" (click)="removeEdge(edge, $event)">
-                <title>Click to remove connection</title>
-              </path>
-            }
-          }
+      <!-- SVG overlay for socket connections -->
+      @if (connecting()) {
+        <svg class="wb-connect-svg">
+          <path [attr.d]="connectPath()" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6" />
+          <circle [attr.cx]="mousePos().x" [attr.cy]="mousePos().y" r="4" fill="#7c3aed" opacity="0.6" />
         </svg>
+      }
 
-        @if (!nodes().length && !generating()) {
-          <div class="canvas-empty">
-            <p>Drag a node type from the left, or describe a goal above and hit Generate.</p>
+      <!-- ── Pre-gen interview ── -->
+      @if (showPreGen()) {
+        <div class="wb-pregen">
+          <!-- Intro bubble -->
+          <div class="wb-bot-row wb-in">
+            <div class="wb-avatar">
+              <app-icon class="wb-icon-white" name="Sparkles" />
+            </div>
+            <div class="wb-bubble">
+              <p class="wb-intro-text">Hi! I'll build your personalised career pathway.{{ activeQuestions().length > 0 ? ' Let me ask you ' + (activeQuestions().length > 2 ? 'a few' : 'a couple of') + ' quick questions first. 👋' : ' I found enough from our chat — choose a style below! 🎯' }}</p>
+            </div>
           </div>
-        }
 
-        @for (node of nodes(); track trackNode(node)) {
-          <div
-            class="node-card"
-            cdkDrag
-            (cdkDragMoved)="onNodeDragMoved(node.id, $event)"
-            (cdkDragEnded)="onNodeDragEnded(node.id, $event)"
-            [style.left.px]="positions()[node.id]?.x ?? 0"
-            [style.top.px]="positions()[node.id]?.y ?? 0"
-            [class.selected]="selectedNodeId() === node.id"
-            (click)="selectNode(node.id, $event); onSelectNodeForEdit()"
-          >
-            <button
-              class="socket socket-in"
-              [class.connect-target]="!!connectingFrom() && connectingFrom() !== node.id"
-              (click)="onSocketInClick(node.id, $event)"
-              title="Input — click after selecting an output socket to connect"
-              aria-label="Connect to this node's input"
-            ></button>
-
-            <div class="node-drag-handle" cdkDragHandle title="Drag to move">&#x22EE;&#x22EE;</div>
-
-            <div class="node-body">
-              <div class="node-badge-row">
-                <span class="node-type-badge" [style.color]="typeMetaOf(node.type).color">{{ typeMetaOf(node.type).label }}</span>
-                <button class="status-badge" [style.background]="statusColor[node.status] + '1a'" [style.color]="statusColor[node.status]" (click)="cycleStatus(node, $event)">
-                  {{ statusLabel[node.status] ?? node.status }}
-                </button>
+          <!-- Completed Q&A -->
+          @for (q of activeQuestions().slice(0, currentQ()); track q.id) {
+            <div class="wb-qa wb-in">
+              <div class="wb-bot-row">
+                <div class="wb-avatar-sm">
+                  <app-icon class="wb-avatar-sm-icon" name="Sparkles" />
+                </div>
+                <div class="wb-bubble-sm">
+                  <p class="wb-qa-q">{{ q.label }}</p>
+                </div>
               </div>
-              <div class="node-label">{{ node.label }}</div>
-              @if (node.subtitle) { <div class="node-subtitle">{{ node.subtitle }}</div> }
-              @if (node.description) { <div class="node-desc">{{ node.description }}</div> }
-              @if (ttsAvailable) {
-                <button class="node-read-btn" (click)="readNode(node, $event)" title="Read this step aloud" aria-label="Read this step aloud">&#x1F50A;</button>
+              @if (answers()[q.id]) {
+                <div class="wb-answer-row">
+                  <div class="wb-answer">
+                    <p class="wb-answer-text">{{ optionIcon(q) }} {{ answers()[q.id] }}</p>
+                  </div>
+                </div>
               }
             </div>
+          }
 
-            <button
-              class="socket socket-out"
-              [class.active]="connectingFrom() === node.id"
-              (click)="onSocketOutClick(node.id, $event)"
-              title="Output — click, then click another node's input to connect"
-              aria-label="Start a connection from this node's output"
-            ></button>
-          </div>
-        }
-      </div>
-    </div>
-  </div>
+          <!-- Active question -->
+          @if (currentQ() < activeQuestions().length) {
+            <div class="wb-active-q">
+              <div class="wb-bot-row wb-in">
+                <div class="wb-avatar">
+                  <app-icon class="wb-icon-white" name="Sparkles" />
+                </div>
+                <div class="wb-bubble-q">
+                  @if (isTyping()) {
+                    <div class="wb-dots">
+                      @for (i of [0, 1, 2]; track i) {
+                        <span class="wb-dot" [style.animation]="'wb-dot 1.2s ease-in-out ' + (i * 0.2) + 's infinite'"></span>
+                      }
+                    </div>
+                  } @else {
+                    <p class="wb-q-text">{{ typedLabel() }}<span class="wb-cursor"
+                        [style.opacity]="typedLabel() === activeQuestions()[currentQ()].label ? 0 : 1"
+                        style="animation: wb-cursor 0.8s step-end infinite"></span></p>
+                  }
+                </div>
+              </div>
 
-  @if (selectedNode(); as sel) {
-    <div class="detail-panel">
-      <div class="detail-header">
-        <span class="detail-title">{{ typeMetaOf(sel.type).label }}</span>
-        <div class="detail-actions">
-          <button class="btn btn-xs btn-danger-outline" (click)="deleteSelected()">&#x1F5D1;&#xFE0F; Delete</button>
-          <button class="btn btn-xs btn-icon" (click)="selectedNodeId.set(null)" aria-label="Close detail panel">&#x2715;</button>
+              @if (showOpts()) {
+                <div class="wb-opts wb-in">
+                  @for (opt of activeQuestions()[currentQ()].options; track opt.value; let oi = $index) {
+                    <button class="wb-opt wb-in" [style.animation-delay]="(oi * 0.05) + 's'"
+                      (click)="chooseOption(activeQuestions()[currentQ()], opt.value)">
+                      <span class="wb-opt-icon">{{ opt.icon }}</span>
+                      <span>{{ opt.value }}</span>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- All answered → style + generate -->
+          @if (allAnswered()) {
+            <div class="wb-done wb-in">
+              <div class="wb-bot-row">
+                <div class="wb-avatar">
+                  <app-icon class="wb-icon-white" name="Sparkles" />
+                </div>
+                <div class="wb-bubble-plain">
+                  <p class="wb-done-text">{{ activeQuestions().length > 0 ? 'Got it! One last thing — pick a learning style:' : 'Pick a learning style to get started:' }}</p>
+                </div>
+              </div>
+
+              <div class="wb-styles">
+                @for (s of pathwayStyles; track s.id; let si = $index) {
+                  <button class="wb-style wb-in" (click)="selectedStyle.set(selectedStyle() === s.id ? null : s.id)"
+                    [style.border-color]="selectedStyle() === s.id ? s.color : '#e2e8f0'"
+                    [style.background]="selectedStyle() === s.id ? s.color + '0e' : '#fff'"
+                    [style.animation-delay]="(si * 0.05) + 's'">
+                    <div class="wb-style-head">
+                      <div class="wb-style-name-row">
+                        <span [style.color]="s.color"><app-icon class="wb-icon-3" [name]="s.icon" /></span>
+                        <span class="wb-style-name" [style.color]="selectedStyle() === s.id ? s.color : '#334155'">{{ s.label }}</span>
+                      </div>
+                      <span class="wb-style-pop" [style.background]="s.color + '18'" [style.color]="s.color">{{ s.popularity }}%</span>
+                    </div>
+                    <p class="wb-style-desc">{{ s.description }}</p>
+                    <p class="wb-style-dur"><app-icon class="wb-icon-2" name="Clock" />{{ s.duration }}</p>
+                  </button>
+                }
+              </div>
+
+              <div class="wb-gen-wrap">
+                @if (!hasChat()) {
+                  <p class="wb-nochat">Have a conversation about your goal first, then generate.</p>
+                }
+                <button class="wb-gen-btn" (click)="hasChat() && handleGenerate()" [disabled]="!hasChat()"
+                  [style.background]="selectedStyleMeta()?.color ?? '#7c3aed'">
+                  <app-icon class="wb-icon-3-5" name="Sparkles" />
+                  {{ selectedStyleMeta() ? 'Generate ' + selectedStyleMeta()!.label + ' Pathway' : 'Generate My Pathway' }}
+                </button>
+                @if (answeredCount() > 0) {
+                  <p class="wb-gen-note">{{ answeredCount() }} profile answer{{ answeredCount() > 1 ? 's' : '' }} will personalise your pathway</p>
+                }
+              </div>
+            </div>
+          }
         </div>
-      </div>
+      }
 
-      <div class="detail-body">
-        <label class="field-label">Label</label>
-        <input class="form-control form-control-sm" type="text" [(ngModel)]="editLabel" (ngModelChange)="onEditChange()" />
+      <!-- ── Generation loading ── -->
+      @if (isBusy()) {
+        <div class="wb-loading">
+          <div class="wb-loading-card">
+            <div class="wb-loading-inner">
+              <div class="wb-loading-head">
+                <div class="wb-loading-badge">
+                  @if (fetching()) { <app-icon class="wb-loading-spin-icon wb-spin" name="Loader2" /> } @else { <app-icon class="wb-loading-spark-icon" name="Sparkles" /> }
+                </div>
+                <div>
+                  <div class="wb-loading-title">{{ fetching() ? 'Building your pathway…' : 'Streaming cards…' }}</div>
+                  <div class="wb-loading-sub">Gemini 3.7 Flash · {{ selectedStyle() ?? 'structured' }}</div>
+                </div>
+              </div>
+              <div class="wb-steps">
+                @for (step of genSteps; track $index; let i = $index) {
+                  <div class="wb-step" [class.dim]="i > loadingStep() && !streaming()" [class.lit]="!(i > loadingStep() && !streaming())">
+                    <div class="wb-step-mark">
+                      @if (i < loadingStep()) { <app-icon class="wb-step-done-icon" name="CheckCircle" /> }
+                      @if (i === loadingStep() && fetching()) { <app-icon class="wb-step-active-icon wb-spin" name="Loader2" /> }
+                      @if (!(i < loadingStep()) && !(i === loadingStep() && fetching())) { <div class="wb-step-pip"></div> }
+                    </div>
+                    <span class="wb-step-label"
+                      [class.done]="i < loadingStep()"
+                      [class.active]="!(i < loadingStep()) && i === loadingStep() && fetching()"
+                      [class.idle]="!(i < loadingStep()) && !(i === loadingStep() && fetching())">{{ step }}</span>
+                  </div>
+                }
+              </div>
+              @if (streaming()) {
+                <div class="wb-progress">
+                  <div class="wb-progress-bar" [style.width.%]="genProgress()"></div>
+                </div>
+                <div class="wb-stream-count">{{ streamCount() }} cards</div>
+              }
+            </div>
+          </div>
+          @if (nodes().length > 0) {
+            <div class="wb-stream-cards">
+              @for (n of lastFourNodes(); track n.id) {
+                <div><ng-container *ngTemplateOutlet="cardTpl; context: { $implicit: n }" /></div>
+              }
+            </div>
+          }
+        </div>
+      }
 
-        <label class="field-label">Description</label>
-        <textarea class="form-control form-control-sm" rows="2" [(ngModel)]="editDesc" (ngModelChange)="onEditChange()" placeholder="Add notes, resources, or details…"></textarea>
+      <!-- ── Pathway cards ── -->
+      @if (hasPathway() && !isBusy()) {
+        <div class="wb-path">
+          <ng-container *ngTemplateOutlet="dropZoneTpl; context: { $implicit: 0 }" />
+          @for (node of nodes(); track node.id; let idx = $index) {
+            <ng-container *ngTemplateOutlet="cardTpl; context: { $implicit: node }" />
+            @if (idx < nodes().length - 1) {
+              <div class="wb-connector">
+                <div class="wb-conn-line-3"></div>
+                <ng-container *ngTemplateOutlet="dropZoneTpl; context: { $implicit: idx + 1 }" />
+                <div class="wb-conn-line-1"></div>
+              </div>
+            }
+          }
+          <ng-container *ngTemplateOutlet="dropZoneTpl; context: { $implicit: nodes().length }" />
 
-        @if (sel.prerequisites?.length) {
-          <label class="field-label">Prerequisites</label>
-          <div class="prereq-tags">
-            @for (p of sel.prerequisites; track p) {
-              <span class="prereq-tag">{{ p }}</span>
+          @if (hasChat()) {
+            <button class="wb-regen" (click)="handleGenerate()"><app-icon class="wb-icon-3" name="Sparkles" />Regenerate Pathway</button>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- ── Detail panel (selected node) — overlays pathway from bottom ── -->
+    @if (selectedNode(); as sn) {
+      <div class="wb-detail wb-fade">
+        <div class="wb-detail-head">
+          <div class="wb-detail-type">
+            <div class="wb-detail-dot" [style.background]="nodeMeta[sn.type].statusColor"></div>
+            <span class="wb-detail-type-label">{{ typeLabels[sn.type] }}</span>
+          </div>
+          <div class="wb-detail-actions">
+            <button class="wb-detail-delete" (click)="deleteSelected()"><app-icon class="wb-icon-2-5" name="Trash2" />Delete</button>
+            <button class="wb-detail-close" (click)="setSelected(null)">
+              <app-icon class="wb-icon-3" name="X" />
+            </button>
+          </div>
+        </div>
+
+        <div class="wb-detail-body">
+          <!-- Label -->
+          <div>
+            <label class="wb-field-label">Label</label>
+            <input class="wb-input-label" [(ngModel)]="editLabel" (ngModelChange)="onEditChange()" />
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="wb-field-label">Description</label>
+            <textarea class="wb-input-desc" [(ngModel)]="editDesc" (ngModelChange)="onEditChange()" rows="2"
+              placeholder="Add notes, resources, or details…"></textarea>
+          </div>
+
+          <!-- Prerequisites (auto-filled, read-only) -->
+          @if (sn.prerequisites?.length) {
+            <div>
+              <label class="wb-field-label-flex"><app-icon class="wb-icon-2" name="Tag" />Prerequisites (auto-filled)</label>
+              <div class="wb-prereq-tags">
+                @for (p of sn.prerequisites; track $index) {
+                  <span class="wb-prereq">{{ p }}</span>
+                }
+              </div>
+            </div>
+          }
+
+          <!-- Ask about this step -->
+          <div>
+            <label class="wb-field-label-flex"><app-icon class="wb-icon-2" name="MessageSquare" />Ask about this step</label>
+            <div class="wb-ask-row">
+              <input class="wb-ask-input" [(ngModel)]="nodeQuestion" (keydown)="onAskKeyDown($event)"
+                placeholder="e.g. How long does this take? Best free resources?" />
+              <button class="wb-ask-btn" (click)="askNodeQuestion()" [disabled]="!nodeQuestion.trim() || nodeAnswering()">
+                @if (nodeAnswering()) { <app-icon class="wb-icon-3 wb-spin" name="Loader2" /> } @else { <app-icon class="wb-icon-3" name="CornerDownRight" /> }
+              </button>
+            </div>
+            @if (nodeAnswering()) {
+              <p class="wb-thinking"><app-icon class="wb-icon-2-5 wb-spin" name="Loader2" />Thinking…</p>
+            }
+            @if (nodeAnswer()) {
+              <div class="wb-answer-box">
+                <p class="wb-answer-box-text">{{ nodeAnswer() }}</p>
+              </div>
             }
           </div>
-        }
-
-        <label class="field-label">Ask about this step</label>
-        <div class="explain-row">
-          <input
-            class="form-control form-control-sm"
-            type="text"
-            placeholder="e.g. How long does this take?"
-            [(ngModel)]="explainQuestion"
-            (keydown.enter)="askExplain()"
-          />
-          <button class="btn btn-sm btn-accent" (click)="askExplain()" [disabled]="!explainQuestion.trim() || explainLoading()">
-            @if (explainLoading()) { <span class="spinner"></span> } @else { Ask }
-          </button>
         </div>
-        @if (explainAnswer()) {
-          <div class="explain-answer">{{ explainAnswer() }}</div>
-        }
       </div>
-    </div>
-  }
+    }
+  </div>
 </aside>
+}
+
+<!-- renderDropZone -->
+<ng-template #dropZoneTpl let-idx>
+  <div class="drop-zone wb-dz" [class.drop-zone-active]="dropTargetIdx() === idx" [class.idle]="dropTargetIdx() !== idx"
+    (dragover)="onDropZoneDragOver($event, idx)"
+    (dragleave)="dropTargetIdx.set(null)"
+    (drop)="onDropZoneDrop($event, idx)">@if (dropTargetIdx() === idx) {Drop here}</div>
+</ng-template>
+
+<!-- renderSocket -->
+<ng-template #sockTpl let-id let-side="side">
+  <div class="wb-socket wb-sock"
+    [class.top]="side === 'top'" [class.bottom]="side === 'bottom'"
+    [class.hov]="side === 'top' && hoveredInput() === id"
+    [class.def]="!(side === 'top' && hoveredInput() === id) && !(side === 'bottom' && connecting())"
+    [class.conn]="side === 'bottom' && !!connecting()"
+    (mousedown)="side === 'bottom' && startConnect(id, $event)"
+    (mouseenter)="onSocketEnter(id, side)"
+    (mouseleave)="hoveredInput.set(null)"
+    (mouseup)="onSocketUp(id, side)"
+    [title]="side === 'top' ? 'Input — drop connection here' : 'Output — drag to connect'"></div>
+</ng-template>
+
+<!-- renderCard -->
+<ng-template #cardTpl let-node>
+  @switch (meta(node).shape) {
+    @case ('hero') {
+      <div class="wb-node">
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'top' }" />
+        <div class="wb-hero wb-in" [class.sel]="selected() === node.id" [class.unsel]="selected() !== node.id"
+          (click)="toggleSelected(node.id)"
+          draggable="true" (dragstart)="onReorderDragStart(node.id)" (dragend)="reorderOverId.set(null)"
+          (dragover)="onReorderDragOver($event, node.id)" (drop)="onReorderDrop($event, node.id)">
+          <div class="wb-hero-inner">
+            <div class="wb-hero-kicker"><app-icon class="wb-icon-2-5" name="Target" />Career Goal</div>
+            <h1 class="wb-hero-title">{{ node.label }}</h1>
+            @if (node.description) { <p class="wb-hero-desc">{{ node.description }}</p> }
+            @if (tagsOf(node).length > 0) {
+              <div class="wb-tags">
+                @for (t of tagsOf(node); track $index) { <span class="wb-hero-tag">{{ t }}</span> }
+              </div>
+            }
+          </div>
+        </div>
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'bottom' }" />
+      </div>
+    }
+    @case ('phase') {
+      <div class="wb-node">
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'top' }" />
+        <div class="wb-phase wb-in" [class.sel]="selected() === node.id"
+          (click)="toggleSelected(node.id)"
+          draggable="true" (dragstart)="onReorderDragStart(node.id)" (dragend)="reorderOverId.set(null)"
+          (dragover)="onReorderDragOver($event, node.id)" (drop)="onReorderDrop($event, node.id)">
+          <div class="wb-phase-row">
+            <div class="wb-phase-line"></div>
+            <div class="wb-phase-pill">
+              <span class="wb-phase-num">{{ phaseNumbers().get(node.id) }}</span>
+              <span class="wb-phase-label">{{ node.label }}</span>
+            </div>
+            <div class="wb-phase-line"></div>
+          </div>
+        </div>
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'bottom' }" />
+      </div>
+    }
+    @case ('milestone') {
+      <div class="wb-node-ms">
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'top' }" />
+        <div class="wb-ms wb-in" [class.sel]="selected() === node.id" [class.unsel]="selected() !== node.id"
+          (click)="toggleSelected(node.id)"
+          draggable="true" (dragstart)="onReorderDragStart(node.id)" (dragend)="reorderOverId.set(null)"
+          (dragover)="onReorderDragOver($event, node.id)" (drop)="onReorderDrop($event, node.id)">
+          <span class="wb-ms-diamond">◆</span>
+          <span class="wb-ms-label">{{ node.label }}</span>
+          @if (node.description) { <span class="wb-ms-desc">{{ node.description }}</span> }
+          <span class="wb-ms-diamond">◆</span>
+        </div>
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'bottom' }" />
+      </div>
+    }
+    @default {
+      <div class="wb-node">
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'top' }" />
+        <div class="wb-card wb-in"
+          [class.sel]="selected() === node.id"
+          [class.over]="selected() !== node.id && reorderOverId() === node.id"
+          [class.idle]="selected() !== node.id && reorderOverId() !== node.id"
+          (click)="toggleSelected(node.id)"
+          (dragover)="onReorderDragOver($event, node.id)"
+          (drop)="onReorderDrop($event, node.id)">
+          <div class="wb-card-inner">
+            <!-- Drag handle -->
+            <div class="wb-grip" draggable="true" (dragstart)="onReorderDragStart(node.id)" (dragend)="reorderOverId.set(null)"
+              (click)="$event.stopPropagation()">
+              <app-icon class="wb-icon-3-5" name="GripVertical" />
+            </div>
+
+            <div class="wb-card-body">
+              <!-- Badge row -->
+              <div class="wb-badge-row">
+                <div class="wb-badge">
+                  <app-icon class="wb-badge-icon" [name]="meta(node).icon" />
+                  <span class="wb-badge-label">{{ meta(node).badge }}</span>
+                </div>
+                @if (statusCycle[typeOf(node)] && statusLabels[typeOf(node)]) {
+                  <button class="wb-status" (click)="cycleStatus(node.id, $event)">
+                    <span class="wb-status-dot" [style.background]="statusDotColor(node.type)"></span>
+                    <span class="wb-status-label">{{ statusLabels[typeOf(node)] }}</span>
+                  </button>
+                }
+              </div>
+
+              <!-- Title -->
+              <p class="wb-card-title">{{ node.label }}</p>
+
+              <!-- Description -->
+              @if (node.description) { <p class="wb-card-desc">{{ node.description }}</p> }
+
+              <!-- Tags -->
+              @if (tagsOf(node).length > 0) {
+                <div class="wb-tags">
+                  @for (t of tagsOf(node); track $index) { <span class="wb-card-tag">{{ t }}</span> }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+        <ng-container *ngTemplateOutlet="sockTpl; context: { $implicit: node.id, side: 'bottom' }" />
+      </div>
+    }
+  }
+</ng-template>

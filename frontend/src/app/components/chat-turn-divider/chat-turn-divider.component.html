@@ -1,0 +1,7 @@
+<div class="chat-turn-divider" data-chat-turn-divider>
+  @if (date(); as d) {
+    <time [attr.datetime]="d.toISOString()" [attr.title]="d.toLocaleString()">{{ day() }} {{ time() }}</time>
+  } @else {
+    <span>New exchange</span>
+  }
+</div>

@@ -1,106 +1,54 @@
-<aside
-  class="mini-pathway-panel"
-  [class.is-open]="open"
-  [class.is-resizing]="resize.resizing()"
-  [style.width.px]="resize.width()"
->
-  <div
-    class="resize-handle"
-    role="separator"
-    tabindex="0"
-    aria-orientation="vertical"
-    aria-label="Resize mini pathway"
-    [attr.aria-valuemin]="320"
-    [attr.aria-valuenow]="resize.width()"
-    title="Drag left or right to resize. Use arrow keys, or double-click to reset."
-    (pointerdown)="resize.onPointerDown($event)"
-    (pointermove)="resize.onPointerMove($event)"
-    (pointerup)="resize.onPointerUp($event)"
-    (pointercancel)="resize.onPointerUp($event)"
-    (dblclick)="resize.reset()"
-    (keydown)="resize.onKeyDown($event)"
-  ></div>
-
-  <div class="panel-header">
-    <div class="d-flex align-items-center gap-2">
-      <div class="header-icon">&#128506;</div>
-      <div>
-        <h2 class="panel-title">Mini pathway</h2>
-        <p class="panel-subtitle">A short AI-generated career report</p>
-      </div>
-    </div>
-    <button class="btn btn-sm btn-icon" (click)="close()" title="Close mini pathway" aria-label="Close mini pathway">&#10005;</button>
-  </div>
-
-  <div class="panel-body">
-    <app-pathway-history-selector
-      [runs]="runs()"
-      [selectedId]="selectedRunId()"
-      [loading]="generating()"
-      (select)="selectRun($event)"
-    />
-
-    <section class="generate-form">
-      <label for="mp-goal">Goal or focus for this pathway</label>
-      <input
-        id="mp-goal"
-        type="text"
-        class="form-control form-control-sm"
-        placeholder="e.g. become a cybersecurity analyst"
-        [(ngModel)]="goal"
-        [disabled]="generating()"
-        (keydown.enter)="generate()"
-      />
-      @if (!generating()) {
-        <button type="button" class="btn btn-sm btn-purple mt-2" (click)="generate()" [disabled]="!conversationId">
-          Generate mini pathway
-        </button>
-      } @else {
-        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" (click)="stop()">Stop</button>
-      }
-    </section>
-
-    @if (error()) {
-      <div class="alert alert-warning py-2 px-3 mini-pathway-notice" role="alert">{{ error() }}</div>
+@if (available() && target() && !isStreaming()) {
+  <button #opener [mpPortal]="target()" type="button" class="mini-pathway-offer" [disabled]="loading()" (click)="onOfferClick()">
+    <app-icon [size]="21" name="Map" /><span><strong>{{ loading() ? 'Preparing your mini pathway…' : currentSaved() ? 'Open your mini pathway' : 'Explore a mini pathway' }}</strong><small>See possible routes, trade-offs and a practical next step.</small></span><app-icon [size]="19" name="ArrowRight" />
+  </button>
+}
+@if (historyTarget() && (runs().length > 0 || historyError() || loading())) {
+  <button [mpPortal]="historyTarget()" type="button" class="mini-pathway-saved-control" [attr.aria-label]="'Open saved pathways (' + runs().length + ')'" [attr.aria-expanded]="panelOpen()" aria-controls="mini-pathway-panel" (click)="onSavedControlClick()"><app-icon [size]="17" name="Map" /><span>Saved pathways</span><b>{{ runs().length }}</b></button>
+}
+@if (panelOpen()) {
+  <aside id="mini-pathway-panel" class="mini-pathway-panel" [class.mini-pathway-panel--expanded]="expanded()" [class.mini-pathway-panel--resizing]="drawer.resizing()"
+    [style.width.px]="expanded() ? null : drawer.width()" aria-label="Mini pathway">
+    @if (!expanded()) {
+      <div class="mini-pathway-resize-handle" role="separator" tabindex="0" aria-label="Resize mini pathway" aria-orientation="vertical"
+        [attr.aria-valuemin]="drawer.minimum()" [attr.aria-valuemax]="drawer.maximum()" [attr.aria-valuenow]="drawer.width()"
+        [attr.aria-valuetext]="drawer.width() + ' pixels wide'" aria-controls="mini-pathway-body"
+        title="Drag left or right to resize. Use arrow keys, or double-click to reset."
+        (pointerdown)="drawer.onPointerDown($event, expanded())" (pointermove)="drawer.onPointerMove($event)"
+        (pointerup)="drawer.onPointerUp($event)" (pointercancel)="drawer.onPointerCancel($event)"
+        (lostpointercapture)="drawer.onLostPointerCapture()" (keydown)="drawer.onKeyDown($event)" (dblclick)="drawer.onDoubleClick()"><span aria-hidden="true"></span></div>
     }
-
-    @if (generating()) {
-      <div class="mini-pathway-stream" aria-busy="true">
-        <div class="stream-status" role="status" aria-live="polite">
-          <span class="spinner-border spinner-border-sm text-purple" aria-hidden="true"></span>
-          <span>{{ stage() || 'Preparing your mini pathway...' }}</span>
-        </div>
-        <p class="mini-pathway-caption">
-          {{ streamBlocks().length ? 'Draft - sections may change while the full pathway is checked.' : 'Your pathway will appear here as each section arrives.' }}
-        </p>
-        @if (streamBlocks().length) {
-          <ul class="stream-block-list">
-            @for (block of streamBlocks(); track trackBlock(block, $index)) {
-              <li>{{ block.title || block.type }}</li>
+    <header><div class="mini-pathway-heading"><span class="mini-pathway-heading-icon" aria-hidden="true"><app-icon [size]="23" name="Map" /></span><div><span class="mini-pathway-kicker">YOUR POSSIBILITIES</span><h2>Mini pathway</h2></div></div><div class="mini-pathway-header-actions">
+      <button type="button" class="mini-pathway-expand" [attr.aria-label]="expanded() ? 'Restore mini pathway to side panel' : 'Expand mini pathway'" [attr.aria-expanded]="expanded()" aria-controls="mini-pathway-body" [title]="expanded() ? 'Return to the side panel (Esc)' : 'Expand across the screen'" (click)="expanded.set(!expanded())">@if (expanded()) {<app-icon [size]="18" name="Minimize2" />} @else {<app-icon [size]="18" name="Maximize2" />}<span>{{ expanded() ? 'Collapse' : 'Expand' }}</span></button>
+      <button type="button" aria-label="Close mini pathway" (click)="close()"><app-icon [size]="22" name="X" /></button>
+    </div></header>
+    <app-pathway-history-selector [runs]="runs()" [selectedId]="run()?.id" [messages]="conv()?.messages || []" [loading]="loading()" (onSelect)="chooseSaved($event)" />
+    <div id="mini-pathway-body" class="mini-pathway-body">
+      <app-pathway-colour-guide />
+      @if (historyError()) {
+        <div class="mini-pathway-notice" role="alert"><p>{{ historyError() }}</p><button type="button" (click)="retryHistory()">Reload saved pathways</button></div>
+      }
+      @if (!loading() && available() && hint() && !isStreaming() && !currentSaved() && runs().length > 0) {
+        <button type="button" class="mini-pathway-create" (click)="retry()">Create a pathway from the latest answer <app-icon [size]="15" name="ArrowRight" /></button>
+      }
+      @if (loading()) {
+        <app-mini-pathway-streaming [stage]="stage()" [blocks]="draftBlocks()" [source]="source()" (stop)="stopStreaming()" />
+      } @else {
+        @if (error()) {
+          <div role="alert" class="mini-pathway-notice"><p>{{ error() }}</p>@if (hint() && !isStreaming()) {<button type="button" (click)="retry()">Try again</button>}@if (run()) {<button type="button" (click)="error.set('')">Return to saved pathway</button>}</div>
+        } @else {
+          @if (runResponse(); as report) {
+            <p class="mini-pathway-caption">{{ stale() ? 'Saved from an earlier answer. You can keep this open while continuing your conversation.' : 'Options to explore, not a decision made for you. Continue answering in the main chat.' }}</p>
+            @if (run()!.version !== version) {
+              <div class="mini-pathway-version-note"><p>This saved pathway uses an earlier report format.</p>@if (hint() && !stale() && !isStreaming()) {<button type="button" (click)="retry()">Update this pathway</button>}</div>
             }
-          </ul>
+            <div class="mini-pathway-report"><app-protocol-renderer [response]="report" [readOnly]="true" [hideRecommendedActions]="true" [pathwayLearningCues]="true" /></div>
+            <p class="mini-pathway-caption">Generated by Gemini from this conversation. No source lookup was performed; check course details, time estimates and eligibility before relying on them.</p>
+          } @else {
+            <p class="mini-pathway-caption">Continue in the chat. You can open a mini pathway when it is relevant.</p>
+          }
         }
-        <div class="mini-pathway-skeleton" aria-hidden="true">
-          <span class="skeleton-line skeleton-title"></span>
-          <span class="skeleton-line"></span>
-          <span class="skeleton-line"></span>
-          <span class="skeleton-line skeleton-short"></span>
-        </div>
-      </div>
-    } @else if (runsLoading()) {
-      <p class="mini-pathway-caption">Loading saved pathways...</p>
-    } @else {
-      @if (selectedRun(); as run) {
-        <p class="mini-pathway-caption">Options to explore, not a decision made for you. Continue answering in the main chat.</p>
-        <app-pathway-learning-cues [text]="combinedText()" />
-        <app-pathway-colour-guide />
-        <div class="mini-pathway-report">
-          <app-protocol-renderer [response]="run.report" [readOnly]="true" [hideRecommendedActions]="true" />
-        </div>
-        <p class="mini-pathway-caption">Generated by AI from this conversation. No source lookup was performed; check course details, time estimates and eligibility before relying on them.</p>
-      } @else {
-        <p class="mini-pathway-caption">Enter a goal above and generate a mini pathway to see possible routes.</p>
       }
-    }
-  </div>
-</aside>
+    </div>
+  </aside>
+}

@@ -1,42 +1,39 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-
-export type ClarificationUiType = 'single_select' | 'multi_select' | 'ranked_select' | 'free_text';
+import { IconComponent } from '../shared/icon/icon.component';
 
 export interface ClarificationOption {
   value: string;
-  label?: string;
+  label: string;
   description?: string;
 }
 
-/** Matches POST /api/pre-check's `questions` shape: { questionId, question, options: string[] }.
- *  The optional fields below let this widget be reused for a richer question shape later
- *  (multi/ranked select, forced free text) without the backend having to change first. */
 export interface ClarificationQuestion {
-  questionId: string;
+  id: string;
+  dimension: string;
+  priority: number;
+  ui_type: 'single_select' | 'multi_select' | 'ranked_select' | 'free_text' | 'mixed';
   question: string;
-  options: (string | ClarificationOption)[];
-  uiType?: ClarificationUiType;
-  allowSelfInput?: boolean;
-  selfInputLabel?: string;
+  why_we_ask?: string;
   required?: boolean;
+  min_select?: number;
+  max_select?: number;
+  options?: ClarificationOption[];
+  allow_self_input?: boolean;
+  self_input_label?: string;
 }
 
 export interface ClarificationAnswer {
-  questionId: string;
-  answerText: string;
+  question_id: string;
+  dimension: string;
+  selected_values: string[];
+  self_input: string;
 }
 
-interface AnswerState {
-  selected: string[];
-  selfInput: string;
-}
-
+/** Port of ClarificationQuestionsCard.tsx. */
 @Component({
   selector: 'app-clarification-questions-card',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [IconComponent],
   templateUrl: './clarification-questions-card.component.html',
   styleUrl: './clarification-questions-card.component.scss'
 })
@@ -44,101 +41,64 @@ export class ClarificationQuestionsCardComponent implements OnChanges {
   @Input() questions: ClarificationQuestion[] = [];
   @Input() bridgeMessage?: string;
   @Input() disabled = false;
-  @Output() answered = new EventEmitter<ClarificationAnswer[]>();
+  /** React's `onSubmit`. */
+  @Output() submitted = new EventEmitter<ClarificationAnswer[]>();
 
-  answers: Record<string, AnswerState> = {};
+  qs: ClarificationQuestion[] = [];
+  answers: Record<string, { selected: string[]; selfInput: string }> = {};
   rankedOrders: Record<string, string[]> = {};
 
+  /** The questions are used as received (counsellor gate or /api/pre-check), like the original's useState initialisers. */
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['questions']) {
-      this.answers = {};
-      this.rankedOrders = {};
-      for (const q of this.questions) {
-        this.answers[q.questionId] = { selected: [], selfInput: '' };
-        if (this.uiTypeOf(q) === 'ranked_select') {
-          this.rankedOrders[q.questionId] = this.normalizedOptions(q).map(o => o.value);
-        }
-      }
-    }
+    if (!changes['questions']) return;
+    this.qs = Array.isArray(this.questions) ? this.questions : [];
+    this.answers = Object.fromEntries(this.qs.map(q => [q.id, { selected: [], selfInput: '' }]));
+    this.rankedOrders = Object.fromEntries(this.qs.filter(q => q.ui_type === 'ranked_select').map(q => [q.id, (q.options || []).map(o => o.value)]));
   }
 
-  uiTypeOf(q: ClarificationQuestion): ClarificationUiType {
-    return q.uiType ?? 'single_select';
-  }
-
-  allowSelfInputFor(q: ClarificationQuestion): boolean {
-    return q.allowSelfInput ?? true;
-  }
-
-  normalizedOptions(q: ClarificationQuestion): ClarificationOption[] {
-    return (q.options || []).map(o => typeof o === 'string' ? { value: o, label: o } : o);
-  }
-
-  isSelected(q: ClarificationQuestion, value: string): boolean {
-    return this.answers[q.questionId]?.selected.includes(value) ?? false;
-  }
+  uiLabel(q: ClarificationQuestion): string { return (q.ui_type ?? '').replace(/_/g, ' '); }
+  isSelected(q: ClarificationQuestion, value: string): boolean { return this.answers[q.id].selected.includes(value); }
+  option(q: ClarificationQuestion, value: string): ClarificationOption | undefined { return (q.options || []).find(o => o.value === value); }
 
   toggleSelect(q: ClarificationQuestion, value: string): void {
     if (this.disabled) return;
-    const multi = this.uiTypeOf(q) === 'multi_select';
-    const state = this.answers[q.questionId];
-    const cur = state.selected;
-    state.selected = multi
-      ? (cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value])
-      : [value];
-    state.selfInput = '';
+    const multi = q.ui_type === 'multi_select';
+    const cur = this.answers[q.id].selected;
+    const next = multi ? (cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value]) : [value];
+    this.answers = { ...this.answers, [q.id]: { ...this.answers[q.id], selected: next } };
   }
 
-  onSelfInputChange(q: ClarificationQuestion, value: string): void {
-    const state = this.answers[q.questionId];
-    state.selfInput = value;
-    if (value) state.selected = [];
+  setFreeText(q: ClarificationQuestion, value: string): void {
+    this.answers = { ...this.answers, [q.id]: { ...this.answers[q.id], selfInput: value } };
+  }
+
+  setSelfInput(q: ClarificationQuestion, value: string): void {
+    const prev = this.answers[q.id];
+    this.answers = { ...this.answers, [q.id]: { ...prev, selfInput: value, selected: value ? [] : prev.selected } };
   }
 
   moveRanked(q: ClarificationQuestion, idx: number, dir: -1 | 1): void {
-    if (this.disabled) return;
-    const arr = [...(this.rankedOrders[q.questionId] ?? [])];
+    const arr = [...(this.rankedOrders[q.id] ?? [])];
     const swapIdx = idx + dir;
     if (swapIdx < 0 || swapIdx >= arr.length) return;
     [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
-    this.rankedOrders[q.questionId] = arr;
+    this.rankedOrders = { ...this.rankedOrders, [q.id]: arr };
   }
 
-  optionLabel(q: ClarificationQuestion, value: string): string {
-    return this.normalizedOptions(q).find(o => o.value === value)?.label ?? value;
+  private hasAnswer(q: ClarificationQuestion): boolean {
+    const a = this.answers[q.id];
+    if (q.ui_type === 'free_text') return a.selfInput.trim().length > 0;
+    if (q.ui_type === 'ranked_select') return true;
+    return a.selected.length > 0 || a.selfInput.trim().length > 0;
   }
 
-  hasAnswer(q: ClarificationQuestion): boolean {
-    const state = this.answers[q.questionId];
-    if (!state) return false;
-    const ui = this.uiTypeOf(q);
-    if (ui === 'free_text') return state.selfInput.trim().length > 0;
-    if (ui === 'ranked_select') return true;
-    return state.selected.length > 0 || state.selfInput.trim().length > 0;
-  }
+  get allRequired(): boolean { return this.qs.filter(q => q.required !== false).every(q => this.hasAnswer(q)); }
 
-  get allRequiredAnswered(): boolean {
-    return this.questions.filter(q => q.required !== false).every(q => this.hasAnswer(q));
-  }
-
-  submit(): void {
-    const result: ClarificationAnswer[] = this.questions.map(q => ({
-      questionId: q.questionId,
-      answerText: this.answerTextFor(q)
+  handleSubmit(): void {
+    this.submitted.emit(this.qs.map(q => {
+      const a = this.answers[q.id];
+      const selected = q.ui_type === 'ranked_select' ? this.rankedOrders[q.id] || [] : a.selected;
+      return { question_id: q.id, dimension: q.dimension, selected_values: selected, self_input: a.selfInput };
     }));
-    this.answered.emit(result);
-  }
-
-  private answerTextFor(q: ClarificationQuestion): string {
-    const state = this.answers[q.questionId];
-    if (!state) return '';
-    const ui = this.uiTypeOf(q);
-    if (ui === 'free_text') return state.selfInput.trim();
-    if (ui === 'ranked_select') {
-      const order = this.rankedOrders[q.questionId] ?? [];
-      return order.map((v, i) => `${i + 1}. ${this.optionLabel(q, v)}`).join(', ');
-    }
-    if (state.selfInput.trim()) return state.selfInput.trim();
-    return state.selected.map(v => this.optionLabel(q, v)).join(', ');
   }
 }

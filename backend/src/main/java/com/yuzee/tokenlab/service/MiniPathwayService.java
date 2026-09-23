@@ -1,5 +1,6 @@
 package com.yuzee.tokenlab.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -7,7 +8,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yuzee.tokenlab.model.ChatMessage;
 import com.yuzee.tokenlab.model.Conversation;
 import com.yuzee.tokenlab.protocol.ProtocolValidator;
+import com.yuzee.tokenlab.repository.LocalJsonStore;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -15,32 +18,34 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Java port of miniPathway/service.ts's {@code MiniPathwayService}. Generates an AI career-route
- * mini pathway report: streams Gemini output through {@link PathwayBlockStreamParser} so the
- * caller can render each content block as it completes, validates the finished report against the
- * base Yuzee Response Protocol schema ({@link ProtocolValidator}) plus this feature's own
- * B_DELIVERY/no-interaction invariants and {@link #reviewMiniPathwayReport structural completeness
- * checks} (ported from reportReview.ts), and retries once -- regenerating with the concrete
- * validation issues fed back to Gemini -- via {@link ReviewRetryService}.
- *
- * // ponytail: the old app's stream/isCurrent cancellation plumbing (AbortSignal, isCurrent(),
- * // an in-memory "one active run per conversation" guard, and a persisted MiniPathwayRun history
- * // record) is not reproduced here -- this port's entry point is a single synchronous generate()
- * // call with no cancellation surface. Add a cancellation token if the SSE endpoint that wires
- * // this in needs to stop a run early; Conversation.miniPathways already exists for whatever
- * // history record the wiring engineer chooses to persist.
+ * Port of miniPathway/service.ts's {@code MiniPathwayService} (plus reportReview.ts and the
+ * policy.ts source/episode helpers). Runs are stored on {@code Conversation.miniPathways} in the
+ * exact MiniPathwayRun shape the original writes to data/mini-pathways.json: a {@code running} run
+ * is saved first and later marked {@code complete} or {@code error}.
  */
 @Service
 public class MiniPathwayService {
 
+    public static final String MINI_PATHWAY_VERSION = "mini-pathway-v2-report-contract";
     private static final int MAX_OUTPUT_TOKENS = 24000;
     private static final Pattern MONEY_PATTERN = Pattern.compile(
         "[$£€]\\s*\\d|\\b(?:AUD|USD|GBP|EUR)\\s*\\d|\\b\\d[\\d,.]*\\s*(?:dollars|pounds|euros)\\b",
@@ -48,32 +53,54 @@ public class MiniPathwayService {
     private static final Pattern GUARANTEE_PATTERN = Pattern.compile(
         "\\b(?:zero tuition|no tuition|zero out.of.pocket|full wage|guaranteed (?:job|employment|placement))\\b",
         Pattern.CASE_INSENSITIVE);
+    // HelpEvidence.ts concernsHelp()/outdatedHelpClaim()
+    private static final Pattern CONCERNS_HELP = Pattern.compile(
+        "\\b(?:HECS|HELP (?:loan|debt|repayment)|student loan repayment)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern OUTDATED_HELP = Pattern.compile(
+        "\\b1\\s*%\\s*(?:to|–|-)\\s*10\\s*%|(?:start|begin)s?\\s+at\\s+1\\s*%|lowest threshold tier", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HELP_CAVEAT = Pattern.compile(
+        "(?:outdated|no longer|not current|old system|previous system)", Pattern.CASE_INSENSITIVE);
     private static final Set<String> TIMELINE_OR_STEPS = Set.of("table", "steps");
     private static final Set<String> TABLE_OR_COMPARISON = Set.of("table", "comparison");
+    private static final DateTimeFormatter ISO_MILLIS =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
     private final GeminiService geminiService;
     private final ProtocolValidator protocolValidator;
-    private final ReviewRetryService reviewRetryService;
-    private final ConversationMemoryService conversationMemoryService;
+    private final PathwayPolicyService policy;
+    private final ConversationService conversations;
+    /** `new LocalConversationStore('data/mini-pathways.json')` (relative to the working directory). */
+    private final LocalJsonStore store = new LocalJsonStore(java.nio.file.Path.of("data", "mini-pathways.json"));
     private final ObjectMapper mapper = new ObjectMapper();
+    private final Set<String> active = ConcurrentHashMap.newKeySet();
 
+    private String prompt;
     private String systemInstruction;
 
+    private TokenService tokenService;
+
+    @Autowired(required = false)
+    void setTokenService(TokenService tokenService) { this.tokenService = tokenService; }
+
     public MiniPathwayService(GeminiService geminiService, ProtocolValidator protocolValidator,
-                               ReviewRetryService reviewRetryService, ConversationMemoryService conversationMemoryService) {
+                              PathwayPolicyService policy, ConversationService conversations) {
         this.geminiService = geminiService;
         this.protocolValidator = protocolValidator;
-        this.reviewRetryService = reviewRetryService;
-        this.conversationMemoryService = conversationMemoryService;
+        this.policy = policy;
+        this.conversations = conversations;
     }
 
     @PostConstruct
     void init() {
-        String prompt = readClasspathText("prompts/mini-pathway-prompt.md");
-        String overrideTemplate = readClasspathText("prompts/mini-pathway-override.md");
-        String schemaJson = readClasspathText("prompts/response-schema-v1.3.json");
-        String override = overrideTemplate.replace("__CANONICAL_SCHEMA_JSON__", schemaJson);
-        this.systemInstruction = prompt + "\n\n" + override;
+        prompt = readClasspathText("prompts/mini-pathway-prompt.md");
+        String override = readClasspathText("prompts/mini-pathway-override.md").replaceFirst("\\r?\\n$", "");
+        String schemaJson;
+        try {
+            schemaJson = mapper.readTree(readClasspathText("prompts/response-schema-v1.3.json")).toString(); // JSON.stringify(schema)
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        systemInstruction = prompt + "\n\n" + override.replace("__CANONICAL_SCHEMA_JSON__", schemaJson);
     }
 
     private static String readClasspathText(String location) {
@@ -84,150 +111,321 @@ public class MiniPathwayService {
         }
     }
 
-    /** Result of {@link #generate}: the accepted report, plus any (empty-on-success) issues noted along the way. */
-    public static class PathwayGenerationResult {
-        public JsonNode report;
-        public List<String> validationErrors = List.of();
+    // -----------------------------------------------------------------
+    // Store (service.ts list(); LocalConversationStore save())
+    // -----------------------------------------------------------------
+
+    /** service.ts list(): a running run with no active generation is reported as stopped. */
+    public List<Map<String, Object>> list(Conversation conv) {
+        return list(conv.getId());
     }
+
+    private List<Map<String, Object>> list(String id) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : store.list()) {
+            if (!id.equals(r.get("conversationId"))) continue;
+            if ("running".equals(r.get("status")) && !active.contains(id)) {
+                Map<String, Object> copy = new LinkedHashMap<>(r);
+                copy.put("status", "error");
+                copy.put("error", "The previous pathway stopped. You can try again.");
+                out.add(copy);
+            } else {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
+    /** service.ts remove(): delete every run of the conversation from data/mini-pathways.json. */
+    public void remove(String conversationId) {
+        for (Map<String, Object> r : list(conversationId)) store.delete(String.valueOf(r.get("id")));
+    }
+
+    /** this.store.save(run). */
+    private void saveRun(Map<String, Object> run) {
+        store.save(run);
+    }
+
+    private boolean isCurrent(String conversationId, String sourceId) {
+        return conversations.findById(conversationId).map(c -> {
+            List<ChatMessage> m = c.getMessages();
+            return !m.isEmpty() && sourceId.equals(m.get(m.size() - 1).getId());
+        }).orElse(false);
+    }
+
+    // -----------------------------------------------------------------
+    // policy.ts helpers that need the protocol validator
+    // -----------------------------------------------------------------
+
+    /** responsePresentation.ts acceptedResponse(): the protocol-accepted v1.3 envelope, else null. */
+    public JsonNode acceptedResponse(Object value) {
+        if (value == null) return null;
+        try {
+            String raw = value instanceof String s ? s : mapper.writeValueAsString(value);
+            if (!protocolValidator.validateProtocolResponse(raw, "1.3").isValid()) return null;
+            return mapper.readTree(raw);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private JsonNode messageResponse(ChatMessage m) {
+        return acceptedResponse(m.getParsedResponse() != null ? m.getParsedResponse() : m.getContent());
+    }
+
+    /** policy.ts currentPathwaySource(). */
+    private JsonNode currentPathwaySource(List<ChatMessage> messages, String sourceId) {
+        ChatMessage last = messages.isEmpty() ? null : messages.get(messages.size() - 1);
+        if (last == null || !sourceId.equals(last.getId()) || !"assistant".equals(last.getRole())
+            || Boolean.TRUE.equals(last.getStreamStopped()) || Boolean.TRUE.equals(last.getValidationFailed())) return null;
+        return messageResponse(last);
+    }
+
+    /** policy.ts alreadyHelpedInLowEpisode(). */
+    private boolean alreadyHelpedInLowEpisode(List<ChatMessage> messages, List<Map<String, Object>> runs) {
+        int index = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            String id = messages.get(i).getId();
+            if (runs.stream().anyMatch(r -> id.equals(r.get("sourceMessageId")))) index = i;
+        }
+        if (index < 0) return false;
+        for (ChatMessage m : messages.subList(index + 1, messages.size())) {
+            if (!"assistant".equals(m.getRole())) continue;
+            JsonNode r = messageResponse(m);
+            Integer score = PathwayPolicyService.pathwayScore(r);
+            if ((score == null ? -1 : score) >= PathwayPolicyService.MINI_PATHWAY_THRESHOLD) return false;
+            if (r != null) {
+                for (JsonNode code : r.path("state").path("user_confidence").path("reason_codes")) {
+                    if ("NEW_TOPIC_RESET".equals(code.asText())) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private String contentText(Object content) {
+        if (content == null) return "";
+        if (content instanceof String s) return s;
+        try {
+            return mapper.writeValueAsString(content);
+        } catch (IOException e) {
+            return String.valueOf(content);
+        }
+    }
+
+    /** sha256 of the prompt file, as service.ts's run.promptHash. */
+    private String promptHash() {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(prompt.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // service.ts generate()
+    // -----------------------------------------------------------------
 
     /**
-     * Generates a mini pathway report for {@code goalOrPrompt}, streaming each validated content
-     * block to {@code onBlock} as it completes. Retries once, feeding the concrete validation
-     * issues back to Gemini, before failing with {@link PathwayGenerationException}.
-     *
-     * @param conv        the conversation providing recent history for context (may be null/empty).
-     * @param goalOrPrompt the learner's career goal or question driving the report; required.
-     * @param modelId     the Gemini model id to use; falls back to {@link GeminiModelRegistry#DEFAULT_MODEL_ID}.
-     * @param onBlock     called with each validated content block as it streams in; may be null.
+     * @param aborted  set when the client disconnects or the 120s route timeout fires (AbortSignal).
+     * @param progress receives service.ts progress stages.
+     * @param draft    receives {type:'reset'} and {type:'block',block} draft events.
      */
-    public PathwayGenerationResult generate(Conversation conv, String goalOrPrompt, String modelId,
-                                             Consumer<JsonNode> onBlock) {
-        if (goalOrPrompt == null || goalOrPrompt.isBlank()) {
-            throw new IllegalArgumentException("A career goal or question is needed to generate a mini pathway.");
+    public Map<String, Object> generate(Conversation conv, Map<String, Object> request, AtomicBoolean aborted,
+                                        Consumer<String> progress, Consumer<Map<String, Object>> draft) {
+        if (request == null || !("automatic".equals(request.get("mode")) || "manual".equals(request.get("mode")))
+            || !(request.get("sourceMessageId") instanceof String sourceId)
+            || (request.containsKey("location") && !(request.get("location") instanceof String loc && loc.length() <= 150))) {
+            throw new PathwayGenerationException("Invalid mini pathway request.");
         }
-        String model = (modelId == null || modelId.isBlank()) ? GeminiModelRegistry.DEFAULT_MODEL_ID : modelId;
-        Consumer<JsonNode> safeOnBlock = onBlock != null ? onBlock : b -> { };
-
-        ObjectNode taskPayload = mapper.createObjectNode();
-        taskPayload.put("task", "Create a mini pathway report to support this learner's career goal. "
-            + "Focus on realistic routes and practical next steps, not a single definitive choice.");
-        taskPayload.put("goal", goalOrPrompt);
-        taskPayload.set("conversation", recentHistory(conv));
-
-        AtomicReference<List<String>> issuesRef = new AtomicReference<>(List.of());
-        try {
-            JsonNode report = reviewRetryService.runReview(() -> attemptOnce(model, taskPayload, issuesRef, safeOnBlock));
-            PathwayGenerationResult result = new PathwayGenerationResult();
-            result.report = report;
-            result.validationErrors = List.of();
-            return result;
-        } catch (ReviewFailure failure) {
-            List<ReviewFailureCode> codes = failure.getFailures();
-            ReviewFailureCode last = codes.isEmpty() ? ReviewFailureCode.UNKNOWN : codes.get(codes.size() - 1);
-            throw new PathwayGenerationException(ReviewRetryService.reviewFailureMessage(last), failure);
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // One generate-and-validate attempt (called once, or twice via ReviewRetryService)
-    // -----------------------------------------------------------------
-
-    private JsonNode attemptOnce(String model, JsonNode taskPayload, AtomicReference<List<String>> issuesRef,
-                                  Consumer<JsonNode> onBlock) throws Exception {
-        List<String> priorIssues = issuesRef.get();
-        ArrayNode contents = priorIssues.isEmpty() ? buildContents(taskPayload) : buildRetryContents(taskPayload, priorIssues);
-
-        ObjectNode extras = mapper.createObjectNode();
-        extras.put("maxOutputTokens", MAX_OUTPUT_TOKENS);
-        extras.put("responseMimeType", "application/json");
-
-        PathwayBlockStreamParser parser = new PathwayBlockStreamParser();
-        StringBuilder fullText = new StringBuilder();
-        List<Exception> errors = new ArrayList<>();
-        GeminiService.StreamResult[] doneHolder = new GeminiService.StreamResult[1];
-
-        geminiService.streamGenerateRich(model, systemInstruction, contents, extras, null,
-            chunk -> {
-                fullText.append(chunk);
-                for (JsonNode block : parser.push(chunk)) onBlock.accept(block);
-            },
-            r -> doneHolder[0] = r,
-            errors::add);
-
-        if (!errors.isEmpty()) {
-            throw errors.get(0);
-        }
-        GeminiService.StreamResult result = doneHolder[0];
-        if (result == null || !"STOP".equals(result.finishReason)) {
-            // Not fed back as a review issue -- an incomplete stream is not something a corrective
-            // reprompt fixes, so this fails immediately with no retry (matches service.ts).
-            throw new IllegalStateException("The mini pathway was incomplete. Please try again.");
-        }
-
-        String rawText = fullText.toString();
-        JsonNode parsed = mapper.readTree(rawText); // JsonProcessingException here is retryable (INVALID_RESPONSE)
-
-        ProtocolValidator.ValidationResult validation = protocolValidator.validateProtocolResponse(rawText, "1.3");
-        List<String> issues = new ArrayList<>();
-        if (!validation.isValid()) {
-            issues.addAll(validation.errors);
-        } else {
-            issues.addAll(validateMiniPathwayInvariants(parsed));
-            issues.addAll(reviewMiniPathwayReport(parsed));
-        }
-        if (!issues.isEmpty()) {
-            issuesRef.set(issues);
-            throw new IllegalStateException("Incomplete pathway review");
-        }
-        issuesRef.set(List.of());
-        return parsed;
-    }
-
-    private ArrayNode buildContents(JsonNode payload) {
-        ArrayNode contents = mapper.createArrayNode();
-        ObjectNode turn = mapper.createObjectNode();
-        turn.put("role", "user");
-        ArrayNode parts = mapper.createArrayNode();
-        parts.add(mapper.createObjectNode().put("text", payload.toString()));
-        turn.set("parts", parts);
-        contents.add(turn);
-        return contents;
-    }
-
-    private ArrayNode buildRetryContents(JsonNode originalPayload, List<String> issues) {
-        ObjectNode retry = mapper.createObjectNode();
-        retry.set("original_request", originalPayload);
-        ArrayNode issuesArr = retry.putArray("validation_issues");
-        for (String issue : issues) issuesArr.add(issue);
-        retry.put("task", "Regenerate the complete report, correcting every validation issue. "
-            + "Preserve the full report depth and canonical schema. Do not include another question or service action.");
-        return buildContents(retry);
-    }
-
-    /** Last 16 user/assistant turns, assistant content compacted the same way chat history is. */
-    private ArrayNode recentHistory(Conversation conv) {
-        ArrayNode arr = mapper.createArrayNode();
-        if (conv == null || conv.getMessages() == null || conv.getMessages().isEmpty()) return arr;
+        String convId = conv.getId();
         List<ChatMessage> messages = conv.getMessages();
-        int from = Math.max(0, messages.size() - 16);
-        for (ChatMessage m : messages.subList(from, messages.size())) {
-            String role = m.getRole();
-            if (!"user".equals(role) && !"assistant".equals(role)) continue;
-            String content = "assistant".equals(role)
-                ? conversationMemoryService.formatAssistantMessageForContext(m.getContent())
-                : String.valueOf(m.getContent());
-            ObjectNode entry = mapper.createObjectNode();
-            entry.put("role", role);
-            entry.put("content", content);
-            arr.add(entry);
+        JsonNode source = currentPathwaySource(messages, sourceId);
+        if (source == null) throw new PathwayGenerationException("This answer has changed. Please use the latest response.", 409);
+        String userText = "";
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if ("user".equals(messages.get(i).getRole())) { userText = contentText(messages.get(i).getContent()); break; }
         }
-        return arr;
+        List<Map<String, Object>> saved = list(conv);
+        JsonNode hint = mapper.valueToTree(request.get("hint"));
+        Map<String, Object> decision = policy.decide(source, userText, hint, alreadyHelpedInLowEpisode(messages, saved));
+        if ("none".equals(decision.get("action"))) throw new PathwayGenerationException("A mini pathway is not relevant to this response.");
+        for (Map<String, Object> r : saved) {
+            if (sourceId.equals(r.get("sourceMessageId")) && MINI_PATHWAY_VERSION.equals(r.get("version")) && "complete".equals(r.get("status"))) return r;
+        }
+        if ("automatic".equals(request.get("mode")) && !"automatic".equals(decision.get("action"))) {
+            throw new PathwayGenerationException("This pathway is optional. Choose it when you want to explore further.", 409);
+        }
+        if (active.contains(convId)) throw new PathwayGenerationException("A mini pathway is already being prepared.", 409);
+        if (!geminiService.isConfigured()) throw new PathwayGenerationException("Mini Pathway is not connected to Gemini.", 503);
+        if (aborted.get() || !isCurrent(convId, sourceId)) throw new PathwayGenerationException("This pathway was stopped.", 409);
+        if (!active.add(convId)) throw new PathwayGenerationException("A mini pathway is already being prepared.", 409);
+        String model = conv.getModelId() != null ? conv.getModelId() : GeminiModelRegistry.DEFAULT_MODEL_ID;
+        Map<String, Object> run = null;
+        Map<String, Integer> usage = new LinkedHashMap<>();
+        try {
+            // Keep complete messages; do not silently cut a user's constraints mid-sentence.
+            List<ChatMessage> turns = messages.stream().filter(m -> "user".equals(m.getRole()) || "assistant".equals(m.getRole())).toList();
+            ArrayNode history = mapper.createArrayNode();
+            for (ChatMessage m : turns.subList(Math.max(0, turns.size() - 16), turns.size())) {
+                history.addObject().put("role", m.getRole()).put("content", contentText(m.getContent()));
+            }
+            if (history.toString().length() > 90000) {
+                throw new PathwayGenerationException("There is too much detail for this mini pathway. Continue with a focused question in the chat.");
+            }
+            usage.put("inputTokens", 0);
+            usage.put("outputTokens", 0);
+            usage.put("thinkingTokens", 0);
+            run = new LinkedHashMap<>();
+            run.put("id", UUID.randomUUID().toString());
+            run.put("conversationId", convId);
+            run.put("sourceMessageId", sourceId);
+            run.put("version", MINI_PATHWAY_VERSION);
+            run.put("status", "running");
+            run.put("mode", request.get("mode"));
+            run.put("createdAt", ISO_MILLIS.format(Instant.now()));
+            run.put("model", model);
+            run.put("promptHash", promptHash());
+            run.put("decision", decision);
+            if (request.containsKey("hint")) run.put("hint", request.get("hint"));
+            run.put("usage", usage);
+            saveRun(run);
+
+            ObjectNode contents = mapper.createObjectNode();
+            contents.put("task", "Create a mini pathway to support this counselling conversation. Focus on the unresolved decision and practical options, not a definitive choice for the user.");
+            contents.set("conversation", history);
+            contents.set("source_response", source);
+            ObjectNode runtime = contents.putObject("runtime_metadata");
+            runtime.put("is_first_interaction", false);
+            runtime.putNull("pending_gate");
+            JsonNode confidence = source.path("state").path("user_confidence");
+            if (!confidence.isMissingNode()) runtime.set("prior_user_confidence", confidence);
+            runtime.put("user_entered_location", request.get("location") instanceof String l ? l : "");
+            runtime.putArray("verified_service_action_ids");
+            runtime.put("side_panel", true);
+            JsonNode mainQuestion = source.path("interaction").path("question");
+            if (!mainQuestion.isMissingNode()) runtime.set("main_question", mainQuestion);
+
+            JsonNode response = null;
+            List<String> reviewIssues = List.of();
+            for (int attempt = 0; attempt < 2; attempt++) {
+                if (aborted.get() || !isCurrent(convId, sourceId)) throw new PathwayGenerationException("This pathway was stopped.", 409);
+                progress.accept(attempt > 0 ? "Checking the pathway format" : "Exploring possible routes");
+                draft.accept(Map.of("type", "reset"));
+                String userContent = contents.toString();
+                if (attempt > 0) {
+                    ObjectNode retry = mapper.createObjectNode();
+                    retry.set("original_request", contents);
+                    ArrayNode issues = retry.putArray("validation_issues");
+                    reviewIssues.forEach(issues::add);
+                    retry.put("task", "Regenerate the complete report, correcting every validation issue. Preserve the full report depth and canonical schema. Do not include another question or service action.");
+                    userContent = retry.toString();
+                }
+                String text = stream(model, userContent, aborted, () -> isCurrent(convId, sourceId), progress, draft, usage);
+                if (aborted.get() || !isCurrent(convId, sourceId)) throw new PathwayGenerationException("This pathway was stopped.", 409);
+                progress.accept("Checking the complete pathway");
+                try {
+                    JsonNode parsed = mapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(text);
+                    if (parsed == null || parsed.isMissingNode()) throw new IOException("empty");
+                    ProtocolValidator.ValidationResult validation = protocolValidator.validateProtocolResponse(text, "1.3");
+                    if (!validation.isValid()) {
+                        reviewIssues = validation.errors;
+                    } else {
+                        if (!validateMiniPathwayInvariants(parsed).isEmpty()) throw new IllegalStateException("invalid output");
+                        response = parsed;
+                        reviewIssues = reviewMiniPathwayReport(parsed);
+                    }
+                    run.put("qualityIssues", reviewIssues);
+                    if (reviewIssues.isEmpty()) break;
+                } catch (Exception e) {
+                    reviewIssues = List.of("Return complete valid canonical JSON without questions, service actions, or unsupported outcome claims.");
+                    run.put("qualityIssues", reviewIssues);
+                }
+                if (attempt > 0) throw new PathwayGenerationException("The pathway needs more complete or better-supported detail. Please try again.", 502);
+            }
+            if (aborted.get() || !isCurrent(convId, sourceId)) throw new PathwayGenerationException("This pathway was stopped.", 409);
+            run.put("response", response);
+            run.put("status", "complete");
+            saveRun(run);
+            progress.accept("Ready");
+            return run;
+        } catch (RuntimeException error) {
+            if (run != null) {
+                run.put("status", "error");
+                run.put("error", error instanceof PathwayGenerationException ? error.getMessage()
+                    : aborted.get() ? "The mini pathway was stopped." : "We could not prepare the mini pathway. Please try again.");
+                saveRun(run);
+            }
+            throw error instanceof PathwayGenerationException p ? p
+                : new PathwayGenerationException(run != null ? (String) run.get("error") : "We could not prepare the mini pathway. Please try again.", 502);
+        } finally {
+            active.remove(convId);
+            // server.ts onUsage: appendTokenLog for any run that consumed input tokens.
+            if (run != null && tokenService != null && run.get("usage") instanceof Map<?, ?> u
+                && u.get("inputTokens") instanceof Integer in && in > 0) {
+                int out = (Integer) u.get("outputTokens") + (Integer) u.get("thinkingTokens");
+                // {ts, endpoint, model, conversationId, inputTokens, outputTokens}: conversationId before the counts
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("ts", System.currentTimeMillis());
+                entry.put("endpoint", "/api/mini-pathway");
+                entry.put("model", run.get("model"));
+                entry.put("conversationId", convId);
+                entry.put("inputTokens", in);
+                entry.put("outputTokens", out);
+                tokenService.appendTokenLog(entry);
+            }
+        }
+    }
+
+    /** One streamed Gemini attempt; returns the full text or throws a PathwayGenerationException. */
+    private String stream(String model, String userContent, AtomicBoolean aborted, java.util.function.BooleanSupplier current,
+                          Consumer<String> progress, Consumer<Map<String, Object>> draft, Map<String, Integer> usage) {
+        ArrayNode contents = mapper.createArrayNode();
+        contents.addObject().put("role", "user").putArray("parts").addObject().put("text", userContent);
+        ObjectNode extras = mapper.createObjectNode();
+        extras.put("responseMimeType", "application/json");
+        extras.put("maxOutputTokens", MAX_OUTPUT_TOKENS);
+        PathwayBlockStreamParser blocks = new PathwayBlockStreamParser();
+        StringBuilder text = new StringBuilder();
+        boolean[] received = {false}, stopped = {false};
+        List<Exception> errors = new ArrayList<>();
+        GeminiService.StreamResult[] done = new GeminiService.StreamResult[1];
+        geminiService.streamGenerateRich(model, systemInstruction, contents, extras, null, chunk -> {
+            // service.ts checks signal/isCurrent() per chunk. GeminiService swallows exceptions thrown per chunk and
+            // cannot be cancelled, so a stopped run ignores the rest of the stream and throws the same 409 after it.
+            if (stopped[0] || aborted.get()) return;
+            if (!current.getAsBoolean()) { stopped[0] = true; return; }
+            if (!received[0]) { progress.accept("Your pathway is taking shape"); received[0] = true; }
+            text.append(chunk);
+            for (JsonNode block : blocks.push(chunk)) {
+                Map<String, Object> event = new LinkedHashMap<>();
+                event.put("type", "block");
+                event.put("block", block);
+                draft.accept(event);
+            }
+        }, r -> done[0] = r, errors::add);
+        // Gemini reports cumulative usage, not the cost of each chunk.
+        if (done[0] != null) {
+            usage.merge("inputTokens", done[0].promptTokens, Integer::sum);
+            usage.merge("outputTokens", done[0].outputTokens, Integer::sum);
+            usage.merge("thinkingTokens", done[0].thinkingTokens, Integer::sum);
+        }
+        if (stopped[0] && !aborted.get()) throw new PathwayGenerationException("This pathway was stopped.", 409);
+        if (!errors.isEmpty()) {
+            if (errors.get(0) instanceof PathwayGenerationException p) throw p;
+            throw new IllegalStateException("Gemini stream failed", errors.get(0));
+        }
+        // An aborted provider stream rejects with a non-PathwayError ("The mini pathway was stopped.", 502).
+        if (aborted.get()) throw new IllegalStateException("aborted");
+        if (done[0] == null || !"STOP".equals(done[0].finishReason)) {
+            throw new PathwayGenerationException("The mini pathway was incomplete. Please try again.", 502);
+        }
+        return text.toString();
     }
 
     // -----------------------------------------------------------------
-    // validateMiniPathwayOutput's extra invariants beyond base protocol validity
-    // (ported from service.ts#validateMiniPathwayOutput, minus outdatedHelpClaim() -- that check
-    // lives in HelpEvidence.ts, which is out of scope for this port).
+    // service.ts validateMiniPathwayOutput() beyond base protocol validity. Any issue here is
+    // thrown inside generate()'s parse try-block, so it surfaces as the generic review issue.
     // -----------------------------------------------------------------
 
     static List<String> validateMiniPathwayInvariants(JsonNode response) {
@@ -241,10 +439,7 @@ public class MiniPathwayService {
                 || response.path("followups").path("enabled").asBoolean(false)
                 || response.path("followups").path("triggers").size() > 0
                 || response.path("rmo_readiness").path("ready_to_generate").asBoolean(false);
-        if (boundaryViolation) {
-            issues.add("The mini pathway must return current_mode=B_DELIVERY with interaction.kind=none and no "
-                + "active question, recommended actions, service trigger, followups or handoff-readiness flag.");
-        }
+        if (boundaryViolation) issues.add("The mini pathway included an unexpected question or action. Please try again.");
 
         boolean hasVisibleContent = false;
         for (JsonNode block : response.path("content_blocks")) {
@@ -253,15 +448,25 @@ public class MiniPathwayService {
                 break;
             }
         }
-        if (!hasVisibleContent) {
-            issues.add("The mini pathway needs another check: no content block carries visible text, items or rows.");
+        if (!hasVisibleContent || outdatedHelpClaim(response.path("content_blocks").toString())) {
+            issues.add("The mini pathway needs another check. Please try again.");
         }
         return issues;
     }
 
+    /** HelpEvidence.ts outdatedHelpClaim(). */
+    static boolean outdatedHelpClaim(String text) {
+        if (!CONCERNS_HELP.matcher(text).find()) return false;
+        Matcher m = OUTDATED_HELP.matcher(text);
+        while (m.find()) {
+            String around = text.substring(Math.max(0, m.start() - 100), Math.min(text.length(), m.end() + 50));
+            if (!HELP_CAVEAT.matcher(around).find()) return true;
+        }
+        return false;
+    }
+
     // -----------------------------------------------------------------
-    // Port of reportReview.ts#reviewMiniPathwayReport -- structural completeness + content checks.
-    // Package-private (not private) so the sanity test can exercise it directly.
+    // reportReview.ts reviewMiniPathwayReport()
     // -----------------------------------------------------------------
 
     static List<String> reviewMiniPathwayReport(JsonNode response) {

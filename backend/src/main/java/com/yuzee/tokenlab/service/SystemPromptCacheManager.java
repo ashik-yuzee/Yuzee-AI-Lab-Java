@@ -9,14 +9,13 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -31,8 +30,8 @@ import java.util.concurrent.TimeUnit;
  *
  * Behavior ported from yuzee-ai-token-lab/src/services/SystemPromptCacheManager.ts:
  *  - 1 hour TTL, refreshed proactively once less than 10 minutes remain.
- *  - Rebuilds the cache when the system instruction text changes (its hash no longer
- *    matches the cached entry); the stale remote cache is deleted in the background.
+ *  - Rebuilds the cache when the caller-supplied promptHash no longer matches the cached
+ *    entry; the stale remote cache is deleted in the background.
  *  - A model that rejects caching once (e.g. tier doesn't support it) is marked permanently
  *    failed and is never retried again for this process's lifetime.
  *  - Uses Gemini's REST context-caching endpoints ({@code POST/PATCH/DELETE
@@ -44,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class SystemPromptCacheManager {
 
+    private static final Logger log = LoggerFactory.getLogger(SystemPromptCacheManager.class);
     private static final long TTL_SECONDS = 3600L; // 1 hour
     private static final long REFRESH_BEFORE_MS = 10 * 60 * 1000L; // refresh when < 10 min left
 
@@ -85,48 +85,56 @@ public class SystemPromptCacheManager {
     private final Set<String> failed = ConcurrentHashMap.newKeySet(); // models that don't support caching on this tier
 
     /**
-     * Returns the Gemini cache resource name to pass as {@code cachedContent} on a
-     * generateContent/streamGenerateContent request, or empty when caching isn't usable for
-     * this model right now (creation/refresh is still in flight, or this model has
-     * permanently failed to cache). The caller must fall back to sending
-     * {@code systemInstructionText} inline in that case -- a caching failure must never break
-     * the actual chat request.
-     *
-     * Kicks off cache creation in the background on first call per model, and refreshes the
-     * TTL proactively in the background when close to expiry. Rebuilds automatically when
-     * {@code systemInstructionText} changes (detected via its hash).
+     * Returns the cachedContent name when ready, null otherwise (never blocks: null while the
+     * cache is being created). Kicks off background creation on first call per model.
+     * Refreshes TTL proactively when close to expiry. If the prompt hash changed (new deploy),
+     * rebuilds the cache. Returns null without a Gemini key (the original skips the lookup
+     * when there is no Gemini client).
      */
-    public Optional<String> getOrCreateCache(String modelId, String systemInstructionText) {
-        if (apiKey == null || apiKey.isBlank() || modelId == null || modelId.isBlank()
-            || systemInstructionText == null || systemInstructionText.isBlank()) {
-            return Optional.empty();
+    public String getCacheForModel(String modelId, String systemInstruction, String promptHash) {
+        if (apiKey == null || apiKey.isBlank() || modelId == null) {
+            return null;
         }
-
-        String promptHash = hash(systemInstructionText);
         CacheEntry entry = caches.get(modelId);
         if (entry != null) {
             long msRemaining = entry.expiresAt - System.currentTimeMillis();
-            boolean stale = !entry.promptHash.equals(promptHash);
+            boolean isStale = !entry.promptHash.equals(promptHash);
 
-            if (!stale && msRemaining > 0) {
+            if (!isStale && msRemaining > 0) {
                 if (msRemaining < REFRESH_BEFORE_MS && creating.add(modelId)) {
                     backgroundExecutor.submit(() -> refresh(modelId, entry.name, promptHash));
                 }
-                return Optional.of(entry.name);
+                return entry.name;
             }
-
-            // Expired or stale prompt -- remove and rebuild.
+            // Expired or stale prompt -- remove and rebuild
             caches.remove(modelId);
-            if (stale) {
-                // Prompt changed: delete the old remote cache so we don't pay storage for unused content.
+            if (isStale) {
+                // Prompt changed: delete old remote cache to avoid paying storage for unused content
                 backgroundExecutor.submit(() -> deleteCache(entry.name));
             }
         }
 
         if (!failed.contains(modelId) && creating.add(modelId)) {
-            backgroundExecutor.submit(() -> create(modelId, systemInstructionText, promptHash));
+            backgroundExecutor.submit(() -> create(modelId, systemInstruction, promptHash));
         }
-        return Optional.empty();
+        return null;
+    }
+
+    /** CacheStatus: {active:true, name, ttlMs, creating:false} or {active:false, creating}. */
+    public Map<String, Object> getStatus(String modelId) {
+        Map<String, Object> status = new LinkedHashMap<>();
+        CacheEntry entry = modelId == null ? null : caches.get(modelId);
+        long now = System.currentTimeMillis();
+        if (entry != null && entry.expiresAt > now) {
+            status.put("active", true);
+            status.put("name", entry.name);
+            status.put("ttlMs", entry.expiresAt - now);
+            status.put("creating", false);
+            return status;
+        }
+        status.put("active", false);
+        status.put("creating", modelId != null && creating.contains(modelId));
+        return status;
     }
 
     private void create(String modelId, String systemInstructionText, String promptHash) {
@@ -135,13 +143,13 @@ public class SystemPromptCacheManager {
 
             ObjectNode body = mapper.createObjectNode();
             body.put("model", geminiModel);
-            ObjectNode systemInstruction = mapper.createObjectNode();
+            ObjectNode systemInstruction = mapper.createObjectNode().put("role", "user"); // SDK tContent(string)
             ArrayNode parts = mapper.createArrayNode();
             parts.add(mapper.createObjectNode().put("text", systemInstructionText));
             systemInstruction.set("parts", parts);
             body.set("systemInstruction", systemInstruction);
             body.put("ttl", TTL_SECONDS + "s");
-            body.put("displayName", "yuzee-prompt-" + promptHash.substring(0, Math.min(16, promptHash.length())) + "-" + modelId);
+            body.put("displayName", "yuzee-prompt-v" + SystemPromptService.VERSION + "-" + modelId);
 
             Request request = new Request.Builder()
                 .url(baseUrl + "/cachedContents?key=" + apiKey)
@@ -155,10 +163,9 @@ public class SystemPromptCacheManager {
                 }
                 JsonNode result = mapper.readTree(response.body().string());
                 String name = result.path("name").asText(null);
-                if (name != null && !name.isBlank()) {
+                if (name != null && !name.isEmpty()) {
                     caches.put(modelId, new CacheEntry(name, promptHash, System.currentTimeMillis() + (TTL_SECONDS - 60) * 1000));
-                } else {
-                    failed.add(modelId);
+                    log.info("[CacheManager] Created cache {} for {}", name, modelId);
                 }
             }
         } catch (Exception e) {
@@ -203,15 +210,6 @@ public class SystemPromptCacheManager {
             }
         } catch (Exception ignored) {
             // Best-effort cleanup only.
-        }
-    }
-
-    private static String hash(String text) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception e) {
-            return Integer.toHexString(text.hashCode());
         }
     }
 }

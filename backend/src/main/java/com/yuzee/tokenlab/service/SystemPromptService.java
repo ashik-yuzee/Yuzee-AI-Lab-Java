@@ -33,22 +33,32 @@ public class SystemPromptService {
         });
     }
 
+    public static final String VERSION = "1.11";
+    public static final String FILENAME = "Yuzee_Quiz_Counsellor_Training_v" + VERSION + ".md";
+
+    /** Full hex SHA-256 of the default prompt, matching the original's requestAssembler.getPromptHash(). */
+    public String getHash() { return sha256(getPrompt()); }
+
+    public int getBytes() { return getPrompt().getBytes(StandardCharsets.UTF_8).length; }
+
     public Map<String, Object> getInfo() {
-        String text = getPrompt();
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        String hash;
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            hash = HexFormat.of().formatHex(md.digest(bytes)).substring(0, 16);
-        } catch (Exception e) {
-            hash = "unknown";
-        }
         return Map.of(
-            "version", "1.11",
-            "hash", hash,
-            "byteSize", bytes.length,
-            "label", "Yuzee Quiz Prompt v1.11"
+            "content", getPrompt(),
+            "hash", getHash(),
+            "bytes", getBytes(),
+            "filename", FILENAME,
+            "version", VERSION,
+            "filepath", "src/main/resources/prompts/system-prompt.md",
+            "label", "Yuzee Quiz Prompt v" + VERSION
         );
+    }
+
+    public static String sha256(String text) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     public void reload() {

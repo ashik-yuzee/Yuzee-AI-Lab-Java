@@ -1,53 +1,67 @@
 @if (open) {
-  <div class="modal-backdrop" (click)="close()">
-    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-          <div class="header-icon">&#8681;</div>
+  <div class="mdl-overlay">
+    <div id="export-data-modal" class="mdl-card ex-card">
+      <!-- Header -->
+      <div class="mdl-header">
+        <div class="mdl-header-left">
+          <div class="mdl-icon-box ex-icon-box">
+            <app-icon name="Download" class="mdl-icon-lg" />
+          </div>
           <div>
-            <h2 class="card-title-text mb-0">Export Experiment Telemetry</h2>
-            <p class="card-subtitle mb-0">Download token metrics for research and analysis</p>
+            <h2 class="mdl-title">Export Experiment Telemetry</h2>
+            <p class="mdl-subtitle">Download token metrics for research and analysis</p>
           </div>
         </div>
-        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">&times;</button>
+
+        <button (click)="close()" class="mdl-close" title="Close" aria-label="Close">
+          <app-icon name="X" class="mdl-icon-lg" />
+        </button>
       </div>
 
-      <div class="card-body">
-        <div class="privacy-card">
-          <div class="d-flex align-items-center justify-content-between">
-            <div class="d-flex align-items-center gap-2">
-              <span class="privacy-icon">&#128274;</span>
-              <span class="privacy-label">Research Privacy Mode</span>
+      <!-- Content Body -->
+      <div class="ex-body">
+        <!-- Privacy Toggle -->
+        <div class="ex-privacy">
+          <div class="ex-row">
+            <div class="ex-row-left">
+              <app-icon name="ShieldCheck" class="ex-shield" />
+              <span class="ex-privacy-title">Research Privacy Mode</span>
             </div>
-            <div class="form-check form-switch mb-0">
-              <input class="form-check-input" type="checkbox" role="switch" id="include-raw-text"
-                     [checked]="includeRawText()" (change)="setIncludeRawText(!includeRawText())" />
-            </div>
+            <label class="ex-switch">
+              <input type="checkbox" [checked]="includeRawText()" (change)="onToggle($event)" class="ex-switch-input peer" />
+              <div class="ex-switch-track peer"></div>
+            </label>
           </div>
-          <p class="privacy-note">
+          <p class="ex-privacy-note">
             {{ includeRawText()
               ? 'Include raw dialogue transcript text in the exported files.'
               : 'Default: Raw dialogue text is excluded from telemetry exports for safe academic/internal sharing.' }}
           </p>
         </div>
 
-        <div class="export-options">
-          <button type="button" class="export-option" (click)="downloadJson()">
-            <span class="option-icon">&#128196;</span>
-            <span class="option-title">JSON Export</span>
-            <span class="option-desc">Full telemetry objects &amp; context trees</span>
+        <!-- Export Options -->
+        <div class="ex-grid">
+          <button id="btn-export-json" (click)="downloadJson()" class="ex-option is-json group">
+            <app-icon name="FileJson" class="ex-option-icon is-json" />
+            <div>
+              <span class="ex-option-title">JSON Export</span>
+              <span class="ex-option-desc">Full telemetry objects &amp; context trees</span>
+            </div>
           </button>
 
-          <button type="button" class="export-option" (click)="downloadCsv()">
-            <span class="option-icon option-icon-csv">&#128202;</span>
-            <span class="option-title">CSV Export</span>
-            <span class="option-desc">Turn-by-turn spreadsheet rows</span>
+          <button id="btn-export-csv" (click)="downloadCsv()" class="ex-option is-csv group">
+            <app-icon name="FileSpreadsheet" class="ex-option-icon is-csv" />
+            <div>
+              <span class="ex-option-title">CSV Export</span>
+              <span class="ex-option-desc">Turn-by-turn spreadsheet rows</span>
+            </div>
           </button>
         </div>
       </div>
 
-      <div class="card-footer d-flex align-items-center justify-content-end">
-        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+      <!-- Footer -->
+      <div class="mdl-footer ex-footer">
+        <button (click)="close()" class="mdl-btn-done mdl-pointer">Done</button>
       </div>
     </div>
   </div>

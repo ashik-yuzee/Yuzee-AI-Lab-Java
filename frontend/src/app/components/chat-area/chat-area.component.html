@@ -1,111 +1,232 @@
-<div class="chat-layout d-flex h-100 overflow-hidden">
-
-  <!-- Sidebar -->
-  <app-sidebar />
-
-  <!-- Main chat -->
-  <div class="chat-main d-flex flex-column flex-1 overflow-hidden">
-
-    @if (!lab.activeConversation()) {
-      <div class="d-flex flex-column align-items-center justify-content-center h-100 text-center p-4">
-        <div class="empty-icon mb-3">💬</div>
-        <h5 class="fw-semibold text-dark">Start a conversation</h5>
-        <p class="text-muted" style="font-size:14px">Select an existing conversation or create a new one.</p>
-        <button class="btn btn-purple mt-2" (click)="newConv()">＋ New conversation</button>
+  <div id="chat-viewport" class="chat-viewport">
+    <!-- Cost warning banner -->
+    @if (lab.dailyCostWarning().level; as level) {
+      <div class="cost-banner" [class.cost-15]="level === '$15+'" [class.cost-10]="level === '$10'" [class.cost-5]="level === '$5'" [class.cost-1]="level !== '$15+' && level !== '$10' && level !== '$5'">
+        <div class="cost-banner-body">
+          <app-icon name="AlertTriangle" class="icon-3-5 shrink-0" />
+          <span><strong>Daily spend alert:</strong> {{ lab.dailyCostWarning().totalCostUsd.toFixed(4) }} USD{{ level === '$15+' ? ' — over $15 threshold' : ' (crossed ' + level + ')' }}.</span>
+        </div>
+        <button (click)="lab.dismissCostWarning()" class="cost-banner-close">✕</button>
       </div>
     }
 
-    @if (lab.activeConversation()) {
-      <!-- Messages -->
-      <div class="messages-area flex-1 overflow-auto p-4" #messagesArea>
-
-        @for (msg of lab.activeConversation()!.messages; track msg.id; let i = $index) {
-
-          @if (showDividerBefore(lab.activeConversation()!.messages, i)) {
-            <app-chat-turn-divider [createdAt]="toEpoch(msg.timestamp)" />
-          }
-
-          @if (msg.role === 'user') {
-            <div class="message d-flex justify-content-end mb-4">
-              <div class="user-bubble">{{ asString(msg.content) }}</div>
-            </div>
-          }
-
-          @if (msg.role === 'assistant') {
-            <div class="message assistant-message mb-4">
-              <div class="assistant-header d-flex align-items-center gap-2 mb-2">
-                <div class="assistant-avatar">Y</div>
-                <span class="text-muted" style="font-size:12px">Yuzee AI</span>
-                @if (tokenTotal(msg) > 0) {
-                  <span class="token-badge ms-auto">{{ tokenTotal(msg) }} tokens</span>
-                }
-              </div>
-
-              @if (msg.streaming) {
-                <div class="assistant-content card border-0 shadow-sm p-3">
-                  <pre class="stream-text">{{ msg.streamBuffer }}</pre>
-                </div>
-              }
-
-              @if (!msg.streaming && isValidProtocol(msg.parsedResponse)) {
-                <div class="assistant-content card border-0 shadow-sm p-3">
-                  <app-protocol-renderer #renderer
-                    [response]="asProtocol(msg.parsedResponse)"
-                    [conversationId]="lab.activeConversation()!.id"
-                    [readOnly]="msg.id !== lab.activeConversation()!.messages[lab.activeConversation()!.messages.length - 1].id"
-                    (interact)="onInteract($event, renderer)" />
-                </div>
-              }
-
-              @if (!msg.streaming && !isValidProtocol(msg.parsedResponse)) {
-                <div class="assistant-content card border-0 shadow-sm p-3">
-                  <div class="response-prose" [innerHTML]="renderMarkdown(asString(msg.content))"></div>
-                </div>
-              }
-
-              @if (!msg.streaming && msg.researchOffer) {
-                <app-research-details
-                  [offer]="msg.researchOffer"
-                  [conversationId]="lab.activeConversation()!.id"
-                  [parentMessageId]="msg.id"
-                  [disabled]="lab.isStreaming()"
-                  (useInPlan)="onUseResearch($event)" />
-              }
-
-              @if (!msg.streaming && msg.warehouseData) {
-                @if (msg.warehouseData.courses.length) {
-                  <app-warehouse-courses [pack]="msg.warehouseData" />
-                }
-                @if (msg.warehouseData.connected) {
-                  <app-warehouse-connections [pack]="msg.warehouseData" />
-                }
-                @if (msg.warehouseData.comparison) {
-                  <app-provider-comparison [data]="msg.warehouseData.comparison" />
-                }
-              }
-
-              @if (msg.streamStopped) {
-                <div class="text-muted mt-1" style="font-size:12px">⏹ Stream stopped</div>
-              }
-              @if (msg.validationFailed) {
-                <div class="text-warning mt-1" style="font-size:11px">⚠ Format validation failed — showing raw output</div>
-              }
-            </div>
-          }
-        }
-
-        @if (lab.isStreaming() && lab.streamPhase()) {
-          <app-chat-progress [phase]="lab.streamPhase()!" (stop)="lab.stopStream()" />
-        }
-      </div>
-
-      <!-- Composer -->
-      <div class="composer-area border-top bg-white">
-        <app-composer
-          [conversationId]="lab.activeConversation()!.id"
-          [disabled]="lab.isStreaming()"
-          (send)="onComposerSend($event)" />
+    <!-- API key notice -->
+    @if (lab.capabilities() && !lab.capabilities()!.geminiApiKeyPresent) {
+      <div class="api-key-notice">
+        <app-icon name="Info" class="icon-4 api-key-icon shrink-0" />
+        <span><strong>Preview mode.</strong> Configure <code>GEMINI_API_KEY</code> in Settings for live model execution.</span>
       </div>
     }
+
+    <!-- Messages -->
+    <div class="messages-scroll">
+      <div class="messages-inner">
+        @if (messages().length === 0) {
+          <!-- Empty state -->
+          <div class="empty-state space-y-6">
+            <div class="empty-icon">
+              <app-icon name="Sparkles" class="icon-7" />
+            </div>
+            <div class="space-y-2">
+              <h1 class="empty-title">What are you planning next?</h1>
+              <p class="empty-text">
+                Test Oala career guidance with Protocol v1.3 JSON validation and context token optimization.
+              </p>
+            </div>
+            <div class="starter-grid">
+              @for (p of starterPrompts; track $index) {
+                <button (click)="sendText(p.prompt)" class="starter-card group">
+                  <div class="starter-title">{{ p.title }}</div>
+                  <p class="starter-text">{{ p.prompt }}</p>
+                </button>
+              }
+            </div>
+          </div>
+        } @else {
+          <!-- Conversation turns — full-width reading flow -->
+          <div class="position-relative">
+            <div class="turns space-y-8">
+              @for (turn of turnGroups(); track turn.userMsg?.id || 't-' + $index) {
+                <div class="min-w-0">
+                  <app-chat-turn-divider [createdAt]="turn.userMsg?.createdAt ?? turn.assistantMsgs.at(0)?.createdAt" />
+                  <!-- Student + oala -->
+                  <div class="turn-body space-y-4">
+                    <!-- Student message -->
+                    @if (turn.userMsg; as msg) {
+                      <div [id]="'message-' + msg.id">
+                        <div class="msg-label user-label">{{ msg.objectiveTransfer ? 'Workspace update' : 'You' }}</div>
+                        <div class="user-bubble">{{ userDisplayContent(msg) }}</div>
+                      </div>
+                    }
+
+                    <!-- Assistant messages -->
+                    @for (msg of turn.assistantMsgs; track msg.id || 'a-' + $index) {
+                      @let v = view(msg);
+                      <div [id]="'message-' + msg.id" class="space-y-3">
+                        <!-- Oala label -->
+                        <div class="msg-label oala-label">Oala</div>
+
+                        <!-- Compaction banner -->
+                        @if (msg.telemetry?.compactionMetrics) {
+                          <div (click)="lab.inspectTurnTelemetry(msg.telemetry)" class="compaction-banner">
+                            <app-icon name="TrendingDown" class="icon-3-5 compaction-icon" />
+                            <span>Context compacted — older turns archived to preserve memory</span>
+                          </div>
+                        }
+
+                        @if (v.structured && v.outdatedClaim) {
+                          <aside role="note" class="outdated-note">
+                            <strong>This saved reply contains an outdated repayment rule.</strong>
+                            <p class="outdated-text">Check current official guidance before using the repayment figures.</p>
+                            <a class="underline" href="https://www.education.gov.au/higher-education-loan-program/help-students/help-indexation-and-debt-reduction" target="_blank" rel="noreferrer">Read the government update</a>
+                            @if (isLastAssistantMsg(msg.id)) {
+                              <button type="button" [disabled]="lab.isStreaming()" class="outdated-action" (click)="askHelpUpdate()">Check and explain the repayment rules</button>
+                            }
+                          </aside>
+                        }
+                        @if (v.isCounsellorGate) {
+                          <div class="gate-notice">
+                            <span class="gate-dot"></span>
+                            <span>Questions ready — see the popup above to answer them.</span>
+                          </div>
+                        } @else if (v.structured && rawJsonIds().has(msg.id)) {
+                          <pre class="raw-json">{{ msg.content }}</pre>
+                        } @else if (v.structured) {
+                          <app-protocol-renderer
+                            [data]="v.structured"
+                            [initialFields]="knownFields()"
+                            [rawJson]="msg.content"
+                            [schemaValid]="msg.schemaValid ?? true"
+                            [semanticValid]="msg.semanticValid ?? true"
+                            [validationErrors]="msg.validationErrors || []"
+                            [interactHandler]="handleInteractionEvent"
+                            [readOnly]="lab.isStreaming() || !isLastAssistantMsg(msg.id)"
+                            [conversationId]="lab.activeConversation()?.id"
+                            [hideRecommendedActions]="true"
+                            [deferQuestionToWorkspace]="deferQuestion(msg, v.structured)" />
+                        } @else if (!msg.error && !msg.streamStopped && !msg.isStreaming) {
+                          <div class="response-prose markdown-answer" [innerHTML]="v.markdownHtml"></div>
+                        }
+
+                        @if (v.structured && v.offer && !msg.isStreaming && lab.activeConversation(); as conv) {
+                          <app-research-details [offer]="v.offer" [conversationId]="conv.id" [parentMessageId]="msg.id" [disabled]="lab.isStreaming()" [onUse]="sendText" />
+                        }
+                        @if (msg.error && !msg.isStreaming) {
+                          @let cfg = errorConfig(msg.errorCode, msg.error);
+                          <div class="error-card" [class]="'tone-' + cfg.tone">
+                            <app-icon [name]="cfg.icon" class="icon-4 error-icon" />
+                            <div class="error-copy">
+                              <p class="error-title">{{ cfg.title }}</p>
+                              <p class="error-detail">{{ cfg.detail }}</p>
+                            </div>
+                            <button type="button" (click)="retryLastMessage()" [disabled]="lab.isStreaming()" class="error-retry">
+                              <app-icon name="RotateCcw" class="icon-3-5" /> Retry
+                            </button>
+                          </div>
+                        }
+
+                        @if (msg.isStreaming && !v.structured) {
+                          <app-chat-progress [phase]="msg.streamProgress?.phase" [startedAt]="msg.createdAt" (stop)="lab.stopStreaming()" />
+                        }
+                        @if (msg.streamStopped) {
+                          <div class="main-chat-stopped" role="status">Stopped. Your question is still here.<button type="button" (click)="retryLastMessage()">Try again</button></div>
+                        }
+
+                        @if (msg.telemetry?.usage?.finishReason === 'MAX_TOKENS' && !msg.isStreaming) {
+                          <div class="max-tokens-notice">
+                            <app-icon name="AlertTriangle" class="icon-3-5 max-tokens-icon" />
+                            <span>This answer reached its response limit and could not be completed. Please retry with one part of your question.</span>
+                          </div>
+                        }
+
+                        @if (!objectives.enabled() && hasSuggestions() && lastAssistant(); as last) {
+                          @if (msg.id === last.id && allowSkillReview(latestUser()?.content || '')) {
+                            <app-skill-suggestions
+                              [sourceMessageId]="last.serverMessageId || last.id"
+                              [reviewText]="reviewText()" [userText]="latestUser()?.content || ''"
+                              [completedToolId]="completedToolId()"
+                              [onChoose]="chooseSkill" />
+                          }
+                        }
+
+                        @if (objectives.enabled() && !latestUser()?.objectiveTransfer && hasSuggestions() && lastAssistant(); as last) {
+                          @if (msg.id === last.id) {
+                            <app-objective-suggestions [sourceMessageId]="last.serverMessageId || last.id" [userText]="latestUser()?.content || ''" [reviewText]="objectiveReviewText()" />
+                          }
+                        }
+                        @if (hasObjectiveHistory(msg)) {
+                          <app-objective-history [sourceMessageId]="msg.serverMessageId || msg.id" />
+                        }
+                        @if (msg.id === latestMessage()?.id && v.structured && !msg.isStreaming) {
+                          <div id="mini-pathway-offer"></div>
+                        }
+                        <!-- Telemetry footer -->
+                        @if (showTelemetry(msg) && msg.telemetry; as t) {
+                          <div class="telemetry-footer">
+                            <div class="telemetry-chips">
+                              @if (t.model) {
+                                <span class="model-chip" [class]="'chip-' + modelChipKind(t.model)">
+                                  <app-icon name="Cpu" class="icon-2-5" />
+                                  {{ modelShortName(t.model) }}
+                                </span>
+                              }
+                              @if (t.appliedThinkingLevel) {
+                                <span class="model-chip chip-thinking">
+                                  <app-icon name="Brain" class="icon-2-5" />
+                                  {{ t.appliedThinkingLevel }}
+                                </span>
+                              }
+                              @if (latencyMs(t); as ms) {
+                                <span class="latency">{{ (ms / 1000).toFixed(1) }}s</span>
+                              }
+                              <button (click)="lab.inspectTurnTelemetry(t)" class="token-chip" title="Click for full breakdown">
+                                <app-icon name="Activity" class="icon-3 shrink-0" />
+                                <!-- Mobile: compact token summary -->
+                                <span class="tokens-mobile">{{ compactTokens(t.usage.totalTokens) }} tok{{ turnCost(t) !== null ? ' · ' + formatCost(turnCost(t)!) : '' }}</span>
+                                <!-- Desktop: full breakdown -->
+                                <span class="tokens-desktop">
+                                  @if (t.usage.cachedTokens !== null && t.usage.cachedTokens > 0) {
+                                    ⚡ <strong>{{ num(t.usage.cachedTokens) }}</strong> cached · In <strong>{{ num(uncachedInput(t)) }}</strong> new
+                                  } @else {
+                                    In <strong>{{ num(t.usage.inputTokens) }}</strong>
+                                  }
+                                  · Out <strong>{{ num(t.usage.outputTokens) }}</strong>
+                                  @if (t.usage.thinkingTokens != null && t.usage.thinkingTokens > 0) { · Think <strong>{{ t.usage.thinkingTokens }}</strong>}
+                                  · <strong>{{ num(t.usage.totalTokens) }}</strong>
+                                  @if (turnCost(t) !== null) { · <span class="cost">{{ formatCost(turnCost(t)!) }}</span>}
+                                </span>
+                              </button>
+                            </div>
+                            <div class="telemetry-actions">
+                              @if (msg.structuredResponse) {
+                                <button (click)="toggleRawJson(msg.id)" class="footer-btn" [class.active]="rawJsonIds().has(msg.id)" [title]="rawJsonIds().has(msg.id) ? 'Show rendered output' : 'Show raw JSON'">
+                                  <app-icon name="Code2" class="icon-3-5" />
+                                </button>
+                              }
+                              <button (click)="speakMessage(msg.id, msg.structuredResponse || msg.content)" class="footer-btn" [class.active]="speakingId() === msg.id" [title]="speakingId() === msg.id ? 'Stop speaking' : 'Read aloud'">
+                                <app-icon [name]="speakingId() === msg.id ? 'VolumeX' : 'Volume2'" class="icon-3-5" />
+                              </button>
+                              <button (click)="copyMessage(msg.id, msg.content)" class="footer-btn" title="Copy">
+                                @if (copiedId() === msg.id) {
+                                  <app-icon name="Check" class="icon-3-5 copied-icon" />
+                                } @else {
+                                  <app-icon name="Copy" class="icon-3-5" />
+                                }
+                              </button>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+        <div #messagesEnd></div>
+      </div>
+    </div>
+
+    <app-composer [conversationId]="lab.activeConversation()?.id" [streaming]="lab.isStreaming()" [sendMessage]="composerSend" (stop)="lab.stopStreaming()" />
   </div>
-</div>

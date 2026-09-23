@@ -31,7 +31,8 @@ public class HmacTokenFilter extends OncePerRequestFilter {
 
     public String generateToken(String username, String password) {
         try {
-            String payload = username + ":" + password + ":" + authSecret;
+            // Same as the original's makeStableToken: HMAC-SHA256(AUTH_SECRET, "user:pass") hex.
+            String payload = username + ":" + password;
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(authSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));

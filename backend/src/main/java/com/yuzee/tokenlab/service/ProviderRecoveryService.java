@@ -2,83 +2,79 @@ package com.yuzee.tokenlab.service;
 
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.function.BooleanSupplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Thin retry wrapper around opening a provider stream/call, ported from
- * yuzee-ai-token-lab/src/services/ProviderRecovery.ts (openProviderStream). Retries only the
- * *opening* of a stream/request -- never anything once content may already have been
- * delivered to the client.
+ * Retry only stream creation, before any response content can be delivered.
+ * Exact port of yuzee-ai-token-lab/src/services/ProviderRecovery.ts (openProviderStream).
  *
- * Java shape note: the TS version wraps a Promise-returning {@code open()} and simply retries
- * it, because a rejected promise carries a typed {@code status}/{@code message}. GeminiService
- * in this codebase is callback-based ({@code streamGenerate(..., onChunk, onDone, onError)})
- * rather than something that returns a stream object to retry, and its errors are plain
- * {@link RuntimeException}/{@link java.io.IOException} with the HTTP status folded into the
- * message (e.g. "Gemini error 503: ..."), matching how {@code GeminiService} already reports
- * failures. So this is exposed as a generic {@link Callable}-based wrapper: pass a
- * {@code Callable} that attempts to open the stream/request and throws on failure (e.g. by
- * turning GeminiService's {@code onError} callback into a thrown exception for the duration of
- * that attempt). Call it like:
- *
- * <pre>{@code
- * providerRecoveryService.openWithRecovery(() -> {
- *     // attempt to open the stream; throw if GeminiService's onError fires before any chunk
- *     return openedStreamHandleOrNull;
- * }, () -> log.info("retrying provider stream open"));
- * }</pre>
+ * Java shape note: the TS version reads the SDK error's numeric {@code status}. Errors in this
+ * codebase carry the HTTP status in their message (e.g. "Gemini error 503: ..."), so
+ * {@link #httpStatus} extracts it from there. An AbortSignal is modelled as a
+ * {@link BooleanSupplier}; an abort is surfaced as {@link CancellationException} (AbortError).
  */
 @Service
 public class ProviderRecoveryService {
 
-    private static final int MAX_ATTEMPTS = 2;
-    private static final long RETRY_DELAY_MS = 1500L;
-
-    private static final Pattern TRANSIENT_STATUS_PATTERN = Pattern.compile("\\b(429|500|502|503|504)\\b");
+    private static final List<Integer> TRANSIENT_STATUSES = List.of(429, 500, 502, 503, 504);
     private static final Pattern DAILY_QUOTA_PATTERN =
         Pattern.compile("per.day|daily.*quota|requests_per_day|tokens_per_day", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STATUS_PATTERN =
+        Pattern.compile("(?:\\b(?:error|status|HTTP)\\s*:?\\s*|\"code\"\\s*:\\s*)(\\d{3})\\b", Pattern.CASE_INSENSITIVE);
 
-    /**
-     * Attempts {@code attemptOpen} once; on a transient failure (HTTP 429/500/502/503/504 that
-     * is not a daily-quota-exceeded error) retries exactly once more after a fixed 1.5s delay.
-     * Any other failure, or a second failure, is rethrown as-is.
-     *
-     * @param attemptOpen opens the stream/request, throwing on failure. Its return value (if
-     *                     any) is returned on success.
-     * @param onRetry      invoked (on the calling thread) right before the single retry sleep;
-     *                     use it for logging/metrics. Pass {@code () -> {}} if not needed.
-     */
-    public <T> T openWithRecovery(Callable<T> attemptOpen, Runnable onRetry) throws Exception {
-        Exception lastError = null;
-        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    public <T> T openProviderStream(Callable<T> open, BooleanSupplier aborted, Runnable onRetry) throws Exception {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            throwIfAborted(aborted);
             try {
-                return attemptOpen.call();
+                return open.call();
             } catch (Exception error) {
-                lastError = error;
-                boolean transientFailure = isTransient(error) && !isDailyQuotaExceeded(error);
-                if (attempt == MAX_ATTEMPTS - 1 || !transientFailure) {
-                    throw error;
-                }
+                if (aborted.getAsBoolean()) throw error;
+                Integer status = httpStatus(error);
+                String message = error.getMessage();
+                boolean dailyQuota = DAILY_QUOTA_PATTERN.matcher(message != null ? message : "").find();
+                boolean transientFailure = status != null && TRANSIENT_STATUSES.contains(status) && !dailyQuota;
+                if (attempt != 0 || !transientFailure) throw error;
                 onRetry.run();
-                try {
-                    Thread.sleep(RETRY_DELAY_MS);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw error;
-                }
+                waitForRetry(aborted);
             }
         }
-        throw lastError != null ? lastError : new IllegalStateException("Provider recovery exhausted");
+        throw new Exception("Provider recovery exhausted");
     }
 
-    private static boolean isTransient(Throwable error) {
-        String message = error.getMessage();
-        return message != null && TRANSIENT_STATUS_PATTERN.matcher(message).find();
+    /** Pre-existing no-abort shape kept for other callers. */
+    public <T> T openWithRecovery(Callable<T> attemptOpen, Runnable onRetry) throws Exception {
+        return openProviderStream(attemptOpen, () -> false, onRetry);
     }
 
-    private static boolean isDailyQuotaExceeded(Throwable error) {
-        String message = error.getMessage();
-        return message != null && DAILY_QUOTA_PATTERN.matcher(message).find();
+    /** The HTTP status carried by an error message ("Gemini error 503: ...", {"code":503}), or null. */
+    static Integer httpStatus(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        if (message == null) return null;
+        Matcher matcher = STATUS_PATTERN.matcher(message);
+        return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+    }
+
+    private static void throwIfAborted(BooleanSupplier aborted) {
+        if (aborted.getAsBoolean()) throw new CancellationException("This operation was aborted");
+    }
+
+    private static void waitForRetry(BooleanSupplier aborted) {
+        throwIfAborted(aborted);
+        long deadline = System.currentTimeMillis() + 1500;
+        // ponytail: 25ms abort polling stands in for the AbortSignal listener.
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(Math.min(25, Math.max(1, deadline - System.currentTimeMillis())));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new CancellationException("This operation was aborted");
+            }
+            throwIfAborted(aborted);
+        }
     }
 }

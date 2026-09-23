@@ -11,12 +11,12 @@ public class WarehouseQueryPlan {
     private List<String> occupationQueries = new ArrayList<>();
     private List<String> skillQueries = new ArrayList<>();
     private List<String> roleQueries = new ArrayList<>();
-    private List<String> roleIds = new ArrayList<>();
+    private List<String> roleIds; // null = not supplied (JS Array.isArray(plan.role_ids) is false)
     private boolean candidatePool;
     private List<String> jobQueries = new ArrayList<>();
     private List<String> industryQueries = new ArrayList<>();
     private LocationQuery location;
-    private List<String> facets = new ArrayList<>();
+    private List<String> facets; // null = not supplied: every facet applies
 
     public boolean isComparison() { return comparison; }
     public void setComparison(boolean comparison) { this.comparison = comparison; }
@@ -42,7 +42,7 @@ public class WarehouseQueryPlan {
     public void setFacets(List<String> facets) { this.facets = facets; }
 
     /** Whether facet gating should behave as "all facets" (mirrors the .cjs `all = !Array.isArray(plan.facets)`). */
-    public boolean hasExplicitFacets() { return facets != null && !facets.isEmpty(); }
+    public boolean hasExplicitFacets() { return facets != null; }
 
     public static class LocationQuery {
         private String name = "";

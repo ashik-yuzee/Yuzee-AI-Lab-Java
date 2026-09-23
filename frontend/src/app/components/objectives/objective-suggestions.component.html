@@ -1,22 +1,7 @@
-@if (suggestions().length > 0) {
-  <div class="objective-suggestions">
-    <small>Explore this further</small>
-    @for (item of suggestions(); track item.tool_id) {
-      <div class="objective-offer">
-        <span class="offer-icon">&#10024;</span>
-        <div class="offer-body">
-          <button type="button" [disabled]="objectives.busy()" (click)="start(item.tool_id)">
-            {{ item.button_label }} <span class="offer-arrow">&#8594;</span>
-          </button>
-          <p>{{ item.clear_purpose }}</p>
-        </div>
-        <button
-          type="button"
-          class="objective-dismiss"
-          [attr.aria-label]="'Dismiss ' + item.button_label"
-          (click)="dismiss(item.tool_id)"
-        >&#215;</button>
-      </div>
-    }
-  </div>
+@if (!hidden()) {
+  @if (item(); as item) {
+    <div class="objective-offer"><app-icon name="Sparkles" [size]="20" /><div><small>Explore this further</small><button [disabled]="o.busy()" (click)="o.start(item.tool_id)">{{ item.button_label }}<app-icon name="ArrowRight" [size]="18" /></button><p>{{ offer().reason }}</p></div><button class="objective-dismiss" aria-label="Dismiss activity suggestion" (click)="dismiss()">×</button></div>
+  } @else if (status()) {
+    <p class="objective-status" role="status">{{ status() }}</p>
+  }
 }

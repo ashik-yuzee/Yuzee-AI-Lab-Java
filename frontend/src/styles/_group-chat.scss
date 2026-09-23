@@ -1,0 +1,10 @@
+// Global styles for the "chat" component group, ported from the original app.
+// Owned by that group's port; see styles.scss for import order.
+
+// ChatArea: the objectives/research components render with a display:contents host, so the
+// assistant message's space-y-3 margin (Tailwind `:where(.space-y-3 > :not(:last-child))`) is
+// applied to their rendered root instead — same zero specificity as the original utility.
+:where(.chat-viewport .space-y-3 > :is(app-research-details, app-objective-suggestions, app-objective-history):not(:last-child) > :last-child) {
+  --tw-space-y-reverse: 0;
+  margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+}

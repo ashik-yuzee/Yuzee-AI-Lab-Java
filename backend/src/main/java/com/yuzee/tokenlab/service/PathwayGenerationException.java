@@ -1,19 +1,24 @@
 package com.yuzee.tokenlab.service;
 
 /**
- * Thrown by {@link MiniPathwayService#generate} when a mini pathway could not be produced --
- * Gemini is not configured, the stream was cut off before completion, or the report still failed
- * validation after the one allowed regenerate-with-feedback retry. Ported from miniPathway/
- * service.ts's {@code PathwayError}: {@link #getMessage()} is already a short, plain, user-facing
- * sentence -- show it directly rather than the underlying cause.
+ * Port of miniPathway/service.ts's {@code PathwayError}: {@link #getMessage()} is a short, plain,
+ * user-facing sentence and {@link #getStatus()} the HTTP-style status sent in the SSE error event
+ * (default 400, as in the original).
  */
 public class PathwayGenerationException extends RuntimeException {
 
+    private final int status;
+
     public PathwayGenerationException(String message) {
-        super(message);
+        this(message, 400);
     }
 
-    public PathwayGenerationException(String message, Throwable cause) {
-        super(message, cause);
+    public PathwayGenerationException(String message, int status) {
+        super(message);
+        this.status = status;
+    }
+
+    public int getStatus() {
+        return status;
     }
 }

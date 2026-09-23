@@ -162,6 +162,8 @@ public class GeminiService {
         public int cachedTokens;
         public int thinkingTokens;
         public String finishReason;
+        /** Last raw usageMetadata chunk (streamGenerateRich only); null when the provider sent none. */
+        public JsonNode usageMetadata;
     }
 
     /**
@@ -253,6 +255,7 @@ public class GeminiService {
                                 result.outputTokens = usage.path("candidatesTokenCount").asInt(result.outputTokens);
                                 result.cachedTokens = usage.path("cachedContentTokenCount").asInt(result.cachedTokens);
                                 result.thinkingTokens = usage.path("thoughtsTokenCount").asInt(result.thinkingTokens);
+                                result.usageMetadata = usage;
                             }
                         } catch (Exception ignored) {}
                     }
@@ -446,19 +449,6 @@ public class GeminiService {
      * {@link #generate} builds its request.
      */
     public JsonResult generateJson(String model, String systemInstruction, String userMessage, int maxOutputTokens) throws IOException {
-        return generateJson(model, systemInstruction, userMessage, maxOutputTokens, null);
-    }
-
-    /**
-     * Same as {@link #generateJson(String, String, String, int)}, but also constrains the model's
-     * output to {@code responseSchema} (Gemini's structured-output mode) when non-null. Without a
-     * schema, prose-described field names in a system instruction are only ever a strong hint --
-     * Gemini is free to invent its own reasonable-but-different key names (observed in practice:
-     * the warehouse query planner's system instruction never worked without one, since it discusses
-     * fields like "queries"/"facets" in prose but Gemini returned {@code target} instead of the
-     * expected {@code action} key). A schema makes the exact property names load-bearing.
-     */
-    public JsonResult generateJson(String model, String systemInstruction, String userMessage, int maxOutputTokens, JsonNode responseSchema) throws IOException {
         if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
 
         ObjectNode body = mapper.createObjectNode();
@@ -482,7 +472,6 @@ public class GeminiService {
         ObjectNode genConfig = mapper.createObjectNode();
         genConfig.put("responseMimeType", "application/json");
         genConfig.put("maxOutputTokens", maxOutputTokens);
-        if (responseSchema != null) genConfig.set("responseSchema", responseSchema);
         body.set("generationConfig", genConfig);
 
         String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
@@ -490,7 +479,6 @@ public class GeminiService {
             .url(url)
             .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
             .build();
-
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String err = response.body() != null ? response.body().string() : "Unknown error";
@@ -510,5 +498,184 @@ public class GeminiService {
             result.outputTokens = usage.path("candidatesTokenCount").asInt(0) + usage.path("thoughtsTokenCount").asInt(0);
             return result;
         }
+    }
+
+    /** HTTP status and body text of an Interactions API call. */
+    public record InteractionResponse(int status, String body) {}
+
+    /**
+     * The original's callObjectiveModel transport: POST {baseUrl}/interactions with the x-goog-api-key header and
+     * the caller's JSON body, bounded by {@code timeoutMs} and cancelled when {@code signal} completes (fetch's AbortSignal).
+     */
+    public InteractionResponse postInteraction(String requestJson, long timeoutMs, java.util.concurrent.CompletableFuture<?> signal) throws IOException {
+        if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+        Request request = new Request.Builder()
+            .url(baseUrl + "/interactions")
+            .header("x-goog-api-key", apiKey)
+            .post(RequestBody.create(requestJson.getBytes(java.nio.charset.StandardCharsets.UTF_8), MediaType.get("application/json")))
+            .build();
+        OkHttpClient client = httpClient.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).build();
+        Call call = client.newCall(request);
+        if (signal != null) signal.whenComplete((v, e) -> call.cancel());
+        try (Response response = call.execute()) {
+            return new InteractionResponse(response.code(), response.body() != null ? response.body().string() : "");
+        }
+    }
+
+    /** {@code text.replaceAll(GEMINI_API_KEY, '[redacted]')}. */
+    public String redactKey(String text) {
+        return isConfigured() ? text.replace(apiKey, "[redacted]") : text;
+    }
+
+    /** The original's {@code ai.models.countTokens({model, contents: text})}; null when totalTokens is absent. */
+    public Integer countTokens(String model, String text) throws IOException {
+        if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+        ObjectNode body = mapper.createObjectNode();
+        ObjectNode user = body.putArray("contents").addObject();
+        user.put("role", "user");
+        user.putArray("parts").addObject().put("text", text);
+        Request request = new Request.Builder()
+            .url(baseUrl + "/models/" + model + ":countTokens?key=" + apiKey)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) throw new IOException("Gemini error " + response.code());
+            JsonNode total = mapper.readTree(response.body().string()).path("totalTokens");
+            return total.isNumber() ? total.asInt() : null;
+        }
+    }
+
+    /** Result of {@link #generateText}: response.text plus usageMetadata as the original reads it. */
+    public static final class TextResult {
+        public String text = "";
+        public int promptTokens;     // usageMetadata.promptTokenCount
+        public int candidatesTokens; // usageMetadata.candidatesTokenCount
+    }
+
+    /**
+     * The original's plain {@code ai.models.generateContent({model, contents, config?})} used by the
+     * utility endpoints (title, profile facts, contradictions, pre-check, whiteboard): a single user
+     * text turn, no system instruction, no JSON mode. {@code maxOutputTokens} is omitted when null.
+     */
+    public TextResult generateText(String model, String contents, Integer maxOutputTokens) throws IOException {
+        if (!isConfigured()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+        ObjectNode body = mapper.createObjectNode();
+        ArrayNode parts = mapper.createArrayNode();
+        parts.add(mapper.createObjectNode().put("text", contents));
+        ObjectNode userContent = mapper.createObjectNode();
+        userContent.put("role", "user");
+        userContent.set("parts", parts);
+        body.set("contents", mapper.createArrayNode().add(userContent));
+        if (maxOutputTokens != null) body.set("generationConfig", mapper.createObjectNode().put("maxOutputTokens", maxOutputTokens));
+
+        Request request = new Request.Builder()
+            .url(baseUrl + "/models/" + model + ":generateContent?key=" + apiKey)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String err = response.body() != null ? response.body().string() : "Unknown error";
+                throw new IOException("Gemini error " + response.code() + ": " + err);
+            }
+            JsonNode root = mapper.readTree(response.body().string());
+            TextResult result = new TextResult();
+            StringBuilder text = new StringBuilder();
+            for (JsonNode part : root.path("candidates").path(0).path("content").path("parts")) {
+                if (!part.path("thought").asBoolean(false)) text.append(part.path("text").asText(""));
+            }
+            result.text = text.toString();
+            JsonNode usage = root.path("usageMetadata");
+            result.promptTokens = usage.path("promptTokenCount").asInt(0);
+            result.candidatesTokens = usage.path("candidatesTokenCount").asInt(0);
+            return result;
+        }
+    }
+    // ------------------------------------------------------------------
+    // Raw request surface for the chat turn (server.ts messages handler): the caller builds the
+    // exact request body; the SDK's generateContentStream open/iterate split is kept so provider
+    // recovery can retry only the open.
+    // ------------------------------------------------------------------
+
+    /** A non-2xx Gemini response; {@code status} mirrors the SDK error's status, the message keeps "Gemini error NNN". */
+    public static class GeminiHttpException extends IOException {
+        public final int status;
+        public GeminiHttpException(int status, String body) {
+            super("Gemini error " + status + ": " + body);
+            this.status = status;
+        }
+    }
+
+    /** An open streamGenerateContent response. */
+    public class OpenStream implements AutoCloseable {
+        private final Call call;
+        private final Response response;
+        OpenStream(Call call, Response response) { this.call = call; this.response = response; }
+
+        /** Iterates SSE chunks until the stream ends or {@code stop} returns true. */
+        public void forEachChunk(Consumer<JsonNode> onChunk, java.util.function.BooleanSupplier stop) throws IOException {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream(), java.nio.charset.StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (stop.getAsBoolean()) break;
+                    if (!line.startsWith("data:")) continue;
+                    String data = line.substring(5).trim();
+                    if (data.isEmpty() || data.equals("[DONE]")) continue;
+                    onChunk.accept(mapper.readTree(data));
+                }
+            }
+        }
+
+        public void cancel() { call.cancel(); }
+
+        @Override
+        public void close() { response.close(); }
+    }
+
+    /** Opens streamGenerateContent with a caller-built body; throws on a non-2xx status or a missing key. */
+    public OpenStream openStream(String model, ObjectNode body) throws IOException {
+        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+        String url = baseUrl + "/models/" + model + ":streamGenerateContent?alt=sse&key=" + apiKey;
+        Request request = new Request.Builder()
+            .url(url)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+        Call call = httpClient.newCall(request);
+        Response response = call.execute();
+        if (!response.isSuccessful()) {
+            String err;
+            try (response) { err = response.body() != null ? response.body().string() : "Unknown error"; }
+            throw new GeminiHttpException(response.code(), err);
+        }
+        return new OpenStream(call, response);
+    }
+
+    /** generateContent with a caller-built body and timeout; returns the raw response JSON. */
+    public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs) throws IOException {
+        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("GEMINI_API_KEY not configured");
+        String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
+        Request request = new Request.Builder()
+            .url(url)
+            .post(RequestBody.create(mapper.writeValueAsString(body), MediaType.get("application/json")))
+            .build();
+        OkHttpClient client = timeoutMs > 0
+            ? httpClient.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).build() : httpClient;
+        try (Response response = client.newCall(request).execute()) {
+            String text = response.body() != null ? response.body().string() : "";
+            if (!response.isSuccessful()) throw new GeminiHttpException(response.code(), text);
+            return mapper.readTree(text);
+        }
+    }
+
+    /** response.text of the SDK: the concatenated non-thought text parts of the first candidate. */
+    public static String responseText(JsonNode response) {
+        StringBuilder sb = new StringBuilder();
+        JsonNode parts = response.path("candidates").path(0).path("content").path("parts");
+        if (parts.isArray()) {
+            for (JsonNode p : parts) {
+                if (p.path("thought").asBoolean(false)) continue;
+                if (p.path("text").isTextual()) sb.append(p.get("text").asText());
+            }
+        }
+        return sb.toString();
     }
 }

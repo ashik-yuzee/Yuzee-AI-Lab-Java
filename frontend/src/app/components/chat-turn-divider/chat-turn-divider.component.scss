@@ -1,0 +1,9 @@
+// mb-6 text-center text-[13px] leading-6 text-slate-500
+.chat-turn-divider {
+  margin-bottom: calc(var(--spacing) * 6);
+  text-align: center;
+  font-size: 13px;
+  --tw-leading: calc(var(--spacing) * 6);
+  line-height: calc(var(--spacing) * 6);
+  color: var(--color-slate-500);
+}

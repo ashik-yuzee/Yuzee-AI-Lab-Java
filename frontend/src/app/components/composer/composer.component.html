@@ -1,75 +1,80 @@
-<div class="composer-wrap px-2 px-sm-3 pb-3 pt-2 bg-white">
-
-  @if (showOalaSuggestion() && !disabled) {
-    <div id="oala-suggestion" class="oala-suggestion mb-2 rounded-3 border p-2">
-      <button type="button" class="btn w-100 text-start p-2" (click)="selectOala()">
-        <span class="d-block fw-semibold">&#64;Oala &middot; Yuzee guidance</span>
-        <span class="d-block small text-muted">Understand our services and find a useful next step.</span>
-      </button>
+<div class="composer-root">
+  <div class="composer-inner">
+    @if (showOalaSuggestion() && !streaming) {
+      <div id="oala-suggestion" class="oala-suggestion">
+        <button type="button" (click)="selectOala()" class="oala-suggestion-btn">
+          <span class="oala-suggestion-title">&#64;Oala · Yuzee guidance</span>
+          <span class="oala-suggestion-text">Understand our services and find a useful next step.</span>
+        </button>
+      </div>
+    }
+    <div class="oala-row">
+      @if (oala().active) {
+        <span class="oala-chip">
+          &#64;Oala · Yuzee help
+          <button type="button" [disabled]="streaming" aria-label="Remove Oala mention" (click)="clearOalaMention()" class="oala-chip-remove"><app-icon name="X" class="icon-3-5" /></button>
+        </span>
+        <app-micro-router-status />
+      } @else {
+        <button type="button" [disabled]="streaming" (click)="selectOala()" class="oala-ask">Ask <span class="oala-ask-name">&#64;Oala</span> about Yuzee services</button>
+      }
     </div>
-  }
-
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-2 px-1 small">
-    @if (oala().active) {
-      <span class="oala-chip d-inline-flex align-items-center gap-2">
-        &#64;Oala &middot; Yuzee help
-        <button type="button" class="chip-remove" [disabled]="disabled" (click)="clearOalaMention()" aria-label="Remove Oala mention">&#10005;</button>
-      </span>
-      @switch (routing.status()) {
-        @case ('loading') { <span class="router-status">Preparing Oala assist&hellip;</span> }
-        @case ('error') {
-          <span class="router-status">
-            Oala can still answer
-            <button type="button" class="btn-link-plain" (click)="routing.startWarmup()">Retry</button>
-          </span>
+    <!-- Attachment chips -->
+    @if (attachments().length > 0) {
+      <div class="attachment-list">
+        @for (att of attachments(); track $index; let i = $index) {
+          <div class="attachment-chip">
+            @if (att.previewUrl) {
+              <img [src]="att.previewUrl" alt="" class="attachment-thumb" />
+            } @else {
+              <app-icon name="Paperclip" class="icon-3 shrink" />
+            }
+            <span class="attachment-name">{{ att.name }}</span>
+            <button type="button" (click)="removeAttachment(i)" class="attachment-remove">
+              <app-icon name="X" class="icon-3" />
+            </button>
+          </div>
         }
-      }
-    } @else {
-      <button type="button" class="btn btn-link p-0 addressed-oala-btn" [disabled]="disabled" (click)="selectOala()">
-        Ask <span class="fw-semibold text-accent">&#64;Oala</span> about Yuzee services
-      </button>
+      </div>
     }
-  </div>
 
-  @if (attachments().length) {
-    <div class="d-flex flex-wrap gap-2 mb-2 px-1">
-      @for (att of attachments(); track att.name + $index) {
-        <div class="attachment-chip d-inline-flex align-items-center gap-1">
-          @if (att.previewUrl) {
-            <img [src]="att.previewUrl" alt="" class="attachment-thumb">
-          } @else {
-            <span class="attachment-icon">&#128206;</span>
-          }
-          <span class="text-truncate">{{ att.name }}</span>
-          <button type="button" class="chip-remove" (click)="removeAttachment($index)" aria-label="Remove attachment">&#10005;</button>
-        </div>
+    <!-- Pill-shaped input -->
+    <div class="composer-pill" [class.is-listening]="listening()">
+      <!-- + attachment button -->
+      <input #fileInput type="file" [accept]="acceptedFileTypes" multiple class="sr-only" tabindex="-1" (change)="onFiles($event)" />
+      <button type="button" [disabled]="streaming" (click)="fileInput.click()" class="round-btn neutral-btn t-colors" title="Attach file (image, PDF, text)">
+        <app-icon name="Plus" class="icon-4" />
+      </button>
+
+      <!-- Auto-growing textarea -->
+      <textarea
+        id="composer-input"
+        #textarea
+        rows="1"
+        [value]="text()"
+        (input)="onInput($event)"
+        (keydown)="onKeydown($event)"
+        aria-label="Your message"
+        [attr.aria-describedby]="showOalaSuggestion() ? 'oala-suggestion' : null"
+        [disabled]="streaming"
+        placeholder="Tell me what you’d like help with…"
+        class="composer-textarea"></textarea>
+
+      <!-- Mic -->
+      <button type="button" [disabled]="streaming" (click)="toggleMic()" class="round-btn" [class.mic-listening]="listening()" [class.neutral-btn]="!listening()" [title]="listening() ? 'Stop listening' : 'Voice input'">
+        <app-icon [name]="listening() ? 'MicOff' : 'Mic'" class="icon-4" />
+      </button>
+
+      <!-- Circular send / stop -->
+      @if (streaming) {
+        <button id="btn-stop-stream" type="button" (click)="stop.emit()" class="round-btn stop-btn t-colors" title="Stop generation">
+          <app-icon name="Square" fill="currentColor" class="icon-3-5" />
+        </button>
+      } @else {
+        <button id="btn-send-message" type="button" (click)="handleSend()" [disabled]="!hasContent()" class="round-btn send-btn" [class.has-content]="hasContent()" title="Send (Enter)">
+          <app-icon name="ArrowUp" class="icon-4" />
+        </button>
       }
     </div>
-  }
-
-  <div class="composer-pill d-flex align-items-center gap-1" [class.listening]="listening()">
-    <input #fileInput type="file" class="visually-hidden" tabindex="-1"
-           [accept]="acceptedFileTypes" multiple (change)="onFiles($event)">
-
-    <button type="button" class="icon-btn" [disabled]="disabled" (click)="fileInput.click()"
-            title="Attach file (image, PDF, text)" aria-label="Attach file">+</button>
-
-    <textarea #textarea class="composer-textarea" rows="1"
-              [value]="text()"
-              [disabled]="disabled"
-              [attr.aria-describedby]="showOalaSuggestion() ? 'oala-suggestion' : null"
-              aria-label="Your message"
-              placeholder="Tell me what you'd like help with&hellip;"
-              (input)="onInput($event)"
-              (keydown)="onKeydown($event)"></textarea>
-
-    @if (micSupported) {
-      <button type="button" class="icon-btn" [class.listening-btn]="listening()" [disabled]="disabled"
-              (click)="toggleMic()" [title]="listening() ? 'Stop listening' : 'Voice input'"
-              [attr.aria-label]="listening() ? 'Stop listening' : 'Voice input'">{{ listening() ? '■' : '🎤' }}</button>
-    }
-
-    <button type="button" class="send-btn" [class.has-content]="hasContent()"
-            [disabled]="!hasContent() || disabled" (click)="onSend()" title="Send (Enter)" aria-label="Send message">&#8593;</button>
   </div>
 </div>

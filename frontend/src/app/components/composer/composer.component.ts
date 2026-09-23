@@ -1,8 +1,8 @@
-import { Component, ElementRef, EventEmitter, Input, Output, SimpleChanges, ViewChild, effect, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RoutingService } from '../../services/routing.service';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, computed, effect, signal } from '@angular/core';
+import { IconComponent } from '../shared/icon/icon.component';
+import { MicroRouterStatusComponent } from './micro-router-status.component';
 
-// Ported from yuzee-ai-token-lab/src/components/Composer.tsx.
+// Port of yuzee-ai-token-lab/src/components/Composer.tsx.
 
 export interface ComposerAttachment {
   name: string;
@@ -10,16 +10,13 @@ export interface ComposerAttachment {
   data: string; // base64
   previewUrl?: string; // for images
 }
-export interface ComposerSendEvent {
-  text: string;
-  attachments: ComposerAttachment[];
-  addressedOala: boolean;
-}
 
-const ACCEPTED_FILE_TYPES = 'image/*,application/pdf,text/plain,text/csv,application/json';
+/** Resolves true when the message was accepted (the draft is then cleared), like sendMessage(). */
+export type ComposerSendFn = (text: string, attachments: { mimeType: string; data: string }[]) => Promise<boolean> | boolean;
 
-// oala/invocation.ts — small enough (3 tiny regex-based functions) to keep colocated here rather
-// than as a separate file; this component is currently its only consumer.
+const ACCEPTED = 'image/*,application/pdf,text/plain,text/csv,application/json';
+
+// oala/invocation.ts
 function parseOalaMention(value: string): { active: boolean; message: string } {
   const match = value.match(/^\s*@\s*oala(?=$|\s|[:,!?])[:,!?]?\s*/i);
   return { active: !!match, message: match ? value.slice(match[0].length).trim() : value };
@@ -35,70 +32,58 @@ function addressOala(text: string): string {
 @Component({
   selector: 'app-composer',
   standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent, MicroRouterStatusComponent],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.scss',
 })
-export class ComposerComponent {
-  /** Conversation the draft is scoped to; also used as the sessionStorage draft key. */
-  @Input() conversationId: string | null = null;
-  /** True while a response is streaming — disables input, mirrors isStreaming in Composer.tsx. */
-  @Input() disabled = false;
-  @Output() send = new EventEmitter<ComposerSendEvent>();
+export class ComposerComponent implements OnChanges {
+  /** Conversation the draft is scoped to (sessionStorage key). */
+  @Input() conversationId: string | null | undefined = null;
+  /** isStreaming: disables input and swaps send for stop. */
+  @Input() streaming = false;
+  @Input({ required: true }) sendMessage!: ComposerSendFn;
+  @Output() stop = new EventEmitter<void>();
 
   @ViewChild('textarea') private textareaRef?: ElementRef<HTMLTextAreaElement>;
 
-  readonly text = signal(this.readDraft());
+  readonly text = signal('');
   readonly attachments = signal<ComposerAttachment[]>([]);
   readonly listening = signal(false);
   readonly mentionDismissed = signal(false);
+  private readonly draftKey = signal('yuzee-message-draft:new');
 
   readonly oala = computed(() => parseOalaMention(this.text()));
   readonly showOalaSuggestion = computed(() => !this.mentionDismissed() && isOalaSuggestion(this.text()));
   readonly hasContent = computed(() => this.text().trim().length > 0 || this.attachments().length > 0);
-
-  readonly acceptedFileTypes = ACCEPTED_FILE_TYPES;
-  readonly micSupported = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  readonly acceptedFileTypes = ACCEPTED;
 
   private recognition: any;
 
-  constructor(readonly routing: RoutingService) {
+  constructor() {
+    this.text.set(this.readDraft());
     effect(() => {
-      const value = this.text();
-      try {
-        if (value) sessionStorage.setItem(this.draftKey(), value);
-        else sessionStorage.removeItem(this.draftKey());
-      } catch { /* storage can be disabled */ }
+      const text = this.text(), key = this.draftKey();
+      try { if (text) sessionStorage.setItem(key, text); else sessionStorage.removeItem(key); } catch { /* storage unavailable */ }
     });
   }
 
-  ngOnInit(): void {
-    this.routing.startWarmup();
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['conversationId'] && !this.disabled) this.text.set(this.readDraft());
+    const change = changes['conversationId'];
+    const key = `yuzee-message-draft:${this.conversationId || 'new'}`;
+    if (!change || (!change.firstChange && key === this.draftKey())) return;
+    this.draftKey.set(key);
+    // useState(readDraft) on mount; afterwards useEffect([draftKey]) reloads only when not streaming.
+    if (change.firstChange || !this.streaming) this.text.set(this.readDraft());
   }
 
-  onInput(event: Event): void {
-    const el = event.target as HTMLTextAreaElement;
-    this.text.set(el.value);
-    this.mentionDismissed.set(false);
-    this.autoGrow(el);
-  }
-
-  onKeydown(event: KeyboardEvent): void {
-    if ((event as any).isComposing) return;
-    if (this.showOalaSuggestion() && (event.key === 'Enter' || event.key === 'Tab')) { event.preventDefault(); this.selectOala(); return; }
-    if (this.showOalaSuggestion() && event.key === 'Escape') { event.preventDefault(); this.mentionDismissed.set(true); return; }
-    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.onSend(); }
+  private readDraft(): string {
+    try { return sessionStorage.getItem(this.draftKey()) || ''; } catch { return ''; }
   }
 
   selectOala(): void {
     this.text.set(addressOala(this.text()));
     this.mentionDismissed.set(true);
-    this.routing.startWarmup();
-    queueMicrotask(() => { this.textareaRef?.nativeElement.focus(); this.autoGrow(); });
+    this.textareaRef?.nativeElement.focus();
   }
 
   clearOalaMention(): void {
@@ -108,70 +93,75 @@ export class ComposerComponent {
 
   toggleMic(): void {
     if (this.listening()) { this.recognition?.stop(); return; }
-    const SpeechRecognitionCtor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognitionCtor) return;
-    const rec = new SpeechRecognitionCtor();
-    rec.lang = 'en-US';
-    rec.interimResults = true;
-    rec.continuous = false;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Voice input requires Chrome or Edge.'); return; }
+    const rec = new SR();
+    rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false;
     rec.onstart = () => this.listening.set(true);
     rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join('');
-      this.text.set(transcript);
-      this.autoGrow();
+      const t = Array.from(e.results).map((r: any) => r[0].transcript).join('');
+      this.text.set(t);
+      const el = this.textareaRef?.nativeElement;
+      if (el) {
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+      }
     };
     rec.onerror = () => this.listening.set(false);
     rec.onend = () => this.listening.set(false);
-    this.recognition = rec;
-    rec.start();
+    this.recognition = rec; rec.start();
   }
 
-  onFiles(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files || []);
-    for (const file of files) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1] ?? '';
-        const attachment: ComposerAttachment = {
-          name: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          data: base64,
-          previewUrl: file.type.startsWith('image/') ? result : undefined,
-        };
-        this.attachments.update(list => [...list, attachment]);
-      };
-      reader.readAsDataURL(file);
+  onKeydown(e: KeyboardEvent): void {
+    if (e.isComposing) return;
+    if (this.showOalaSuggestion() && (e.key === 'Enter' || e.key === 'Tab')) {
+      e.preventDefault(); this.selectOala(); return;
     }
-    input.value = '';
+    if (this.showOalaSuggestion() && e.key === 'Escape') {
+      e.preventDefault(); this.mentionDismissed.set(true); return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void this.handleSend();
+    }
   }
 
-  removeAttachment(index: number): void {
-    this.attachments.update(list => list.filter((_, i) => i !== index));
-  }
-
-  onSend(): void {
-    if (this.disabled || (!this.text().trim() && this.attachments().length === 0)) return;
-    this.send.emit({ text: this.text(), attachments: this.attachments(), addressedOala: this.oala().active });
+  async handleSend(): Promise<void> {
+    if ((!this.text().trim() && this.attachments().length === 0) || this.streaming) return;
+    const sent = await this.sendMessage(this.text(), this.attachments().map(({ mimeType, data }) => ({ mimeType, data })));
+    if (!sent) return;
     this.text.set('');
     this.attachments.set([]);
-    this.mentionDismissed.set(false);
-    queueMicrotask(() => this.autoGrow());
+    if (this.textareaRef) this.textareaRef.nativeElement.style.height = 'auto';
   }
 
-  private autoGrow(el?: HTMLTextAreaElement): void {
-    const target = el ?? this.textareaRef?.nativeElement;
-    if (!target) return;
+  onInput(e: Event): void {
+    const target = e.target as HTMLTextAreaElement;
+    this.text.set(target.value);
+    this.mentionDismissed.set(false);
     target.style.height = 'auto';
     target.style.height = `${Math.min(target.scrollHeight, 180)}px`;
   }
 
-  private draftKey(): string {
-    return `yuzee-message-draft:${this.conversationId || 'new'}`;
+  onFiles(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        const att: ComposerAttachment = { name: file.name, mimeType: file.type || 'application/octet-stream', data: base64 };
+        if (file.type.startsWith('image/')) att.previewUrl = result;
+        this.attachments.update(prev => [...prev, att]);
+      };
+      reader.readAsDataURL(file);
+    });
+    input.value = '';
   }
 
-  private readDraft(): string {
-    try { return sessionStorage.getItem(this.draftKey()) || ''; } catch { return ''; }
+  removeAttachment(index: number): void {
+    this.attachments.update(prev => prev.filter((_, i) => i !== index));
   }
 }

@@ -7,6 +7,8 @@
 # Backend (Maven/Java)
 backend/target/
 backend/data/
+# Pinned public BGE model files (never committed; see RoleRankingService)
+data/minilm-cache/
 *.class
 *.log
 

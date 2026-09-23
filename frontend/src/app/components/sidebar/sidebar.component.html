@@ -1,105 +1,139 @@
-<aside class="app-sidebar" [class.collapsed]="collapsed">
-  <div class="sidebar-header">
-    <div class="sidebar-header-row">
-      <button type="button" class="btn-new-conversation" (click)="newConversation()">
-        <span class="sidebar-icon" aria-hidden="true">+</span>
-        <span>New Conversation</span>
+<!-- Mobile Backdrop -->
+@if (lab.isSidebarOpen()) {
+  <div class="sidebar-backdrop" (click)="close()"></div>
+}
+
+<!-- Sidebar Container -->
+<aside id="app-sidebar" [class.is-open]="lab.isSidebarOpen()">
+  <div class="sidebar-panel">
+    <!-- Header / Action Buttons -->
+    <div class="sidebar-header">
+      <div class="sidebar-header-row">
+        <button id="btn-new-chat" (click)="newConversation()" class="sidebar-new">
+          <app-icon name="Plus" class="sidebar-icon-4" />
+          <span>New Conversation</span>
+        </button>
+
+        <button id="btn-close-sidebar" (click)="close()" class="sidebar-close" aria-label="Close Sidebar">
+          <app-icon name="X" class="sidebar-icon-5" />
+        </button>
+      </div>
+
+      <button
+        id="btn-load-demo"
+        (click)="loadDemo()"
+        class="sidebar-demo"
+        title="Load sample Cybersecurity Analyst pathway with prefilled structured memory"
+      >
+        <app-icon name="PlayCircle" class="sidebar-demo-icon" />
+        <span>Load Demo Pathway</span>
       </button>
     </div>
 
-    <button type="button" class="btn-load-demo" (click)="loadDemo()"
-            title="Load sample Cybersecurity Analyst pathway with prefilled structured memory">
-      <span class="sidebar-icon" aria-hidden="true">&#9654;</span>
-      <span>Load Demo Pathway</span>
-    </button>
-  </div>
+    <!-- Conversations List -->
+    <div class="sidebar-list">
+      <div class="sidebar-label">Conversations</div>
 
-  <div class="sidebar-list">
-    <div class="sidebar-list-heading">Conversations</div>
-
-    @if (lab.conversations().length === 0) {
-      <div class="sidebar-empty">
-        <p class="sidebar-empty-title">No active conversations</p>
-        <p class="sidebar-empty-hint">Click &quot;New Conversation&quot; or load the demo pathway to begin exploring.</p>
-      </div>
-    }
-
-    @for (conv of lab.conversations(); track conv.id) {
-      <div
-        class="sidebar-conv-item"
-        [class.active]="conv.id === lab.activeConversationId()"
-        (click)="selectConversation(conv)"
-        (dblclick)="startRename(conv, $event)">
-
-        <div class="sidebar-conv-main">
-          <span class="sidebar-conv-icon" aria-hidden="true">&#128172;</span>
-
-          <div class="sidebar-conv-text">
-            @if (editingId() === conv.id) {
-              <input
-                appAutofocusSelect
-                type="text"
-                class="sidebar-conv-rename-input"
-                [value]="editingTitle()"
-                (click)="$event.stopPropagation()"
-                (input)="onEditingTitleInput($event)"
-                (blur)="commitRename()"
-                (keydown)="onRenameKeydown($event)" />
-            } @else {
-              <span class="sidebar-conv-title">{{ conv.title || 'Career Exploration' }}</span>
-              <span class="sidebar-conv-meta">{{ conv.messages.length }} messages</span>
-            }
-          </div>
+      @if (lab.conversations().length === 0) {
+        <div class="sidebar-empty">
+          <p class="sidebar-empty-title">No active conversations</p>
+          <p class="sidebar-empty-hint">Click &quot;New Conversation&quot; or load the demo pathway to begin exploring.</p>
         </div>
+      } @else {
+        @for (conv of lab.conversations(); track conv.id) {
+          <div
+            [id]="'conv-item-' + conv.id"
+            (click)="selectConversation(conv)"
+            class="conv-row"
+            [class.is-selected]="lab.activeConversationId() === conv.id"
+            [class.is-idle]="lab.activeConversationId() !== conv.id"
+          >
+            <div class="conv-main">
+              <app-icon name="MessageSquare" class="conv-icon" [class.is-selected]="lab.activeConversationId() === conv.id" />
+              <div class="conv-text">
+                @if (editingId() === conv.id) {
+                  <input
+                    appAutofocus
+                    class="conv-rename"
+                    [value]="editingTitle()"
+                    (click)="$event.stopPropagation()"
+                    (input)="onEditingTitleInput($event)"
+                    (blur)="commitRename(conv)"
+                    (keydown)="onRenameKeydown(conv, $event)"
+                  />
+                } @else {
+                  <span class="conv-title">{{ convTitle(conv) }}</span>
+                  <span class="conv-meta">{{ convMeta(conv) }}</span>
+                }
+              </div>
+            </div>
 
-        @if (editingId() !== conv.id) {
-          <div class="sidebar-conv-actions">
-            <button type="button" class="sidebar-conv-action" title="Rename Conversation"
-                    aria-label="Rename Conversation" (click)="startRename(conv, $event)">
-              &#9998;
-            </button>
-            <button type="button" class="sidebar-conv-action sidebar-conv-action-danger" title="Delete Conversation"
-                    aria-label="Delete Conversation" (click)="requestDelete(conv, $event)">
-              &#128465;
-            </button>
+            <div class="conv-actions">
+              <button
+                (click)="startRename(conv, $event)"
+                class="conv-edit"
+                title="Rename Conversation"
+                aria-label="Rename Conversation"
+              >
+                <app-icon name="Pencil" class="conv-action-icon" />
+              </button>
+              <button
+                [id]="'btn-delete-conv-' + conv.id"
+                (click)="requestDelete(conv, $event)"
+                class="conv-delete"
+                title="Delete Conversation"
+                aria-label="Delete Conversation"
+              >
+                <app-icon name="Trash2" class="conv-action-icon" />
+              </button>
+            </div>
           </div>
         }
-      </div>
-    }
-  </div>
-
-  <div class="sidebar-footer">
-    <div class="sidebar-footer-head">
-      <span class="sidebar-footer-label" title="Consumption for this server session">Session Usage</span>
-      <button type="button" class="sidebar-footer-reset" title="Reset session counters" (click)="resetStats($event)">
-        &#8635; Reset
-      </button>
+      }
     </div>
 
-    @if (lab.sessionStats(); as stats) {
-      <div class="sidebar-footer-stats">
-        <span title="Prompt tokens sent to the model">In <strong>{{ formatTokens(stats.promptTokens) }}</strong></span>
-        <span title="Tokens generated by the model">Out <strong>{{ formatTokens(stats.outputTokens) }}</strong></span>
-        <span title="Chat turns this session">{{ stats.turns }} turns</span>
+    <!-- Compact Session Usage Footer -->
+    <div
+      (click)="handleOpenLab('analytics')"
+      class="sidebar-footer"
+      title="Click to view detailed session analytics and token attribution charts"
+    >
+      <div class="sidebar-footer-head">
+        <span class="sidebar-label-footer" title="Overall consumption across all conversations stored in the database.">Overall Telemetry</span>
+        <button (click)="resetStats($event)" class="sidebar-reset" title="Reset Session Counters">
+          <app-icon name="RotateCcw" class="sidebar-reset-icon" />
+          <span>Reset</span>
+        </button>
       </div>
-      @if (stats.estimatedCostUsd > 0) {
-        <div class="sidebar-footer-cost">
-          <span>Total cost</span>
-          <strong>{{ formatCost(stats.estimatedCostUsd) }}</strong>
+
+      <div class="sidebar-stats">
+        <span title="New uncached tokens — billed at full input rate">In <strong>{{ k(inputTokens) }}</strong></span>
+        @if (cachedTokens > 0) {
+          <span class="sidebar-emerald" [title]="'Cumulative cache reads across all turns this session (≈' + readsPerTurn + ' tokens/turn from cached system prompt) — billed at ~4× lower rate'">⚡ <strong>{{ k(cachedTokens) }}</strong> reads</span>
+        }
+        <span title="Text output tokens — excludes thinking tokens (counted separately in Session Total)">Out <strong>{{ k(outputTokens) }}</strong></span>
+        @if (!cachedTokens) {
+          <span class="sidebar-emerald">Saved <strong>{{ k(savedTokens) }}</strong></span>
+        }
+      </div>
+      @if (lab.sessionTotalCost() > 0) {
+        <div class="sidebar-cost">
+          <span title="Sum of all conversations. Does not reset.">Total cost</span>
+          <span class="sidebar-cost-value">{{ lab.formatCost(lab.sessionTotalCost()) }}</span>
         </div>
       }
-    } @else {
-      <div class="sidebar-footer-empty">No usage yet this session</div>
-    }
+    </div>
   </div>
-
-  <app-confirm-dialog
-    [isOpen]="!!conversationToDelete()"
-    title="Delete Conversation"
-    [message]="'Are you sure you want to delete \'' + (conversationToDelete()?.title ?? '') + '\'? All turns and associated memory compaction history will be removed.'"
-    confirmLabel="Delete"
-    cancelLabel="Cancel"
-    [isDestructive]="true"
-    (confirmed)="confirmDelete()"
-    (cancelled)="cancelDelete()" />
 </aside>
+
+<!-- Delete Confirmation Dialog -->
+<app-confirm-dialog
+  [isOpen]="!!conversationToDelete()"
+  title="Delete Conversation"
+  [message]="deleteMessage"
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  [isDestructive]="true"
+  (confirmed)="confirmDelete()"
+  (cancelled)="conversationToDelete.set(null)"
+/>

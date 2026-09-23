@@ -1,10 +1,13 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /** Skills -> occupations -> learning/jobs exploration bundle. Ported from
  *  yuzee-ai-token-lab/src/warehouse/types.ts (WarehouseExploration) and opportunities.cjs (createOpportunityReader). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class WarehouseExploration {
     private List<Role> roles = new ArrayList<>();
     private List<SkillRef> skills = new ArrayList<>();
@@ -29,6 +32,8 @@ public class WarehouseExploration {
     public Coverage getCoverage() { return coverage; }
     public void setCoverage(Coverage coverage) { this.coverage = coverage; }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Role {
         private String id;
         private String evidenceId;
@@ -65,6 +70,8 @@ public class WarehouseExploration {
         public void setMatchReason(String matchReason) { this.matchReason = matchReason; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class RoleSkill {
         private String id;
         private String name;
@@ -79,6 +86,8 @@ public class WarehouseExploration {
         public void setDescription(String description) { this.description = description; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Mapping {
         private String anzscoCode;
         private String anzscoTitle;
@@ -88,9 +97,9 @@ public class WarehouseExploration {
         public Mapping(String anzscoCode, String anzscoTitle, String method, Double confidence) {
             this.anzscoCode = anzscoCode; this.anzscoTitle = anzscoTitle; this.method = method; this.confidence = confidence;
         }
-        public String getAnzscoCode() { return anzscoCode; }
+        @com.fasterxml.jackson.annotation.JsonProperty("anzsco_code") public String getAnzscoCode() { return anzscoCode; }
         public void setAnzscoCode(String anzscoCode) { this.anzscoCode = anzscoCode; }
-        public String getAnzscoTitle() { return anzscoTitle; }
+        @com.fasterxml.jackson.annotation.JsonProperty("anzsco_title") public String getAnzscoTitle() { return anzscoTitle; }
         public void setAnzscoTitle(String anzscoTitle) { this.anzscoTitle = anzscoTitle; }
         public String getMethod() { return method; }
         public void setMethod(String method) { this.method = method; }
@@ -98,6 +107,8 @@ public class WarehouseExploration {
         public void setConfidence(Double confidence) { this.confidence = confidence; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class SkillRef {
         private String id;
         private String name;
@@ -113,6 +124,8 @@ public class WarehouseExploration {
         public void setRoleIds(List<String> roleIds) { this.roleIds = roleIds; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class LearningLink {
         private String id;
         private String evidenceId;
@@ -143,6 +156,8 @@ public class WarehouseExploration {
         public void setScope(String scope) { this.scope = scope; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class CourseRef {
         private String id;
         private String name;
@@ -157,6 +172,8 @@ public class WarehouseExploration {
         public void setProvider(String provider) { this.provider = provider; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class JobAd {
         private String id;
         private String evidenceId;
@@ -210,6 +227,8 @@ public class WarehouseExploration {
         public void setGeography(Geography geography) { this.geography = geography; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class ObservedSkill {
         private String id;
         private String evidenceId;
@@ -234,6 +253,8 @@ public class WarehouseExploration {
         public void setGeography(String geography) { this.geography = geography; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Geography {
         private String scope;
         private String name;
@@ -248,6 +269,8 @@ public class WarehouseExploration {
         public void setLocalMatch(boolean localMatch) { this.localMatch = localMatch; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Coverage {
         private int sampleSize;
         private int withStructuredSkills;

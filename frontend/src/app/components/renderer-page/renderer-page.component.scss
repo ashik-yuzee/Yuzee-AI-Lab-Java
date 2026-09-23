@@ -1,0 +1,118 @@
+// Port of ProtocolRendererPage.tsx — exact compiled declarations of each Tailwind utility.
+// Elements that had Tailwind's `border` carry `.tw-border`; inside `.output-review` the global
+// rule in _group-protocol.scss recolours them #dce4ee exactly like the original.
+:host { display: block; height: 100%; }
+
+@mixin text-xs { font-size: var(--text-xs); line-height: var(--tw-leading, var(--text-xs--line-height)); }
+@mixin text-sm { font-size: var(--text-sm); line-height: var(--tw-leading, var(--text-sm--line-height)); }
+@mixin text-base { font-size: var(--text-base); line-height: var(--tw-leading, var(--text-base--line-height)); }
+@mixin semibold { --tw-font-weight: var(--font-weight-semibold); font-weight: var(--font-weight-semibold); }
+@mixin medium { --tw-font-weight: var(--font-weight-medium); font-weight: var(--font-weight-medium); }
+@mixin border { border-style: var(--tw-border-style); border-width: 1px; }
+@mixin sm { @media (width >= 40rem) { @content; } }
+@mixin lg { @media (width >= 64rem) { @content; } }
+
+// output-review h-full overflow-auto bg-[#f7f8fa]
+.rp-root { height: 100%; overflow: auto; background-color: #f7f8fa; }
+// border-b bg-white p-4 flex items-center gap-4 (border colour: currentColor, as in the original)
+.rp-header { border-bottom-style: var(--tw-border-style); border-bottom-width: 1px; background-color: var(--color-white); padding: calc(var(--spacing) * 4); display: flex; align-items: center; gap: calc(var(--spacing) * 4); }
+// rounded-lg border px-3 py-2 shrink-0
+.rp-back { border-radius: var(--radius-lg); @include border; padding-inline: calc(var(--spacing) * 3); padding-block: calc(var(--spacing) * 2); flex-shrink: 0; }
+// font-semibold text-lg
+.rp-h1 { @include semibold; font-size: var(--text-lg); line-height: var(--tw-leading, var(--text-lg--line-height)); }
+// text-sm text-slate-600
+.rp-muted-sm { @include text-sm; color: var(--color-slate-600); }
+// max-w-7xl mx-auto p-4 sm:p-6 space-y-5
+.rp-main { max-width: var(--container-7xl); margin-inline: auto; padding: calc(var(--spacing) * 4); @include sm { padding: calc(var(--spacing) * 6); } }
+:where(.rp-main > :not(:last-child)) { margin-block-end: calc(var(--spacing) * 5); }
+// rounded-xl bg-sky-50 border border-sky-200 p-4 text-sm text-sky-950
+.rp-intro { border-radius: var(--radius-xl); background-color: var(--color-sky-50); @include border; border-color: var(--color-sky-200); padding: calc(var(--spacing) * 4); @include text-sm; color: var(--color-sky-950); }
+// flex flex-wrap gap-2
+.rp-tabs { display: flex; flex-wrap: wrap; gap: calc(var(--spacing) * 2); }
+// rounded-lg border px-4 py-3 text-sm + bg-sky-800 text-white | bg-white
+.rp-tab {
+  border-radius: var(--radius-lg); @include border; padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 3); @include text-sm;
+  background-color: var(--color-white);
+  &.is-active { background-color: var(--color-sky-800); color: var(--color-white); }
+}
+// grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-5 items-start
+.rp-layout { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: calc(var(--spacing) * 5); align-items: flex-start; @include lg { grid-template-columns: 280px minmax(0,1fr); } }
+// bg-white rounded-xl border p-3 space-y-3
+.rp-aside { background-color: var(--color-white); border-radius: var(--radius-xl); @include border; padding: calc(var(--spacing) * 3); }
+:where(.rp-aside > :not(:last-child)), :where(.rp-card > :not(:last-child)), :where(.rp-invalid > :not(:last-child)) { margin-block-end: calc(var(--spacing) * 3); }
+// block text-sm font-medium
+.rp-label { display: block; @include text-sm; @include medium; }
+// w-full border rounded-lg p-3 text-base
+.rp-search { width: 100%; @include border; border-radius: var(--radius-lg); padding: calc(var(--spacing) * 3); @include text-base; }
+// max-h-64 lg:max-h-[620px] overflow-auto space-y-1
+.rp-list { max-height: calc(var(--spacing) * 64); overflow: auto; @include lg { max-height: 620px; } }
+:where(.rp-list > :not(:last-child)) { margin-block-end: var(--spacing); }
+// w-full text-left rounded-lg px-3 py-3 text-sm + (bg-sky-50 text-sky-900 font-semibold border border-sky-200 | hover:bg-slate-50 border border-transparent)
+.rp-scenario {
+  width: 100%; text-align: left; border-radius: var(--radius-lg); padding-inline: calc(var(--spacing) * 3); padding-block: calc(var(--spacing) * 3); @include text-sm; @include border;
+  &.border-transparent { border-color: transparent; &:hover { @media (hover: hover) { background-color: var(--color-slate-50); } } }
+  &.is-active { background-color: var(--color-sky-50); color: var(--color-sky-900); @include semibold; border-color: var(--color-sky-200); }
+}
+// p-3 text-sm
+.rp-empty { padding: calc(var(--spacing) * 3); @include text-sm; }
+// min-w-0 space-y-4
+.rp-section { min-width: 0px; }
+:where(.rp-section > :not(:last-child)) { margin-block-end: calc(var(--spacing) * 4); }
+// bg-white border rounded-xl p-5 space-y-3
+.rp-card { background-color: var(--color-white); @include border; border-radius: var(--radius-xl); padding: calc(var(--spacing) * 5); }
+// text-xl font-semibold
+.rp-h2 { font-size: var(--text-xl); line-height: var(--tw-leading, var(--text-xl--line-height)); @include semibold; }
+// text-sm text-slate-700
+.rp-expect { @include text-sm; color: var(--color-slate-700); }
+// flex flex-wrap gap-3 items-center text-sm
+.rp-controls { display: flex; flex-wrap: wrap; gap: calc(var(--spacing) * 3); align-items: center; @include text-sm; }
+// flex items-center gap-2
+.rp-check { display: flex; align-items: center; gap: calc(var(--spacing) * 2); }
+// border rounded-lg px-3 py-2 (+ bg-white)
+.rp-btn { @include border; border-radius: var(--radius-lg); padding-inline: calc(var(--spacing) * 3); padding-block: calc(var(--spacing) * 2); }
+.rp-btn-white { background-color: var(--color-white); }
+// bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm mx-auto w-full
+.rp-preview {
+  background-color: var(--color-white); @include border; border-color: var(--color-slate-200); border-radius: var(--radius-2xl);
+  padding: calc(var(--spacing) * 4); @include sm { padding: calc(var(--spacing) * 6); }
+  --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 1px 2px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  margin-inline: auto; width: 100%;
+}
+// mb-4 text-sm font-semibold text-sky-800 / text-slate-500 font-normal
+.rp-oala { margin-bottom: calc(var(--spacing) * 4); @include text-sm; @include semibold; color: var(--color-sky-800); }
+.rp-oala-sub { color: var(--color-slate-500); --tw-font-weight: var(--font-weight-normal); font-weight: var(--font-weight-normal); }
+// rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3
+.rp-invalid { border-radius: var(--radius-xl); @include border; border-color: var(--color-amber-200); background-color: var(--color-amber-50); padding: calc(var(--spacing) * 4); }
+// border border-sky-200 bg-sky-50 rounded-xl p-4 text-sm whitespace-pre-line
+.rp-notice { @include border; border-color: var(--color-sky-200); background-color: var(--color-sky-50); border-radius: var(--radius-xl); padding: calc(var(--spacing) * 4); @include text-sm; white-space: pre-line; }
+// rounded-xl border bg-white p-4 text-sm
+.rp-details { border-radius: var(--radius-xl); @include border; background-color: var(--color-white); padding: calc(var(--spacing) * 4); @include text-sm; }
+// rounded-xl border bg-white p-5
+.rp-details-lg { border-radius: var(--radius-xl); @include border; background-color: var(--color-white); padding: calc(var(--spacing) * 5); }
+.rp-summary { cursor: pointer; }
+.rp-summary-strong { @include semibold; }
+// whitespace-pre-wrap break-words mt-4 font-sans
+.rp-readable { white-space: pre-wrap; overflow-wrap: break-word; margin-top: calc(var(--spacing) * 4); font-family: var(--font-sans); }
+// whitespace-pre-wrap break-all mt-5 text-xs
+.rp-json { white-space: pre-wrap; word-break: break-all; margin-top: calc(var(--spacing) * 5); @include text-xs; }
+// grid sm:grid-cols-2 gap-4 mt-4
+.rp-issues { display: grid; gap: calc(var(--spacing) * 4); margin-top: calc(var(--spacing) * 4); @include sm { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+// border rounded-xl p-4
+.rp-issue { @include border; border-radius: var(--radius-xl); padding: calc(var(--spacing) * 4); }
+// text-xs font-semibold text-sky-800
+.rp-issue-status { @include text-xs; @include semibold; color: var(--color-sky-800); }
+// font-semibold mt-1
+.rp-issue-title { @include semibold; margin-top: var(--spacing); }
+// text-sm text-slate-600 mt-2
+.rp-issue-detail { @include text-sm; color: var(--color-slate-600); margin-top: calc(var(--spacing) * 2); }
+// space-y-4 mt-4
+.rp-json-form { margin-top: calc(var(--spacing) * 4); }
+:where(.rp-json-form > :not(:last-child)) { margin-block-end: calc(var(--spacing) * 4); }
+.rp-block { display: block; }
+// w-full rounded-xl border p-3 font-mono text-sm
+.rp-json-input { width: 100%; border-radius: var(--radius-xl); @include border; padding: calc(var(--spacing) * 3); font-family: var(--font-mono); @include text-sm; }
+// rounded-lg bg-sky-800 text-white px-4 py-3
+.rp-primary { border-radius: var(--radius-lg); background-color: var(--color-sky-800); color: var(--color-white); padding-inline: calc(var(--spacing) * 4); padding-block: calc(var(--spacing) * 3); }
+// text-red-700
+.rp-error { color: var(--color-red-700); }

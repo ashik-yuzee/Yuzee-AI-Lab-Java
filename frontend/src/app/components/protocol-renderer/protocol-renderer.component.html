@@ -1,449 +1,244 @@
-<div class="protocol-output">
-
+@if (data) {
   @if (semanticValid === false && validationErrors.length > 0) {
-    <div class="validation-error" role="alert">
-      <p class="fw-semibold mb-1">Response validation failed — content not rendered.</p>
-      <ul class="mb-0 ps-3">
+    <div class="pr-invalid tw-border" role="alert">
+      <p class="pr-invalid-title">Response validation failed — content not rendered.</p>
+      <ul class="pr-invalid-list">
         @for (e of validationErrors; track $index) { <li>{{ e }}</li> }
       </ul>
     </div>
   } @else {
+    <div class="counselling-output pr-root">
 
-    @if (careText) {
-      <p class="care-text">{{ careText }}</p>
-    }
+      @if (careText) { <p class="pr-care">{{ careText }}</p> }
 
-    @if (showSectionNav) {
-      <nav aria-label="In this answer" class="section-nav">
-        <p class="section-nav-title">In this answer</p>
-        <ul class="section-nav-list">
-          @for (section of readableSections; track section.index) {
-            <li><a [href]="'#' + sectionAnchor(section.index)">{{ section.title }}</a></li>
-          }
-        </ul>
-      </nav>
-    }
+      @if (blocks[0]; as first) {
+        <div [id]="sectionId(0)" class="pr-section" [attr.data-output-type]="first.type" [attr.data-output-variant]="first.variant || 'default'"><ng-container *ngTemplateOutlet="blockTpl; context: { $implicit: first }" /></div>
+      }
 
-    <div class="content-blocks">
-      @for (block of response.content_blocks; track trackBlock(block, $index); let i = $index) {
-        <div class="content-block-wrapper" [id]="sectionAnchor(i)" [attr.data-output-type]="block.type">
-
-          @if (block.type === 'list' || block.type === 'steps') {
-            <section class="guidance-section">
-              @if (block.title) { <h4 class="guidance-section-title">{{ block.title }}</h4> }
-              @if (block.text) { <p class="guidance-intro">{{ block.text }}</p> }
-              <ul role="list" class="guidance-rows" [class.guidance-rows-ordered]="guidanceOrdered(block)">
-                @for (row of guidanceRows(block); track row.id) {
-                  <li class="guidance-row" [ngClass]="'guidance-tone-' + row.tone">
-                    <div class="guidance-row-content">
-                      <div class="guidance-row-heading">
-                        @if (guidanceOrdered(block)) { <span class="guidance-ordinal">{{ row.ordinal }}.</span> }
-                        @if (row.title) { <p class="guidance-row-title">{{ row.title }}</p> }
-                        @if (row.statusLabel) {
-                          <span class="guidance-status">
-                            @if (row.statusIcon === 'warning') { <span aria-hidden="true">&#9888;&#65039;</span> }
-                            @if (row.statusIcon === 'check') { <span aria-hidden="true">&#10003;</span> }
-                            {{ row.statusLabel }}
-                          </span>
-                        }
-                      </div>
-                      @if (row.sideLabel) { <p class="guidance-side-label">{{ row.sideLabel }}</p> }
-                      @for (line of row.description; track $index) { <p class="guidance-description">{{ line }}</p> }
-                      @if (row.sideText) { <p class="guidance-description">{{ row.sideText }}</p> }
-                    </div>
-                  </li>
-                }
-              </ul>
-            </section>
-          } @else {
-            @switch (block.type) {
-
-              @case ('heading') {
-                <div class="content-block heading-block">
-                  @if (block.text && block.title) { <span class="eyebrow">{{ block.text }}</span> }
-                  @if (block.level === 'h2') {
-                    <h2 class="block-h2">{{ block.title || block.text }}</h2>
-                  } @else {
-                    <h3 class="block-h3">{{ block.title || block.text }}</h3>
-                  }
-                </div>
-              }
-
-              @case ('text') {
-                <div class="content-block text-block">
-                  @if (block.title) { <h3 class="block-h3">{{ block.title }}</h3> }
-                  <div class="response-prose" [innerHTML]="renderMarkdown(block.text)"></div>
-                </div>
-              }
-
-              @case ('table') {
-                <div class="content-block table-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="table-responsive response-table-scroll">
-                    <table class="table table-bordered align-top mb-0 response-data-table">
-                      <thead>
-                        <tr>
-                          @for (col of block.columns; track col.key) { <th scope="col">{{ col.label }}</th> }
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (row of block.rows; track row.id) {
-                          <tr>
-                            @for (col of block.columns; track col.key; let ci = $index) {
-                              <td [class.fw-semibold]="ci === 0" [attr.data-label]="col.label">{{ cellValue(row, col.key) }}</td>
-                            }
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              }
-
-              @case ('comparison') {
-                <div class="content-block table-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="table-responsive response-table-scroll">
-                    <table class="table table-bordered align-top mb-0 response-data-table">
-                      <thead>
-                        <tr>
-                          @if (comparisonHasCriteria(block)) { <th scope="col" class="factor-col">Factor</th> }
-                          @for (col of block.columns; track col.key) { <th scope="col">{{ col.label }}</th> }
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (row of block.rows; track row.id) {
-                          <tr>
-                            @if (comparisonHasCriteria(block)) { <td class="fw-semibold" data-label="Factor">{{ row.criteria || row.id }}</td> }
-                            @for (col of block.columns; track col.key) {
-                              <td [attr.data-label]="col.label">{{ cellValue(row, col.key) }}</td>
-                            }
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              }
-
-              @case ('callout') {
-                <div class="content-block callout" [ngClass]="calloutMeta(block).cls"
-                     [attr.role]="(block.variant === 'danger' || block.variant === 'warning') ? 'alert' : null">
-                  @if (block.title) {
-                    <div class="callout-heading">
-                      <span aria-hidden="true">{{ calloutMeta(block).icon }}</span>
-                      <span class="callout-label">{{ block.title }}</span>
-                    </div>
-                  }
-                  <p class="callout-text">{{ block.text }}</p>
-                </div>
-              }
-
-              @case ('key_value') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="row g-2">
-                    @for (item of block.items; track item.id) {
-                      <div class="col-12 col-sm-6">
-                        <div class="kv-card">
-                          <span class="kv-label">{{ item.title }}</span>
-                          <span class="kv-value">{{ item.value || item.text }}</span>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('cards') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
-                  <div class="row g-2">
-                    @for (card of cardsOf(block); track card.id) {
-                      <div class="col-12 col-sm-6">
-                        <div class="info-card" [ngClass]="cardStatusClass(card.status)">
-                          <div class="d-flex justify-content-between align-items-start gap-2">
-                            <div>
-                              <div class="info-card-title">{{ card.title }}</div>
-                              @if (card.subtitle) { <div class="info-card-subtitle">{{ card.subtitle }}</div> }
-                            </div>
-                            @if (card.badge) { <span class="badge text-bg-light">{{ card.badge }}</span> }
-                          </div>
-                          @if (card.description) { <p class="info-card-desc">{{ card.description }}</p> }
-                          @if (card.facts.length) {
-                            <div class="info-card-facts">
-                              @for (f of card.facts; track f.label) {
-                                <div class="info-card-fact">
-                                  <span class="fact-label">{{ f.label }}</span>
-                                  <span class="fact-value">{{ f.value }}</span>
-                                </div>
-                              }
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('timeline') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="timeline">
-                    @for (m of milestonesOf(block); track m.id) {
-                      <div class="timeline-row">
-                        <span class="timeline-dot" [ngClass]="timelineDotClass(m.status)"></span>
-                        <div class="timeline-body">
-                          <div class="timeline-heading">
-                            <span class="timeline-label">{{ m.label }}</span>
-                            @if (m.time_label) { <span class="timeline-time">{{ m.time_label }}</span> }
-                            @if (m.optional) { <span class="timeline-optional">optional</span> }
-                            <span class="timeline-status" [ngClass]="'timeline-status-' + m.status">{{ m.status }}</span>
-                          </div>
-                          @if (m.description) { <p class="timeline-desc">{{ m.description }}</p> }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('flow') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
-                  <div class="row g-2">
-                    @for (node of nodesOf(block); track node.id) {
-                      <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="flow-node" [ngClass]="flowNodeClass(node.status)">
-                          <div class="d-flex justify-content-between align-items-start gap-1 mb-1">
-                            <span class="flow-node-label">{{ node.label }}</span>
-                            <span class="flow-node-type">{{ node.node_type }}</span>
-                          </div>
-                          @if (node.description) { <p class="flow-node-desc">{{ node.description }}</p> }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                  @if (edgesOf(block).length) {
-                    <div class="flow-edges">
-                      @for (e of edgesOf(block); track $index) {
-                        <div class="flow-edge">
-                          <span class="fw-medium">{{ flowNodeLabel(block, e.from) }}</span>
-                          <span aria-hidden="true">&rarr;</span>
-                          <span class="fw-medium">{{ flowNodeLabel(block, e.to) }}</span>
-                          @if (e.label) { <span class="text-muted">&middot; {{ e.label }}</span> }
-                          @if (e.condition) { <span class="fst-italic text-muted">({{ e.condition }})</span> }
-                        </div>
-                      }
-                    </div>
-                  }
-                </div>
-              }
-
-              @case ('pathway_map') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  @if (pathwayGoal(block)) { <p class="block-subtext fw-medium">Goal: {{ pathwayGoal(block) }}</p> }
-                  <div class="d-flex flex-column gap-2">
-                    @for (lane of lanesOf(block); track lane.id) {
-                      <div class="pathway-lane" [class.is-recommended]="lane.recommended">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                          <div>
-                            <div class="pathway-lane-title">{{ lane.title }}</div>
-                            @if (lane.summary) { <p class="pathway-lane-summary">{{ lane.summary }}</p> }
-                          </div>
-                          @if (lane.recommended) { <span class="pathway-recommended-badge">Recommended</span> }
-                        </div>
-                        <div class="d-flex flex-column gap-1">
-                          @for (step of lane.steps; track step.id; let si = $index) {
-                            <div class="pathway-step">
-                              <span class="pathway-step-index">{{ si + 1 }}</span>
-                              <div class="flex-1 min-w-0">
-                                <span class="fw-semibold">{{ step.label }}</span>
-                                @if (step.description) { <span class="text-muted"> &mdash; {{ step.description }}</span> }
-                                @if (step.status && step.status !== 'upcoming') {
-                                  <span class="pathway-step-status" [ngClass]="laneStepStatusClass(step.status)">{{ step.status }}</span>
-                                }
-                              </div>
-                            </div>
-                          }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('scorecard') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="row g-2">
-                    @for (m of metricsOf(block); track m.id) {
-                      <div class="col-6 col-sm-4">
-                        <div class="metric-card">
-                          <div class="metric-label">{{ m.label }}</div>
-                          <div class="metric-value" [ngClass]="metricStatusClass(m.status)">
-                            <span>{{ metricDisplay(m) }}</span>
-                            @if (trendGlyph(m.trend)) { <span aria-hidden="true">{{ trendGlyph(m.trend) }}</span> }
-                          </div>
-                          @if (m.description) { <p class="metric-desc">{{ m.description }}</p> }
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('chart') {
-                <section class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  @if (block.text) { <p class="block-subtext">{{ block.text }}</p> }
-                  <p class="chart-source-note">{{ chartSourceLabel(block) }} &middot; Values shown as a table so every series can be compared.</p>
-                  <div class="table-responsive response-table-scroll">
-                    <table class="table table-bordered mb-0 response-data-table">
-                      <caption class="visually-hidden">{{ block.title || 'Data comparison' }}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Category</th>
-                          @for (s of chartSeries(block); track s.id) { <th scope="col">{{ s.label }}{{ s.unit ? ' (' + s.unit + ')' : '' }}</th> }
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (category of chartCategories(block); track $index; let ci = $index) {
-                          <tr>
-                            <td class="fw-medium" data-label="Category">{{ category }}</td>
-                            @for (s of chartSeries(block); track s.id) {
-                              <td [attr.data-label]="s.label + (s.unit ? ' (' + s.unit + ')' : '')">{{ chartCellValue(s, ci) }}</td>
-                            }
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              }
-
-              @case ('progress') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="progress-stepper">
-                    @for (stage of stagesOf(block); track stage.id; let si = $index) {
-                      <div class="progress-stage">
-                        <div class="progress-ring" [ngClass]="stageStatusClass(stage.status)">{{ stageGlyph(stage, si) }}</div>
-                        <div class="progress-stage-label" [ngClass]="stageStatusClass(stage.status) + '-label'">{{ stage.label }}</div>
-                        @if (stage.description) { <div class="progress-stage-desc">{{ stage.description }}</div> }
-                      </div>
-                      @if (si < stagesOf(block).length - 1) { <div class="progress-connector"></div> }
-                    }
-                  </div>
-                </div>
-              }
-
-              @case ('checklist') {
-                <div class="content-block">
-                  @if (block.title) { <h4 class="block-eyebrow">{{ block.title }}</h4> }
-                  <div class="row g-2">
-                    @for (item of block.items; track item.id) {
-                      <div class="col-12 col-sm-6">
-                        <div class="checklist-row">
-                          <span class="checklist-check">{{ (item.status === 'complete' || item.status === 'completed') ? '✓' : '○' }}</span>
-                          <div class="min-w-0">
-                            <p class="checklist-title">{{ item.title }}</p>
-                            @if (item.text || item.value) { <p class="checklist-text">{{ item.text || item.value }}</p> }
-                          </div>
-                        </div>
-                      </div>
-                    }
-                  </div>
-                </div>
-              }
-
-              @default {
-                <div class="content-block fallback-card">
-                  @if (fallbackCardHeading(block)) { <div class="fallback-card-heading">{{ fallbackCardHeading(block) }}</div> }
-                  @if (block.text) { <p class="fallback-card-text">{{ block.text }}</p> }
-                  @if (block.items?.length) {
-                    <ul class="fallback-card-list">
-                      @for (item of block.items; track item.id) {
-                        <li>
-                          <span class="fallback-dot" aria-hidden="true"></span>
-                          <span>
-                            @if (item.title) { <strong>{{ item.title }}</strong> }
-                            @if (item.text) { <span>{{ item.title ? ' — ' + item.text : item.text }}</span> }
-                            @if (!item.title && !item.text && item.value) { <span>{{ item.value }}</span> }
-                          </span>
-                        </li>
-                      }
-                    </ul>
-                  }
-                  @if (fallbackBodyRows(block).length) {
-                    <div>
-                      @for (row of fallbackBodyRows(block); track $index) {
-                        <div class="fallback-card-row">
-                          @if (fallbackRowLabel(row)) { <div class="fallback-row-label">{{ fallbackRowLabel(row) }}</div> }
-                          <div class="fallback-row-value">{{ fallbackRowValue(row) }}</div>
-                        </div>
-                      }
-                    </div>
-                  }
-                </div>
-              }
+      @if (readableSections.length >= 5) {
+        <nav aria-label="In this answer" class="pr-toc tw-border">
+          <p class="pr-toc-title">In this answer</p>
+          <ul class="pr-toc-list">
+            @for (section of readableSections; track section.index) {
+              <li><a class="pr-toc-link" [href]="'#' + sectionId(section.index)">{{ section.title }}</a></li>
             }
+          </ul>
+        </nav>
+      }
+
+      <div class="pr-sections">
+        @for (block of restBlocks; track $index; let i = $index) {
+          <div [id]="sectionId(i + 1)" class="pr-section" [attr.data-output-type]="block.type" [attr.data-output-variant]="block.variant || 'default'"><ng-container *ngTemplateOutlet="blockTpl; context: { $implicit: block }" /></div>
+        }
+      </div>
+
+      @if (suggestPathway && !readOnly) {
+        <div class="pr-pathway-wrap">
+          <button type="button" (click)="openPathway.emit()" class="pr-pathway-btn"><app-icon name="GraduationCap" class="pr-icon-3-5" />Build my pathway →</button>
+        </div>
+      }
+
+      @if (showDraftOnly) { <p class="pr-draft" title="This is a draft in the conversation. Provider requests are not connected.">Draft only · Not sent</p> }
+      <div [hidden]="deferQuestionToWorkspace">
+        @if (data.interaction) {
+          <app-interaction [interaction]="data.interaction" [initialFields]="initialFields" [readOnly]="readOnly" [interactHandler]="interactHandler" [canInteract]="!!interactHandler || interact.observed" (interact)="interact.emit($event)" />
+        }
+      </div>
+
+      @if (showRecommendedActions) {
+        <div class="pr-actions">
+          @for (act of data.interaction.recommended_actions; track act.id) {
+            <button type="button" (click)="handleActionClick(act.id, act.message)" class="pr-action-btn tw-border">{{ act.label }}</button>
           }
         </div>
       }
+
+      @if (showService) {
+        <div class="pr-service">
+          <div class="pr-service-head">
+            <span class="pr-service-kicker"><app-icon name="Briefcase" class="pr-icon-3-5" /><span>Request options</span></span>
+            <span class="pr-service-badge tw-border">Draft only</span>
+          </div>
+          <div class="grid pr-service-grid">
+            @for (act of serviceActions; track actId(act)) {
+              <div class="pr-service-card tw-border">
+                <div class="pr-service-card-head">
+                  <span>{{ act.title || trusted(act)?.title || 'Service Action' }}</span>
+                  @if (act.requires_confirmation) { <span class="pr-service-confirm tw-border">Confirm</span> }
+                </div>
+                <p class="pr-service-desc">{{ act.description || trusted(act)?.description || 'Connect with authorized pathway providers.' }}</p>
+                <button type="button" [disabled]="!trusted(act)?.isConnectedInLab || !!statusOf(act) || readOnly" (click)="triggerServiceAction(act)"
+                  class="pr-service-btn" [class.tw-border]="!!statusOf(act)" [class.is-executed]="statusOf(act)?.executed" [class.is-attempted]="!!statusOf(act) && !statusOf(act)?.executed" [class.is-idle]="!statusOf(act)">
+                  @if (statusOf(act)?.executed) {
+                    <app-icon name="Check" class="pr-icon-3-5" /><span>Action Initiated</span>
+                  } @else if (statusOf(act)) {
+                    <span>{{ statusOf(act)?.message || 'Not connected in Token Lab.' }}</span>
+                  } @else {
+                    <span>{{ trusted(act)?.isConnectedInLab ? 'Continue' : 'Not connected — nothing will be sent' }}</span>
+                    <app-icon name="ArrowRight" class="pr-icon-3-5" />
+                  }
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (pendingAction) {
+        <app-confirm-dialog [isOpen]="true" title="Confirm Service Connection"
+          [message]="'Are you sure you want to initiate &quot;' + (pendingAction.title || 'Service Action') + '&quot;? Review the details before continuing.'"
+          confirmLabel="Confirm & Connect" cancelLabel="Cancel" (confirmed)="confirmPendingAction()" (cancelled)="pendingAction = null" />
+      }
     </div>
+  }
+}
 
-    <app-interaction
-      [interaction]="response.interaction"
-      [initialFields]="initialFields"
-      [readOnly]="readOnly"
-      (interact)="onInteractionSubmit($event)">
-    </app-interaction>
-
-    @if (showRecommendedActions) {
-      <div class="recommended-actions">
-        @for (act of response.interaction.recommended_actions; track act.id) {
-          <button type="button" class="btn btn-outline-secondary btn-sm recommended-chip" (click)="handleActionClick(act.id, act.message)">
-            {{ act.label }}
-          </button>
+<ng-template #blockTpl let-block>
+  @switch (block.type) {
+    @case ('heading') {
+      <div class="pr-heading">
+        @if (block.text && block.title) { <span class="pr-eyebrow">{{ block.text }}</span> }
+        @if (block.level === 'h2') {
+          <h2 class="pr-h2">{{ block.title || block.text || '' }}</h2>
+        } @else {
+          <h3 class="pr-h3">{{ block.title || block.text || '' }}</h3>
         }
       </div>
     }
 
-    @if (showDraftOnly) {
-      <p class="draft-only-note" title="This is a draft in the conversation. Provider requests are not connected.">Draft only &middot; Not sent</p>
+    @case ('text') {
+      <div class="pr-text">
+        @if (block.title) { <h3 class="pr-h3">{{ block.title }}</h3> }
+        <div class="response-prose pr-prose" [innerHTML]="markdown(block)"></div>
+      </div>
     }
 
-    @if (showServiceHandoff) {
-      <div class="service-handoff">
-        <div class="service-handoff-header">
-          <span class="service-handoff-title">Request options</span>
-          <span class="service-handoff-badge">Draft only</span>
-        </div>
-        <div class="row g-2">
-          @for (act of service!.actions; track actionId(act)) {
-            <div class="col-12 col-sm-6">
-              <div class="service-action-card">
-                <div class="d-flex align-items-center justify-content-between">
-                  <span class="fw-semibold">{{ act.title || 'Service Action' }}</span>
-                  @if (act.requires_confirmation) { <span class="confirm-badge">Confirm</span> }
-                </div>
-                <p class="service-action-desc">{{ act.description || 'Connect with authorized pathway providers.' }}</p>
-                <button type="button" class="btn btn-purple w-100 btn-sm"
-                        [disabled]="!!statusOf(actionId(act)) || readOnly"
-                        (click)="triggerServiceAction(act)">
-                  @if (statusOf(actionId(act))?.executed) {
-                    <span>&#10003; Action Initiated</span>
-                  } @else if (statusOf(actionId(act))) {
-                    <span>{{ statusOf(actionId(act))?.message }}</span>
-                  } @else {
-                    <span>Continue &rarr;</span>
+    @case ('list') { <app-guidance-list [block]="block" [pathwayLearningCues]="pathwayLearningCues" /> }
+    @case ('steps') { <app-guidance-list [block]="block" [pathwayLearningCues]="pathwayLearningCues" /> }
+
+    @case ('table') {
+      <div class="pr-table-block">
+        @if (block.title) { <h4 class="pr-eyebrow-title">{{ block.title }}</h4> }
+        <div class="response-table-scroll pr-table-scroll">
+          <table class="response-data-table pr-table pr-table-680">
+            <thead>
+              <tr class="pr-thead-row">
+                @for (col of cols(block); track col.key) { <th scope="col" class="pr-th">{{ col.label }}</th> }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(block); track $index) {
+                <tr class="pr-tr" [attr.data-learning-tone]="rowTone(row)">
+                  @for (col of cols(block); track col.key; let ci = $index) {
+                    <td class="pr-td" [class.pr-td-strong]="ci === 0" [class.pr-td-normal]="ci !== 0" [attr.data-learning-tone]="cellTone(cellValue(row, col.key))" [attr.data-label]="col.label">{{ cellValue(row, col.key) || 'Not provided' }}@if (pathwayLearningCues && cellValue(row, col.key)) {<app-pathway-learning-cues [text]="cellValue(row, col.key)!" />}</td>
                   }
-                </button>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @case ('comparison') {
+      <div class="pr-table-block">
+        @if (block.title) { <h4 class="pr-eyebrow-title">{{ block.title }}</h4> }
+        <div class="response-table-scroll pr-table-scroll">
+          <table class="response-data-table pr-table pr-table-760">
+            <thead>
+              <tr class="pr-thead-row">
+                @if (comparisonHasCriteria(block)) { <th scope="col" class="pr-th pr-th-factor">Factor</th> }
+                @for (col of cols(block); track col.key) { <th scope="col" class="pr-th">{{ col.label }}</th> }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(block); track $index; let last = $last) {
+                <tr class="pr-tr" [class.pr-tr-last]="last" [attr.data-learning-tone]="rowTone(row)">
+                  @if (comparisonHasCriteria(block)) { <td data-label="Factor" class="pr-td pr-td-strong">{{ row.criteria || row.id }}</td> }
+                  @for (col of cols(block); track col.key) {
+                    <td class="pr-td" [attr.data-learning-tone]="cellTone(cellValue(row, col.key))" [attr.data-label]="col.label">{{ cellValue(row, col.key) || 'Not provided' }}@if (pathwayLearningCues && cellValue(row, col.key)) {<app-pathway-learning-cues [text]="cellValue(row, col.key)!" />}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @case ('callout') {
+      <div [class]="'pr-callout pr-callout-' + variant(block)" [attr.role]="variant(block) === 'danger' || variant(block) === 'warning' ? 'alert' : null">
+        @if (block.title) {
+          <div class="pr-callout-head">
+            <app-icon [name]="calloutIcon(block)" class="pr-icon-3-5 pr-shrink-0" />
+            <span class="pr-callout-title">{{ block.title }}</span>
+          </div>
+        }
+        <p class="pr-callout-text">{{ block.text }}</p>
+      </div>
+    }
+
+    @case ('key_value') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title">{{ block.title }}</h4> }
+        <div class="grid pr-kv-grid">
+          @for (item of items(block); track $index) {
+            <div class="pr-kv-item tw-border">
+              <span class="pr-kv-label">{{ item.title }}</span>
+              <span class="pr-kv-value">{{ item.value || item.text }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('cards') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        @if (block.text) { <p class="pr-intro text-xs">{{ block.text }}</p> }
+        <div class="grid pr-cards-grid">
+          @for (card of list(d(block).cards); track $index) {
+            <div [class]="'pr-card tw-border pr-card-' + cardStatus(card.status)">
+              <div class="pr-card-head">
+                <div>
+                  <div class="pr-card-name text-xs">{{ card.title }}</div>
+                  @if (card.subtitle) { <div class="pr-card-sub text-[11px]">{{ card.subtitle }}</div> }
+                </div>
+                @if (card.badge) { <span class="pr-card-badge tw-border text-[10px]">{{ card.badge }}</span> }
+              </div>
+              @if (card.description) { <p class="pr-card-desc text-xs">{{ card.description }}</p> }
+              @if (list(card.facts).length > 0) {
+                <div class="grid pr-card-facts">
+                  @for (f of list(card.facts); track $index) {
+                    <div class="pr-card-fact">
+                      <span class="pr-fact-label text-[10px]">{{ f.label }}</span>
+                      <span class="pr-fact-value text-[11px]">{{ f.value }}</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('timeline') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        <div class="pr-tl">
+          <div class="pr-tl-line"></div>
+          @for (m of list(d(block).milestones); track $index) {
+            <div class="pr-tl-item">
+              <div [class]="'pr-tl-dot pr-tl-dot-' + milestoneStatus(m.status)"></div>
+              <div class="pr-tl-body">
+                <div class="pr-tl-head">
+                  <span class="pr-tl-label text-xs">{{ m.label }}</span>
+                  @if (m.time_label) { <span class="pr-tl-time text-[10px]">{{ m.time_label }}</span> }
+                  @if (m.optional) { <span class="pr-tl-optional text-[9px]">optional</span> }
+                  <span [class]="'pr-tl-status text-[9px] pr-pill-' + milestoneStatus(m.status)">{{ m.status }}</span>
+                </div>
+                @if (m.description) { <p class="pr-tl-desc text-[11px]">{{ m.description }}</p> }
               </div>
             </div>
           }
@@ -451,15 +246,169 @@
       </div>
     }
 
-    <app-confirm-dialog
-      [isOpen]="!!pendingAction"
-      title="Confirm Service Connection"
-      [message]="'Are you sure you want to initiate \'' + (pendingAction?.title || 'Service Action') + '\'? Review the details before continuing.'"
-      confirmLabel="Confirm &amp; Connect"
-      cancelLabel="Cancel"
-      (confirmed)="confirmPendingAction()"
-      (cancelled)="cancelPendingAction()">
-    </app-confirm-dialog>
+    @case ('flow') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        @if (block.text) { <p class="pr-intro text-xs">{{ block.text }}</p> }
+        <div class="grid pr-flow-grid">
+          @for (node of list(d(block).nodes); track $index) {
+            <div [class]="'pr-node tw-border text-xs pr-node-' + nodeStatus(node.status)">
+              <div class="pr-node-head">
+                <span class="pr-node-label">{{ node.label }}</span>
+                <span class="pr-node-type text-[9px]">{{ node.node_type }}</span>
+              </div>
+              @if (node.description) { <p class="pr-node-desc text-[11px]">{{ node.description }}</p> }
+            </div>
+          }
+        </div>
+        @if (list(d(block).edges).length > 0) {
+          <div class="pr-edges text-[10px]">
+            @for (e of list(d(block).edges); track $index) {
+              <div class="pr-edge">
+                <span class="pr-edge-node">{{ nodeLabel(block, e.from) }}</span>
+                <app-icon name="ArrowRight" class="pr-icon-3 pr-shrink-0" />
+                <span class="pr-edge-node">{{ nodeLabel(block, e.to) }}</span>
+                @if (e.label) { <span class="pr-edge-label">· {{ e.label }}</span> }
+                @if (e.condition) { <span class="pr-edge-cond">({{ e.condition }})</span> }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
 
+    @case ('pathway_map') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        @if (d(block).goal) { <p class="pr-goal text-xs">Goal: {{ d(block).goal }}</p> }
+        <div class="grid pr-lanes">
+          @for (lane of list(d(block).lanes); track $index) {
+            <div class="pr-lane tw-border" [class.is-recommended]="lane.recommended">
+              <div class="pr-lane-head">
+                <div>
+                  <div class="pr-lane-title text-xs">{{ lane.title }}</div>
+                  @if (lane.summary) { <p class="pr-lane-summary text-[11px]">{{ lane.summary }}</p> }
+                </div>
+                @if (lane.recommended) { <span class="pr-lane-badge tw-border text-[9px]">Recommended</span> }
+              </div>
+              <div class="pr-lane-steps">
+                @for (step of list(lane.steps); track $index; let si = $index) {
+                  <div class="pr-lane-step text-xs">
+                    <div class="pr-lane-num text-[9px]">{{ si + 1 }}</div>
+                    <div class="pr-lane-step-body">
+                      <span class="pr-lane-step-label">{{ step.label }}</span>
+                      @if (step.description) { <span class="pr-lane-step-desc">— {{ step.description }}</span> }
+                      @if (step.status && step.status !== 'upcoming') { <span [class]="'pr-lane-step-status text-[9px] pr-pill-' + laneStatus(step.status)">{{ step.status }}</span> }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('scorecard') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        <div class="grid pr-score-grid">
+          @for (m of list(d(block).metrics); track $index) {
+            <div class="pr-metric tw-border">
+              <div class="pr-metric-label text-[10px]">{{ m.label }}</div>
+              <div [class]="'pr-metric-value pr-metric-' + metricStatus(m.status)">
+                <span>{{ metricValue(m) }}</span>
+                @if (m.trend === 'up') { <app-icon name="TrendingUp" class="pr-icon-3 pr-trend-up" /> }
+                @if (m.trend === 'down') { <app-icon name="TrendingDown" class="pr-icon-3 pr-trend-down" /> }
+              </div>
+              @if (m.description) { <p class="pr-metric-desc text-[10px]">{{ m.description }}</p> }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('chart') {
+      <section class="pr-stack-3">
+        @if (block.title) { <h4 class="pr-chart-title">{{ block.title }}</h4> }
+        @if (block.text) { <p class="pr-chart-note">{{ block.text }}</p> }
+        <p class="pr-chart-note">{{ sourceLabel(block) }} · Values shown as a table so every series can be compared.</p>
+        <div class="response-table-scroll pr-chart-scroll tw-border">
+          <table class="response-data-table pr-chart-table">
+            <caption class="pr-sr-only">{{ block.title || 'Data comparison' }}</caption>
+            <thead><tr><th scope="col" class="pr-chart-cell">Category</th>@for (s of list(d(block).series); track $index) {<th scope="col" class="pr-chart-cell">{{ s.label }}{{ s.unit ? " (" + s.unit + ")" : "" }}</th>}</tr></thead>
+            <tbody>
+              @for (category of list(d(block).categories); track $index; let i = $index) {
+                <tr class="pr-chart-row"><td class="pr-chart-cell pr-chart-cat" data-label="Category">{{ category }}</td>@for (s of list(d(block).series); track $index) {<td class="pr-chart-cell pr-tabular" [attr.data-label]="seriesHead(s)">{{ seriesValue(s, i) }}</td>}</tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    @case ('progress') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title text-xs">{{ block.title }}</h4> }
+        <div class="pr-stage-track">
+          @for (stage of list(d(block).stages); track $index; let si = $index, last = $last) {
+            <div class="pr-stage">
+              <div [class]="'pr-stage-ring text-[11px] pr-ring-' + stageStatus(stage.status)">{{ stage.status === 'completed' ? '✓' : si + 1 }}</div>
+              <div [class]="'pr-stage-label text-[10px] pr-stage-label-' + stageStatus(stage.status)">{{ stage.label }}</div>
+              @if (stage.description) { <div class="pr-stage-desc text-[9px]">{{ stage.description }}</div> }
+            </div>
+            @if (!last) { <div class="pr-stage-connector"></div> }
+          }
+        </div>
+      </div>
+    }
+
+    @case ('checklist') {
+      <div class="pr-stack-2">
+        @if (block.title) { <h4 class="pr-block-title">{{ block.title }}</h4> }
+        <div class="grid pr-check-grid">
+          @for (item of items(block); track $index) {
+            <div class="pr-check-item tw-border">
+              <span class="pr-check-mark tw-border">{{ isChecked(item) ? '✓' : '○' }}</span>
+              <div class="pr-min-w-0">
+                <p class="pr-check-title">{{ item.title }}</p>
+                @if (item.text || item.value) { <p class="pr-check-text">{{ item.text || item.value }}</p> }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @default {
+      <div class="pr-fallback">
+        @if (fallbackHeading(block)) { <div class="pr-fallback-head">{{ fallbackHeading(block) }}</div> }
+        @if (block.text) { <p class="pr-fallback-text">{{ block.text }}</p> }
+        @if (items(block).length > 0) {
+          <ul class="pr-fallback-items">
+            @for (item of items(block); track $index) {
+              <li class="pr-fallback-item">
+                <span class="pr-fallback-dot"></span>
+                <div class="pr-min-w-0">
+                  @if (item.title) { <span class="pr-fallback-item-title">{{ item.title }}</span> }
+                  @if (item.text) { <span class="pr-fallback-item-text">{{ item.title ? ' — ' + item.text : item.text }}</span> }
+                  @if (!item.title && !item.text && item.value) { <span>{{ item.value }}</span> }
+                </div>
+              </li>
+            }
+          </ul>
+        }
+        @if (fallbackRows(block).length > 0) {
+          <div>
+            @for (row of fallbackRows(block); track $index) {
+              <div class="pr-fallback-row">
+                @if (rowLabel(row)) { <div class="pr-fallback-row-label">{{ rowLabel(row) }}</div> }
+                <div class="pr-fallback-row-value">{{ rowValue(row) }}</div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
   }
-</div>
+</ng-template>

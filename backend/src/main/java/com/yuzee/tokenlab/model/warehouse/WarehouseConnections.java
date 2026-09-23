@@ -1,11 +1,14 @@
 package com.yuzee.tokenlab.model.warehouse;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /** Providers/careers/industries/signals expanded from a set of courses (or a location/role search).
  *  Ported from yuzee-ai-token-lab/src/warehouse/types.ts (WarehouseConnections) and linked-data.cjs (createLinkedReader). */
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class WarehouseConnections {
     private LocalOverview localOverview;
     private WarehouseExploration exploration;
@@ -36,6 +39,8 @@ public class WarehouseConnections {
     public String getScopeNote() { return scopeNote; }
     public void setScopeNote(String scopeNote) { this.scopeNote = scopeNote; }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class RegionRef {
         private String key;
         private String name;
@@ -53,6 +58,8 @@ public class WarehouseConnections {
         public void setState(String state) { this.state = state; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class LocationInfo {
         private String requested = "";
         private RegionRef region;
@@ -65,6 +72,8 @@ public class WarehouseConnections {
         public void setCandidates(List<RegionRef> candidates) { this.candidates = candidates; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class LocalOverview {
         private String evidenceId;
         private String area;
@@ -95,6 +104,8 @@ public class WarehouseConnections {
         public void setCoverage(String coverage) { this.coverage = coverage; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Ancestor {
         private String name;
         private String scope;
@@ -106,10 +117,12 @@ public class WarehouseConnections {
         public void setScope(String scope) { this.scope = scope; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Profile {
         private String area;
         private String scope;
-        private Integer population;
+        private Double population;
         private String setting;
         private String period;
         private String source;
@@ -117,8 +130,8 @@ public class WarehouseConnections {
         public void setArea(String area) { this.area = area; }
         public String getScope() { return scope; }
         public void setScope(String scope) { this.scope = scope; }
-        public Integer getPopulation() { return population; }
-        public void setPopulation(Integer population) { this.population = population; }
+        public Double getPopulation() { return population; }
+        public void setPopulation(Double population) { this.population = population; }
         public String getSetting() { return setting; }
         public void setSetting(String setting) { this.setting = setting; }
         public String getPeriod() { return period; }
@@ -127,6 +140,8 @@ public class WarehouseConnections {
         public void setSource(String source) { this.source = source; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class CommunityGroup {
         private String key;
         private String label;
@@ -142,6 +157,8 @@ public class WarehouseConnections {
         public void setExamples(List<Example> examples) { this.examples = examples; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Example {
         private String name;
         private String type;
@@ -160,6 +177,8 @@ public class WarehouseConnections {
         public void setArea(String area) { this.area = area; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Campus {
         private String name;
         private String town;
@@ -175,6 +194,8 @@ public class WarehouseConnections {
         public void setPostcode(String postcode) { this.postcode = postcode; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class ProviderProfile {
         private String id;
         private String evidenceId;
@@ -214,6 +235,8 @@ public class WarehouseConnections {
         public void setCourseIds(List<String> courseIds) { this.courseIds = courseIds; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class CourseLink {
         private String courseId;
         private String courseName;
@@ -233,6 +256,8 @@ public class WarehouseConnections {
         public void setConfidence(Double confidence) { this.confidence = confidence; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Career {
         private String id;
         private String evidenceId;
@@ -272,12 +297,14 @@ public class WarehouseConnections {
         public void setGroupCode(String groupCode) { this.groupCode = groupCode; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Industry {
         private String id;
         private String evidenceId;
         private String name;
-        private String courseId;
-        private String careerId;
+        @JsonInclude(JsonInclude.Include.NON_NULL) private String courseId;
+        @JsonInclude(JsonInclude.Include.NON_NULL) private String careerId;
         private String method;
         private String scope;
         public String getId() { return id; }
@@ -296,29 +323,15 @@ public class WarehouseConnections {
         public void setScope(String scope) { this.scope = scope; }
     }
 
-    public static class Metrics {
-        private Integer advertisements;
-        private Integer employers;
-        private Double growthPercent;
-        private Integer horizonYears;
-        private Integer baseYear;
-        public Integer getAdvertisements() { return advertisements; }
-        public void setAdvertisements(Integer advertisements) { this.advertisements = advertisements; }
-        public Integer getEmployers() { return employers; }
-        public void setEmployers(Integer employers) { this.employers = employers; }
-        public Double getGrowthPercent() { return growthPercent; }
-        public void setGrowthPercent(Double growthPercent) { this.growthPercent = growthPercent; }
-        public Integer getHorizonYears() { return horizonYears; }
-        public void setHorizonYears(Integer horizonYears) { this.horizonYears = horizonYears; }
-        public Integer getBaseYear() { return baseYear; }
-        public void setBaseYear(Integer baseYear) { this.baseYear = baseYear; }
-    }
 
+
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Signal {
         private String id;
         private String evidenceId;
         private String kind;
-        private String careerId;
+        @JsonInclude(JsonInclude.Include.NON_NULL) private String careerId;
         private String title;
         private String text;
         private String scope;
@@ -327,8 +340,8 @@ public class WarehouseConnections {
         private String source;
         private String method;
         private boolean localMatch;
-        private String updatedAt;
-        private Metrics metrics;
+        @JsonInclude(JsonInclude.Include.NON_NULL) private String updatedAt;
+        @JsonInclude(JsonInclude.Include.NON_NULL) private Map<String, Object> metrics;
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
         public String getEvidenceId() { return evidenceId; }
@@ -355,10 +368,12 @@ public class WarehouseConnections {
         public void setLocalMatch(boolean localMatch) { this.localMatch = localMatch; }
         public String getUpdatedAt() { return updatedAt; }
         public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
-        public Metrics getMetrics() { return metrics; }
-        public void setMetrics(Metrics metrics) { this.metrics = metrics; }
+        public Map<String, Object> getMetrics() { return metrics; }
+        public void setMetrics(Map<String, Object> metrics) { this.metrics = metrics; }
     }
 
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     public static class Relationship {
         private String from;
         private String to;

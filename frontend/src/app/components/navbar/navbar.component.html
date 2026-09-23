@@ -1,92 +1,156 @@
-<nav class="navbar-shell d-flex align-items-center px-3 py-2 border-bottom bg-white">
-  <!-- Logo -->
-  <div class="d-flex align-items-center gap-2 me-3">
-    <div class="brand-icon rounded-3">
-      <span class="brand-letter">Y</span>
-    </div>
-    <span class="fw-semibold text-dark" style="font-size:14px">Yuzee AI Lab</span>
+<header id="main-header">
+  <!-- Left: Brand & Mobile Sidebar Toggle -->
+  <div class="nav-left">
+    <button
+      id="btn-toggle-sidebar"
+      type="button"
+      (click)="toggleSidebar()"
+      class="nav-toggle"
+      title="Toggle Navigation"
+      aria-label="Toggle Navigation"
+    >
+      <app-icon name="Menu" class="nav-icon-5" />
+    </button>
+    <div id="saved-pathways-control"></div>
   </div>
 
-  <!-- Conversation selector -->
-  <div class="conv-selector mx-2" style="max-width:300px;position:relative">
-    <button class="btn btn-sm btn-light w-100 text-start d-flex align-items-center gap-2 justify-content-between"
-            (click)="toggleConvMenu()">
-      <span class="text-truncate" style="max-width:200px;font-size:13px">
-        {{ lab.activeConversation()?.title ?? 'Select conversation' }}
+  <!-- Middle: Selectors + actions — hidden entirely on mobile, visible md+ -->
+  <div class="nav-middle">
+    <app-searchable-select
+      [id]="'select-model'"
+      [value]="modelValue"
+      [options]="modelOptions"
+      (valueChange)="onModelChange($event)"
+      leadingIcon="Cpu"
+      [compact]="true"
+      popoverWidth="w-80 sm:w-96"
+      [showSearchThreshold]="5"
+    />
+
+    <app-searchable-select
+      [id]="'select-optimization-mode'"
+      [value]="displayMode"
+      [options]="modeOptions"
+      (valueChange)="onModeChange($event)"
+      leadingIcon="Sparkles"
+      [compact]="true"
+      popoverWidth="w-72 sm:w-84"
+      [showSearchThreshold]="10"
+    />
+
+    <app-searchable-select
+      [id]="'select-router-model'"
+      [value]="routerModelId()"
+      [options]="routerModelOptions"
+      (valueChange)="onRouterModelChange($event)"
+      leadingIcon="Bot"
+      [compact]="true"
+      popoverWidth="w-72"
+      [showSearchThreshold]="10"
+    />
+
+    <button
+      id="btn-pathway"
+      type="button"
+      (click)="togglePathway()"
+      class="nav-pathway"
+      [class.is-active]="lab.isWhiteboardOpen()"
+      [class.is-idle]="!lab.isWhiteboardOpen()"
+      [title]="lab.isWhiteboardOpen() ? 'Close pathway' : 'Open pathway'"
+    >
+      <app-icon name="Network" class="nav-pathway-icon" />
+      <span>Pathway</span>
+    </button>
+
+    <button
+      id="btn-renderer"
+      type="button"
+      (click)="openRenderer.emit()"
+      class="nav-tool"
+      title="Protocol v1.3 Renderer"
+    >
+      <app-icon name="FileJson" class="nav-tool-icon" />
+      <span>Renderer</span>
+    </button>
+
+    <button
+      id="btn-lab"
+      type="button"
+      (click)="openLab()"
+      class="nav-tool"
+      title="Lab Tools"
+    >
+      <app-icon name="Wrench" class="nav-tool-icon" />
+      <span>Lab</span>
+    </button>
+  </div>
+
+  <!-- Mobile-only: model selector -->
+  <div class="nav-mobile">
+    <app-searchable-select
+      [id]="'select-model-mobile'"
+      [value]="modelValue"
+      [options]="modelOptions"
+      (valueChange)="onModelChange($event)"
+      leadingIcon="Cpu"
+      [compact]="true"
+      popoverWidth="w-72"
+      [showSearchThreshold]="5"
+    />
+  </div>
+
+  <!-- Right: Settings + Conv Cost + Telemetry Pill -->
+  <div class="nav-right">
+    <button
+      id="btn-open-profile"
+      type="button"
+      (click)="lab.isProfileOpen.set(true)"
+      class="nav-profile"
+      title="User Profile — facts Oala learns about you"
+      aria-label="User Profile"
+    >
+      <app-icon name="User" class="nav-icon-4" />
+      @if (lab.userProfile().length > 0 || hasUnresolvedContradictions) {
+        <span class="nav-profile-badge" [class.warn]="hasUnresolvedContradictions" [class.ok]="!hasUnresolvedContradictions">{{ hasUnresolvedContradictions ? '!' : lab.userProfile().length > 9 ? '9+' : lab.userProfile().length }}</span>
+      }
+    </button>
+
+    <button
+      id="btn-open-settings"
+      type="button"
+      (click)="lab.isSettingsOpen.set(true)"
+      class="nav-settings"
+      title="App Settings (storage, API status)"
+      aria-label="Settings"
+    >
+      <app-icon name="Settings" class="nav-icon-4" />
+    </button>
+
+    @if (hasAssistantMsg) {
+      <span
+        class="nav-cost"
+        title="Estimated cost for this conversation. All-conversation totals are in the Overall Telemetry sidebar."
+      >
+        <span class="nav-cost-label">Conv</span>
+        {{ lab.formatCost(lab.currentConversationCost()) }}
       </span>
-      <span class="text-muted">⌄</span>
-    </button>
-
-    @if (convMenuOpen()) {
-      <div class="dropdown-menu show conv-dropdown">
-        <button class="dropdown-item d-flex align-items-center gap-2 text-purple" (click)="newConversation()">
-          <span>＋</span><span>New conversation</span>
-        </button>
-        <div class="dropdown-divider"></div>
-        @for (conv of lab.conversations(); track conv.id) {
-          <button class="dropdown-item text-truncate"
-                  [class.active]="conv.id === lab.activeConversationId()"
-                  (click)="selectConv(conv)">
-            {{ conv.title }}
-          </button>
-        }
-        @if (!lab.conversations().length) {
-          <div class="px-3 py-2 text-muted small">No conversations yet</div>
-        }
-      </div>
     }
-  </div>
 
-  <div class="flex-1"></div>
-
-  <!-- Model badge -->
-  <div class="model-badge me-2 px-2 py-1 rounded-pill">
-    {{ lab.activeModelId() | slice:0:20 }}
-  </div>
-
-  <!-- Session cost -->
-  @if (lab.sessionStats()) {
-    <div class="stats-pill me-2 px-2 py-1 rounded-pill text-muted">
-      {{ costDisplay }}
-    </div>
-  }
-
-  <!-- Tools -->
-  <div class="tools-menu me-2" style="position:relative">
-    <button class="btn btn-sm btn-light" (click)="toggleToolsMenu()" style="font-size:12px">
-      Tools ⌄
+    <button
+      id="btn-header-telemetry-pill"
+      type="button"
+      (click)="toggleTelemetry()"
+      class="nav-telemetry"
+      [class.is-active]="lab.isTokenInspectorOpen()"
+      [class.is-idle]="!lab.isTokenInspectorOpen()"
+      title="Conversation Telemetry — click to view full turn &amp; context diagnostics"
+      aria-label="Conversation Telemetry"
+    >
+      <app-icon name="Activity" class="nav-telemetry-icon" />
+      <span class="nav-telemetry-text">
+        @if (cachedTokens > 0) {⚡ <strong>{{ inputTokens }}</strong> new} @else {In <strong>{{ inputTokens }}</strong>}
+        · Out <strong>{{ outputTokens }}</strong>
+      </span>
     </button>
-    @if (toolsMenuOpen()) {
-      <div class="dropdown-menu show tools-dropdown">
-        <button class="dropdown-item" (click)="selectTool('settings')">Settings</button>
-        <button class="dropdown-item" (click)="selectTool('profile')">Profile &amp; Facts</button>
-        <button class="dropdown-item" (click)="selectTool('career-context')">Career Context</button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item" (click)="selectTool('mini-pathway')">Mini Pathway</button>
-        <button class="dropdown-item" (click)="selectTool('pathway-whiteboard')">Pathway Whiteboard</button>
-        <button class="dropdown-item" (click)="selectTool('objectives')">Objectives</button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item" (click)="selectTool('token-inspector')">Token Inspector</button>
-        <button class="dropdown-item" (click)="selectTool('context-inspector')">Context Inspector</button>
-        <button class="dropdown-item" (click)="selectTool('memory-timeline')">Memory Timeline</button>
-        <button class="dropdown-item" (click)="selectTool('analytics')">Analytics</button>
-        <button class="dropdown-item" (click)="selectTool('benchmark')">Benchmark</button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item" (click)="selectTool('advanced-lab')">Advanced Lab</button>
-        <button class="dropdown-item" (click)="selectTool('export')">Export Data</button>
-      </div>
-    }
   </div>
-
-  <!-- Sign out -->
-  <button class="btn btn-sm btn-outline-secondary ms-1" (click)="logout()" style="font-size:12px">
-    Sign out
-  </button>
-</nav>
-
-@if (convMenuOpen()) {
-  <div class="backdrop" (click)="convMenuOpen.set(false)"></div>
-}
-@if (toolsMenuOpen()) {
-  <div class="backdrop" (click)="toolsMenuOpen.set(false)"></div>
-}
+</header>

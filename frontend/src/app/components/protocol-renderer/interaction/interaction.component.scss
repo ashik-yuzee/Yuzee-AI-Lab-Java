@@ -1,87 +1,105 @@
-.protocol-question {
-  border-top: 1px solid #edf0f4;
-  margin-top: 12px;
-  padding-top: 14px;
+// Port of ProtocolInteraction.tsx. The main-chat-question/-choice/-own-* classes are global
+// (chat-experience.css); only the Tailwind-utility elements are translated here.
+:host { display: block; }
+
+// text-sm text-slate-600
+.ix-status, .ix-hint {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  color: var(--color-slate-600);
 }
 
-.protocol-question-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent, #7957c6);
-  margin-bottom: 6px;
+// text-sm text-red-700
+.ix-error {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  color: var(--color-red-700);
 }
 
-.protocol-question-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1c1f26;
-  margin-bottom: 4px;
-}
-
-.protocol-question-hint {
-  margin-bottom: 10px;
-}
-
-.protocol-choices {
-  border: 0;
+// sr-only
+.ix-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   padding: 0;
-  margin: 0 0 8px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border-width: 0;
 }
 
-.protocol-choice {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  border: 1px solid #e4e9f2;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  background: #fff;
-  transition: border-color .15s ease, background-color .15s ease;
-
-  &:hover { border-color: var(--accent-border, #b9a6df); }
-  &.is-selected { border-color: var(--accent, #7957c6); background: var(--accent-8, #f2edff); }
+// mt-1 h-4 w-4
+.ix-choice-input {
+  margin-top: var(--spacing);
+  height: calc(var(--spacing) * 4);
+  width: calc(var(--spacing) * 4);
 }
 
-.protocol-choice-copy strong { color: #1c1f26; font-size: 14px; }
-
-.protocol-ranked-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #e4e9f2;
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
-  background: #fff;
+// space-y-2
+:where(.ix-ranked > :not(:last-child)),
+:where(.ix-field > :not(:last-child)) {
+  margin-block-end: calc(var(--spacing) * 2);
 }
 
-.protocol-ranked-index {
-  color: #8a929d;
-  font-weight: 600;
-  padding: 0 6px;
-}
-
-.own-toggle { color: var(--accent, #7957c6); text-decoration: none; }
-.own-toggle:hover { color: #5e3ea8; }
-
-.own-answer { margin-top: 8px; }
-
-.protocol-question-footer {
+// flex items-center gap-2 rounded-xl border border-slate-200 p-2 bg-white
+.ix-ranked-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
+  gap: calc(var(--spacing) * 2);
+  border-radius: var(--radius-xl);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-200);
+  padding: calc(var(--spacing) * 2);
+  background-color: var(--color-white);
 }
 
-.btn-purple {
-  background: var(--accent, #7957c6);
-  color: #fff;
-  border: none;
+// px-2 text-slate-500
+.ix-ranked-num {
+  padding-inline: calc(var(--spacing) * 2);
+  color: var(--color-slate-500);
 }
-.btn-purple:hover { background: #6744b5; color: #fff; }
-.btn-purple:disabled { background: #cabde8; }
+
+// flex-1
+.ix-ranked-label { flex: 1; }
+
+// p-3 disabled:opacity-30
+.ix-move {
+  padding: calc(var(--spacing) * 3);
+  &:disabled { opacity: 30%; }
+}
+
+// block font-medium
+.ix-field-label {
+  display: block;
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+}
+
+// w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base
+// focus:outline-none focus:ring-2 focus:ring-sky-600 disabled:bg-slate-50
+.ix-input {
+  width: 100%;
+  border-radius: var(--radius-xl);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-300);
+  background-color: var(--color-white);
+  padding-inline: calc(var(--spacing) * 3);
+  padding-block: calc(var(--spacing) * 3);
+  &:focus {
+    --tw-outline-style: none;
+    outline-style: none;
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    --tw-ring-color: var(--color-sky-600);
+  }
+  &:disabled { background-color: var(--color-slate-50); }
+}
+// text-base; on the textarea the global `.main-chat-own-field textarea` (unlayered in the
+// original, so it beat this utility) supplies font-size/line-height instead.
+.ix-input:not(textarea) {
+  font-size: var(--text-base);
+  line-height: var(--tw-leading, var(--text-base--line-height));
+}

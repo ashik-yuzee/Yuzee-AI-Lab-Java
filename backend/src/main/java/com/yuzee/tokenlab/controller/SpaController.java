@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import java.io.IOException;
 
 /**
- * SPA fallback: returns index.html for 404s that are NOT API routes.
+ * SPA fallback: returns index.html for 404s, like the original's express catch-all.
  * Spring Boot's default static handler serves real assets with correct MIME types.
  */
 @Controller
@@ -26,14 +26,15 @@ public class SpaController implements ErrorController {
         Object statusAttr = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         int status = statusAttr != null ? Integer.parseInt(statusAttr.toString()) : 404;
 
-        // For API 404s return a plain JSON 404
         String uri = (String) request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        if (uri != null && (uri.startsWith("/api/") || uri.startsWith("/actuator/"))) {
+        if (uri != null && uri.startsWith("/actuator/")) {
             return ResponseEntity.notFound().build();
         }
 
-        // For all other 404s (SPA routes), serve index.html
-        if (status == 404) {
+        // Every other unmatched request serves index.html, as the original's catch-all: an unknown
+        // path (404) or a known path with no handler for the method (405), including /api paths
+        // that passed the auth check.
+        if (status == 404 || status == 405) {
             Resource index = new ClassPathResource("static/index.html");
             if (index.exists()) {
                 return ResponseEntity.ok()

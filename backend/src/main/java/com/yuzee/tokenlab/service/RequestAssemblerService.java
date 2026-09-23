@@ -4,249 +4,383 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.yuzee.tokenlab.model.ChatMessage;
-import com.yuzee.tokenlab.model.Conversation;
+import com.fasterxml.jackson.databind.node.TextNode;
+import com.yuzee.tokenlab.model.DialogueTurn;
 import jakarta.annotation.PostConstruct;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
+import static com.yuzee.tokenlab.service.RoutingPolicyService.jsRegex;
+import static com.yuzee.tokenlab.service.RoutingPolicyService.jsTrim;
+
 /**
- * Java port of YuzeeRequestAssembler.ts. Top-level orchestrator: runs the bypass classifier,
- * then (when not bypassed) assembles memory, builds multi-turn contents, resolves the thinking
- * config, and attaches the sanitized structured-output schema.
+ * Java port of YuzeeRequestAssembler.ts: prompt/schema identity, thinking resolution, the bypass
+ * classifier, user-event formatting and assembleRequest().
  */
 @Service
 public class RequestAssemblerService {
 
-    /** dynamicBudgetTokens default from TokenBudgetMemoryManager.assembleMemory (TS). */
-    private static final int DEFAULT_TOKEN_BUDGET = 2000;
-    /** resolveOutputBudget() in the old app always returns 65536 regardless of mode/model. */
-    private static final int MAX_OUTPUT_TOKENS = 65536;
     private static final String RESPONSE_SCHEMA_CLASSPATH = "prompts/response-schema-v1.3.json";
+    private static final String EXPERIENCE_RULES_CLASSPATH = "prompts/experience-rules.md";
 
-    public enum BypassCategory { GREETING, FAREWELL, IDLE, RUBBISH, CAREER }
-
-    private final ConversationMemoryService memoryService;
+    private final SystemPromptService systemPromptService;
     private final MultiTurnRequestBuilder contentBuilder;
+    private final TokenService tokenService;
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicReference<JsonNode> sanitizedSchema = new AtomicReference<>();
+    private volatile String schemaHash = "";
+    private volatile String experienceRules = "";
 
-    public RequestAssemblerService(ConversationMemoryService memoryService, MultiTurnRequestBuilder contentBuilder) {
-        this.memoryService = memoryService;
+    public RequestAssemblerService(SystemPromptService systemPromptService, MultiTurnRequestBuilder contentBuilder,
+                                   TokenService tokenService) {
+        this.systemPromptService = systemPromptService;
         this.contentBuilder = contentBuilder;
+        this.tokenService = tokenService;
     }
 
     @PostConstruct
     void init() {
         sanitizedSchema.set(loadSanitizedSchema());
+        experienceRules = readResource(EXPERIENCE_RULES_CLASSPATH);
     }
 
+    public String getPromptContent() { return systemPromptService.getPrompt(); }
+    public String getPromptHash() { return systemPromptService.getHash(); }
+    public String getSchemaHash() { return schemaHash; }
+
     // ------------------------------------------------------------------
-    // Top-level orchestration
+    // assembleRequest
     // ------------------------------------------------------------------
 
-    public AssembledRequest assembleRequest(Conversation conversation, Object currentUserInput,
-                                             String baseSystemPrompt, String modelId) {
-        AssembledRequest result = new AssembledRequest();
+    /** assembleRequest() params. */
+    public static class Params {
+        public String model;
+        public String messageText;
+        public String microToolInstruction;
+        public String oalaInstruction;
+        public JsonNode userEvent;
+        public Map<String, Object> careerContext;
+        public String summaryText;
+        public String recentHistoryText;
+        public String responseMode;
+        public String thinkingLevel;
+        public String customSystemPrompt;
+        public String systemPromptMode;
+        public Double temperature;
+        public Double topP;
+        public Integer maxOutputTokens;
+        public Boolean useMultiTurn;
+        public List<DialogueTurn> keptTurns;
+        public Boolean useStructuredOutput;
+    }
 
-        boolean hasConversation = conversation != null && conversation.getMessages() != null
-            && !conversation.getMessages().isEmpty();
-        boolean hasActiveQuestion = hasActiveQuestion(conversation);
+    public AssembledRequest assembleRequest(Params params) {
+        long requestReceivedAt = System.currentTimeMillis();
+        String aiRequestId = "req-" + System.currentTimeMillis() + "-" + randomBase36(5);
 
-        String rawText = currentUserInput instanceof String s ? s : null;
-        // A structured (non-string) currentUserInput is a real interaction (option click, form
-        // submit, etc) — the bypass classifier only ever ran against plain text in the old app,
-        // so structured input always routes straight to CAREER here.
-        BypassCategory category = rawText != null
-            ? classifyUserMessage(rawText, hasConversation, hasActiveQuestion)
-            : BypassCategory.CAREER;
-
-        if (category != BypassCategory.CAREER) {
-            result.bypassResponseText = bypassCopy(category);
-            return result;
+        // 1. System instruction
+        String systemInstruction = getPromptContent();
+        if ("custom".equals(params.systemPromptMode) && params.customSystemPrompt != null
+            && !jsTrim(params.customSystemPrompt).isEmpty()) {
+            systemInstruction = jsTrim(params.customSystemPrompt) + "\n" + experienceRules;
+        }
+        if (params.oalaInstruction != null && !params.oalaInstruction.isEmpty()) {
+            systemInstruction += "\n\n" + params.oalaInstruction;
         }
 
-        String careerCapsuleText = formatCareerContext(conversation != null ? conversation.getCareerContext() : null);
-        String summaryText = conversation != null ? conversation.getSummaryText() : null;
-        MemoryStrategy strategy = resolveStrategy(conversation != null ? conversation.getStrategy() : null);
+        // 2. Dynamic context
+        String careerStr = formatCareerContext(params.careerContext);
+        List<String> dynamicSections = new ArrayList<>();
+        if (!careerStr.isEmpty()) dynamicSections.add(careerStr);
+        if (params.summaryText != null && !jsTrim(params.summaryText).isEmpty()) {
+            dynamicSections.add("PREVIOUS_CONVERSATION_SUMMARY:\n" + jsTrim(params.summaryText));
+        }
+        if (params.recentHistoryText != null && !jsTrim(params.recentHistoryText).isEmpty()) {
+            dynamicSections.add("RECENT_DIALOGUE_TURNS:\n" + jsTrim(params.recentHistoryText));
+        }
+        String dynamicContextStr = String.join("\n\n", dynamicSections);
+        int dynamicContextTokenCount = tokenService.estimate(dynamicContextStr);
 
-        MemoryResult memoryResult = memoryService.assembleMemory(conversation, DEFAULT_TOKEN_BUDGET, strategy, rawText);
-        ArrayNode contents = contentBuilder.buildMultiTurnContents(
-            memoryResult.retainedTurns, careerCapsuleText, summaryText, currentUserInput);
+        // 3. Current user input
+        String userInput = formatUserEvent(params.messageText, params.userEvent, params.responseMode);
+        String currentUserStr = params.microToolInstruction != null && !params.microToolInstruction.isEmpty()
+            ? userInput + "\n\n" + params.microToolInstruction : userInput;
+        int currentMessageTokenCount = tokenService.estimate(currentUserStr);
 
-        ThinkingResolution thinking = resolveThinkingConfig(modelId, "adaptive", rawText != null ? rawText : "");
+        // 4. Contents
+        JsonNode contents;
+        if (Boolean.TRUE.equals(params.useMultiTurn) && params.keptTurns != null) {
+            contents = contentBuilder.buildMultiTurnContents(careerStr,
+                params.summaryText != null ? params.summaryText : "", params.keptTurns, currentUserStr, true);
+        } else {
+            contents = TextNode.valueOf(!dynamicContextStr.isEmpty() ? dynamicContextStr + "\n\n" + currentUserStr : currentUserStr);
+        }
 
-        ObjectNode extras = mapper.createObjectNode();
-        if (thinking.thinkingConfig != null) extras.set("thinkingConfig", thinking.thinkingConfig);
+        // 5. Config
+        String model = params.model != null && !params.model.isEmpty() ? params.model : "gemini-3.5-flash-lite";
+        String responseMode = params.responseMode != null && !params.responseMode.isEmpty() ? params.responseMode : "standard";
+        int maxOutputTokens = params.maxOutputTokens != null ? params.maxOutputTokens : resolveOutputBudget(responseMode, model);
+        ThinkingResolution thinking = resolveThinkingConfig(model,
+            params.thinkingLevel != null && !params.thinkingLevel.isEmpty() ? params.thinkingLevel : "adaptive",
+            params.messageText);
+
+        boolean structuredOutput = Boolean.TRUE.equals(params.useStructuredOutput);
+        ObjectNode geminiConfig = mapper.createObjectNode();
+        if (structuredOutput) geminiConfig.put("responseMimeType", "application/json");
         JsonNode schema = getSanitizedResponseSchema();
-        if (schema != null) extras.set("responseSchema", schema);
-        extras.put("maxOutputTokens", MAX_OUTPUT_TOKENS);
-        extras.put("responseMimeType", "application/json");
+        if (structuredOutput && schema != null) geminiConfig.set("responseSchema", schema);
+        geminiConfig.put("maxOutputTokens", maxOutputTokens);
+        if (params.temperature != null) geminiConfig.put("temperature", params.temperature);
+        if (params.topP != null) geminiConfig.put("topP", params.topP);
+        if (thinking.thinkingConfig != null) geminiConfig.set("thinkingConfig", thinking.thinkingConfig);
 
-        String systemInstruction = baseSystemPrompt == null ? "" : baseSystemPrompt;
-        String guidance = shortReplyGuidance(rawText, conversation);
-        if (!guidance.isEmpty()) {
-            systemInstruction = systemInstruction + "\n\n" + guidance;
-        }
-
-        result.systemInstruction = systemInstruction;
-        result.contents = contents;
-        result.generationConfigExtras = extras;
-        result.compactionMetrics = memoryResult.metrics;
-        return result;
+        AssembledRequest out = new AssembledRequest();
+        out.aiRequestId = aiRequestId;
+        out.model = model;
+        out.systemInstruction = systemInstruction;
+        out.contents = contents;
+        out.geminiConfig = geminiConfig;
+        out.appliedThinkingLevel = thinking.appliedThinkingLevel;
+        out.numericThinkingBudget = thinking.numericBudget;
+        out.maxOutputTokens = maxOutputTokens;
+        out.dynamicContextTokenCount = dynamicContextTokenCount;
+        out.currentMessageTokenCount = currentMessageTokenCount;
+        out.careerContext = params.careerContext;
+        out.requestReceivedAt = requestReceivedAt;
+        out.preProviderLatencyMs = System.currentTimeMillis() - requestReceivedAt;
+        return out;
     }
 
-    private MemoryStrategy resolveStrategy(String raw) {
-        if (raw == null || raw.isBlank()) return MemoryStrategy.BUDGET_EVICTION;
-        try {
-            return MemoryStrategy.valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return MemoryStrategy.BUDGET_EVICTION;
-        }
+    /** resolveOutputBudget() in the original always returns 65536 regardless of mode/model. */
+    public int resolveOutputBudget(String mode, String model) {
+        return 65536;
     }
 
-    private boolean hasActiveQuestion(Conversation conversation) {
-        if (conversation == null || conversation.getMessages() == null || conversation.getMessages().isEmpty()) return false;
-        ChatMessage last = conversation.getMessages().get(conversation.getMessages().size() - 1);
-        if (!"assistant".equals(last.getRole()) || last.getParsedResponse() == null) return false;
-        Object interaction = last.getParsedResponse().get("interaction");
-        if (!(interaction instanceof Map<?, ?> map)) return false;
-        Object question = map.get("question");
-        return question instanceof String q && !q.trim().isEmpty();
+    private static String randomBase36(int len) {
+        StringBuilder sb = new StringBuilder();
+        java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+        for (int i = 0; i < len; i++) sb.append(Character.forDigit(r.nextInt(36), 36));
+        return sb.toString();
     }
 
-    private String formatCareerContext(Map<String, Object> capsule) {
-        if (capsule == null || capsule.isEmpty()) return "";
+    public String formatCareerContext(Map<String, Object> capsule) {
+        if (capsule == null) return "";
         List<String> lines = new ArrayList<>();
         for (Map.Entry<String, Object> e : capsule.entrySet()) {
-            if (e.getValue() == null) continue;
-            String v = String.valueOf(e.getValue()).trim();
-            if (v.isEmpty()) continue;
-            lines.add("- [" + e.getKey() + "]: " + v);
+            if (!(e.getValue() instanceof String v) || jsTrim(v).isEmpty()) continue;
+            lines.add("- [" + e.getKey() + "]: " + jsTrim(v));
         }
         if (lines.isEmpty()) return "";
         return "YUZEE_STRUCTURED_MEMORY_CAPSULE:\n" + String.join("\n", lines);
     }
 
+    /** normalizeModeCapitalization() */
+    public String normalizeModeCapitalization(String mode) {
+        String m = jsTrim(mode == null || mode.isEmpty() ? "Standard" : mode).toLowerCase(Locale.ROOT);
+        return switch (m) {
+            case "quick" -> "Quick";
+            case "explain" -> "Explain";
+            case "explore" -> "Explore";
+            case "detail" -> "Detail";
+            case "decide" -> "Decide";
+            default -> "Standard";
+        };
+    }
+
+    private static boolean truthy(JsonNode n) {
+        if (n == null || n.isNull() || n.isMissingNode()) return false;
+        if (n.isTextual()) return !n.asText().isEmpty();
+        if (n.isBoolean()) return n.asBoolean();
+        if (n.isNumber()) return n.asDouble() != 0;
+        return true;
+    }
+
+    private static JsonNode path(JsonNode n, String... keys) {
+        JsonNode cur = n;
+        for (String k : keys) {
+            if (cur == null || !cur.isObject()) return null;
+            cur = cur.get(k);
+        }
+        return cur;
+    }
+
+    /** formatUserEvent(): raw text for plain messages, a USER_EVENT JSON block for structured interactions. */
+    public String formatUserEvent(String messageText, JsonNode userEvent, String selectedMode) {
+        String text = messageText == null ? "" : messageText;
+        boolean hasInteraction = truthy(path(userEvent, "interaction")) || truthy(path(userEvent, "userEvent", "interaction"))
+            || truthy(path(userEvent, "type"));
+        JsonNode explicitModeNode = truthy(path(userEvent, "ui", "selected_mode")) ? path(userEvent, "ui", "selected_mode")
+            : path(userEvent, "userEvent", "ui", "selected_mode");
+        boolean explicitMode = truthy(explicitModeNode);
+
+        if (!hasInteraction && !explicitMode) return jsTrim(text);
+
+        ObjectNode eventPayload = mapper.createObjectNode();
+        ObjectNode ui = mapper.createObjectNode();
+        JsonNode srcUi = truthy(path(userEvent, "ui")) ? path(userEvent, "ui") : path(userEvent, "userEvent", "ui");
+        if (truthy(srcUi) && srcUi.isObject()) ui.setAll((ObjectNode) srcUi.deepCopy());
+        eventPayload.set("ui", ui);
+        if (explicitMode) ui.put("selected_mode", normalizeModeCapitalization(explicitModeNode.asText()));
+
+        if (truthy(path(userEvent, "interaction"))) {
+            eventPayload.set("interaction", path(userEvent, "interaction"));
+        } else if (truthy(path(userEvent, "userEvent", "interaction"))) {
+            eventPayload.set("interaction", path(userEvent, "userEvent", "interaction"));
+        } else if (truthy(path(userEvent, "type"))) {
+            ObjectNode inter = mapper.createObjectNode();
+            JsonNode iid = path(userEvent, "interaction_id");
+            inter.set("question_id", truthy(iid) ? iid : TextNode.valueOf("active_question"));
+            JsonNode optionId = path(userEvent, "option_id");
+            if (truthy(optionId)) inter.set("selected_option_ids", mapper.createArrayNode().add(optionId));
+            else if (truthy(path(userEvent, "selected_option_ids"))) inter.set("selected_option_ids", path(userEvent, "selected_option_ids"));
+            // JSON.stringify drops undefined (absent) values but keeps null
+            JsonNode ranked = truthy(path(userEvent, "ranked_ids")) ? path(userEvent, "ranked_ids") : path(userEvent, "ranked_option_ids");
+            if (ranked != null) inter.set("ranked_option_ids", ranked);
+            JsonNode fields = path(userEvent, "fields");
+            if (fields != null) inter.set("fields", fields);
+            JsonNode selfInput = truthy(path(userEvent, "value")) ? path(userEvent, "value") : path(userEvent, "self_input");
+            if (selfInput != null) inter.set("self_input", selfInput);
+            JsonNode actionId = path(userEvent, "action_id");
+            if (actionId != null) inter.set("action_id", actionId);
+            eventPayload.set("interaction", inter);
+        }
+
+        if (!jsTrim(text).isEmpty() && !eventPayload.has("interaction")) {
+            eventPayload.put("user_text", jsTrim(text));
+        } else if (!jsTrim(text).isEmpty() && eventPayload.has("interaction")) {
+            eventPayload.put("supplementary_text", jsTrim(text));
+        }
+        return "USER_EVENT:\n" + stringifyIndented(eventPayload, "  ", "");
+    }
+
+    /** JSON.stringify(value, null, 2) formatting (": " separators, one element per line, "[]"/"{}" when empty). */
+    static String stringifyIndented(JsonNode node, String step, String indent) {
+        if (node == null || node.isNull() || node.isMissingNode()) return "null";
+        if (node.isObject()) {
+            if (node.isEmpty()) return "{}";
+            String inner = indent + step;
+            StringBuilder sb = new StringBuilder("{\n");
+            var it = node.fields();
+            boolean first = true;
+            while (it.hasNext()) {
+                var e = it.next();
+                if (!first) sb.append(",\n");
+                first = false;
+                sb.append(inner).append(JsJson.quote(e.getKey())).append(": ")
+                    .append(stringifyIndented(e.getValue(), step, inner));
+            }
+            return sb.append('\n').append(indent).append('}').toString();
+        }
+        if (node.isArray()) {
+            if (node.isEmpty()) return "[]";
+            String inner = indent + step;
+            StringBuilder sb = new StringBuilder("[\n");
+            for (int i = 0; i < node.size(); i++) {
+                if (i > 0) sb.append(",\n");
+                sb.append(inner).append(stringifyIndented(node.get(i), step, inner));
+            }
+            return sb.append('\n').append(indent).append(']').toString();
+        }
+        return JsJson.stringify(node);
+    }
+
     // ------------------------------------------------------------------
-    // classifyUserMessage — ported from YuzeeRequestAssembler.classifyUserMessage
+    // classifyUserMessage
     // ------------------------------------------------------------------
 
     private static final Pattern[] GREETING_PATTERNS = {
-        Pattern.compile("^(hi|hey|hello|howdy|hiya|sup|yo)(\\s+(there|oala|yuzee|bot|ai|friend))?$"),
-        Pattern.compile("^good\\s+(morning|afternoon|evening|day)(\\s+(oala|yuzee))?$"),
-        Pattern.compile("^how are you(\\s+(doing|going|today))?$"),
-        Pattern.compile("^(are you there|you there|you working|is this working|test|testing|hello\\?)$"),
-        Pattern.compile("^what('s| is) up(\\s+with you)?$"),
+        jsRegex("^(hi|hey|hello|howdy|hiya|sup|yo)(\\s+(there|oala|yuzee|bot|ai|friend))?$", false),
+        jsRegex("^good\\s+(morning|afternoon|evening|day)(\\s+(oala|yuzee))?$", false),
+        jsRegex("^how are you(\\s+(doing|going|today))?$", false),
+        jsRegex("^(are you there|you there|you working|is this working|test|testing|hello\\?)$", false),
+        jsRegex("^what('s| is) up(\\s+with you)?$", false),
     };
 
     private static final Pattern[] FAREWELL_PATTERNS = {
-        Pattern.compile("^(bye|goodbye|see you|see ya|cya|ttyl|later|take care)(\\s+(later|soon|then|now))?$"),
-        Pattern.compile("^(thanks|thank you|thx|ty|cheers|great|awesome|perfect|got it|ok|okay|cool|nice|sounds good)(\\s+(for (that|everything|your help|the help)))?$"),
-        Pattern.compile("^(that('s| is) (great|helpful|perfect|all|enough)|no (more )?questions?|i('m| am) (done|good|all set|all good))$"),
+        jsRegex("^(bye|goodbye|see you|see ya|cya|ttyl|later|take care)(\\s+(later|soon|then|now))?$", false),
+        jsRegex("^(thanks|thank you|thx|ty|cheers|great|awesome|perfect|got it|ok|okay|cool|nice|sounds good)(\\s+(for (that|everything|your help|the help)))?$", false),
+        jsRegex("^(that('s| is) (great|helpful|perfect|all|enough)|no (more )?questions?|i('m| am) (done|good|all set|all good))$", false),
     };
 
     private static final Pattern[] IDLE_PATTERNS = {
-        Pattern.compile("^(lo+l+o*|lmao|lmfao|rofl|ha(ha)+|he(he)+|hah|lel|lulz|xd|😂|🤣|omg|omfg|wtf|smh|fml)$"),
-        Pattern.compile("^(meh|whatever|whatevs|idc|i don'?t care|boring|ugh|bleh|mmmh?|hmm+)$"),
-        Pattern.compile("^i('m| am) bored(\\s+(rn|right now|today|tbh))?$"),
-        Pattern.compile("^you('re| are) (funny|hilarious|great|amazing|cool|nice|smart|the best)$"),
-        Pattern.compile("^(nice one|good one|haha nice|that('s| is) funny|made me (laugh|smile))$"),
-        Pattern.compile("^(what('s| is) the (time|weather|date|temp(erature)?)|what day is it)$"),
-        Pattern.compile("^(tell me a joke|say something funny|make me laugh|entertain me)$"),
-        Pattern.compile("^(sing( me a song)?|dance|do a trick|flip a coin|roll (a )?d(ice|6|20))$"),
-        Pattern.compile("^(what('s| is) (your (name|age|favourite|favorite|hobby|hobbies))|do you (like|love|hate|eat|sleep|dream))$"),
-        Pattern.compile("^(are you (a robot|an ai|sentient|alive|human|real)|who (made|built|created) you)$"),
-        Pattern.compile("^(how old are you|where are you from|what are you|who are you)$"),
-        Pattern.compile("^(nothing|never ?mind|no ?thing|just (browsing|looking|chilling|vibing|kidding|joking)|jk|nm|nvm|nevermind)$"),
+        jsRegex("^(lo+l+o*|lmao|lmfao|rofl|ha(ha)+|he(he)+|hah|lel|lulz|xd|😂|🤣|omg|omfg|wtf|smh|fml)$", false),
+        jsRegex("^(meh|whatever|whatevs|idc|i don'?t care|boring|ugh|bleh|mmmh?|hmm+)$", false),
+        jsRegex("^i('m| am) bored(\\s+(rn|right now|today|tbh))?$", false),
+        jsRegex("^you('re| are) (funny|hilarious|great|amazing|cool|nice|smart|the best)$", false),
+        jsRegex("^(nice one|good one|haha nice|that('s| is) funny|made me (laugh|smile))$", false),
+        jsRegex("^(what('s| is) the (time|weather|date|temp(erature)?)|what day is it)$", false),
+        jsRegex("^(tell me a joke|say something funny|make me laugh|entertain me)$", false),
+        jsRegex("^(sing( me a song)?|dance|do a trick|flip a coin|roll (a )?d(ice|6|20))$", false),
+        jsRegex("^(what('s| is) (your (name|age|favourite|favorite|hobby|hobbies))|do you (like|love|hate|eat|sleep|dream))$", false),
+        jsRegex("^(are you (a robot|an ai|sentient|alive|human|real)|who (made|built|created) you)$", false),
+        jsRegex("^(how old are you|where are you from|what are you|who are you)$", false),
+        jsRegex("^(nothing|never ?mind|no ?thing|just (browsing|looking|chilling|vibing|kidding|joking)|jk|nm|nvm|nevermind)$", false),
     };
 
-    /**
-     * Classifies a user message into a bypass category, or CAREER for normal routing to Gemini.
-     * Short replies and typed answers mid-conversation always fall through to CAREER — this
-     * bypass classifier is not the embedding router and must not gate understanding.
-     */
-    public BypassCategory classifyUserMessage(String text, boolean hasConversation, boolean hasActiveQuestion) {
-        String textTrim = text == null ? "" : text.trim();
-        if (!textTrim.isEmpty() && (hasConversation || hasActiveQuestion)) return BypassCategory.CAREER;
-
-        String t = textTrim.toLowerCase().replaceAll("[!?.,']+$", "").trim();
-
-        for (Pattern p : GREETING_PATTERNS) if (p.matcher(t).matches()) return BypassCategory.GREETING;
-        for (Pattern p : FAREWELL_PATTERNS) if (p.matcher(t).matches()) return BypassCategory.FAREWELL;
-        for (Pattern p : IDLE_PATTERNS) if (p.matcher(t).matches()) return BypassCategory.IDLE;
-
-        if (isRubbish(t)) return BypassCategory.RUBBISH;
-        return BypassCategory.CAREER;
-    }
-
     private static final Pattern LETTER_OR_NUMBER = Pattern.compile("[\\p{L}\\p{N}]");
+    private static final Pattern TRAILING_PUNCTUATION = jsRegex("[!?.,']+$", false);
 
-    private boolean isRubbish(String t) {
-        return t.isEmpty() || !LETTER_OR_NUMBER.matcher(t).find();
+    /** Returns greeting | farewell | rubbish | idle | career. */
+    public String classifyUserMessage(String text, boolean hasConversation, boolean hasActiveQuestion) {
+        String raw = text == null ? "" : text;
+        if (!jsTrim(raw).isEmpty() && (hasConversation || hasActiveQuestion)) return "career";
+        String t = jsTrim(TRAILING_PUNCTUATION.matcher(jsTrim(raw).toLowerCase(Locale.ROOT)).replaceFirst(""));
+        for (Pattern p : GREETING_PATTERNS) if (p.matcher(t).find()) return "greeting";
+        for (Pattern p : FAREWELL_PATTERNS) if (p.matcher(t).find()) return "farewell";
+        for (Pattern p : IDLE_PATTERNS) if (p.matcher(t).find()) return "idle";
+        if (t.isEmpty() || !LETTER_OR_NUMBER.matcher(t).find()) return "rubbish";
+        return "career";
     }
 
-    /** Local social responses only. Meaningful messages and follow-ups go to Gemini. Ported from ux/bypassCopy.ts. */
-    private String bypassCopy(BypassCategory kind) {
+    /** ux/bypassCopy.ts */
+    public static String bypassCopy(String kind) {
         return switch (kind) {
-            case GREETING -> "Hi, I'm Oala. I can help you explore courses, skills and career options. What would you like help with?";
-            case FAREWELL -> "You're welcome. You can return whenever you want to explore your next step.";
-            case IDLE -> "I can help with courses, skills, career choices and Yuzee services. What would you like to explore?";
-            case RUBBISH -> "I couldn't tell what you meant from that message. You can use a few words, such as ‘course quality’, ‘study costs’ or ‘finding a job’. What would you like help with?";
-            case CAREER -> null;
+            case "greeting" -> "Hi, I'm Oala. I can help you explore courses, skills and career options. What would you like help with?";
+            case "farewell" -> "You're welcome. You can return whenever you want to explore your next step.";
+            case "idle" -> "I can help with courses, skills, career choices and Yuzee services. What would you like to explore?";
+            default -> "I couldn't tell what you meant from that message. You can use a few words, such as ‘course quality’, ‘study costs’ or ‘finding a job’. What would you like help with?";
         };
     }
 
     // ------------------------------------------------------------------
-    // shortReplyGuidance — ported from ux/shortReplyGuidance.ts
+    // shortReplyGuidance (ux/shortReplyGuidance.ts)
     // ------------------------------------------------------------------
 
-    private static final Pattern HAS_LETTER = Pattern.compile("[\\p{L}]");
+    private static final Pattern HAS_LETTER = Pattern.compile("\\p{L}");
 
-    /** A repeated short follow-up signals an unresolved explanation, not a new intake. */
-    private String shortReplyGuidance(String text, Conversation conversation) {
-        if (text == null) return "";
-        String current = normalise(text);
-        if (current.isEmpty() || current.split("\\s+").length > 5 || !HAS_LETTER.matcher(current).find()) return "";
-        if (conversation == null || conversation.getMessages() == null) return "";
+    private static final Pattern REPLY_END = jsRegex("[.!?]+$", false);
+    private static final Pattern JS_SPACES = jsRegex("\\s+", false);
 
-        ChatMessage lastUser = null;
-        List<ChatMessage> msgs = conversation.getMessages();
-        for (int i = msgs.size() - 1; i >= 0; i--) {
-            if ("user".equals(msgs.get(i).getRole())) {
-                lastUser = msgs.get(i);
-                break;
-            }
+    private static String normaliseReply(String value) {
+        return jsTrim(REPLY_END.matcher(jsTrim(value == null ? "" : value).toLowerCase(Locale.ROOT)).replaceFirst(""));
+    }
+
+    /** history: [{role, content}] in conversation order. */
+    public String shortReplyGuidance(String text, List<Map.Entry<String, String>> history, boolean structured) {
+        String current = normaliseReply(text);
+        if (structured || current.isEmpty() || JS_SPACES.split(current).length > 5 || !HAS_LETTER.matcher(current).find()) return "";
+        String lastUser = null;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            if ("user".equals(history.get(i).getKey())) { lastUser = history.get(i).getValue(); break; }
         }
-        if (lastUser == null) return "";
-        Object lastContent = lastUser.getContent();
-        String lastText = lastContent instanceof String s ? s : String.valueOf(lastContent);
-        if (!normalise(lastText).equals(current)) return "";
-
-        return "CURRENT TURN CLARITY GUIDANCE (application-owned): The user has repeated the same short "
-            + "follow-up after the last explanation. The earlier explanation has not resolved their need. "
-            + "Keep the existing subject and named options. Re-explain in everyday words: one direct "
-            + "definition, two or three useful checks with why they matter, and one simple illustrative "
-            + "example. Do not reproduce the prior checklist, table or intake question. Avoid trade jargon "
-            + "and unsupported provider claims. If the precise concern is still unclear, ask one focused "
-            + "clarification only after the useful explanation. Prefer a few short paragraphs to another "
-            + "multi-section report.";
-    }
-
-    private String normalise(String value) {
-        return value.trim().toLowerCase().replaceAll("[.!?]+$", "").trim();
+        if (lastUser == null || !normaliseReply(lastUser).equals(current)) return "";
+        return "CURRENT TURN CLARITY GUIDANCE (application-owned): The user has repeated the same short follow-up after the last explanation. The earlier explanation has not resolved their need. Keep the existing subject and named options. Re-explain in everyday words: one direct definition, two or three useful checks with why they matter, and one simple illustrative example. Do not reproduce the prior checklist, table or intake question. Avoid trade jargon and unsupported provider claims. If the precise concern is still unclear, ask one focused clarification only after the useful explanation. Prefer a few short paragraphs to another multi-section report.";
     }
 
     // ------------------------------------------------------------------
-    // resolveThinkingConfig — ported from YuzeeRequestAssembler.resolveThinkingConfig
+    // resolveThinkingConfig
     // ------------------------------------------------------------------
 
     public static final class ThinkingResolution {
@@ -264,7 +398,7 @@ public class RequestAssemblerService {
     private record ModelThinkingInfo(String mechanism, List<String> supportedLevels) {
     }
 
-    /** Ported from data/models.ts — only the fields resolveThinkingConfig needs. */
+    /** data/models.ts: thinkingMechanism and supportedThinkingLevels. */
     private static final Map<String, ModelThinkingInfo> MODEL_REGISTRY = Map.ofEntries(
         Map.entry("gemini-3.7-flash", new ModelThinkingInfo("level", List.of("low", "medium", "high"))),
         Map.entry("gemini-3.8-flash", new ModelThinkingInfo("level", List.of("minimal", "low", "medium", "high"))),
@@ -300,16 +434,15 @@ public class RequestAssemblerService {
     }
 
     public ThinkingResolution resolveThinkingConfig(String modelId, String thinkingLevel, String userPrompt) {
-        String model = modelId == null || modelId.isBlank() ? "gemini-3.5-flash-lite" : modelId;
-        boolean isFlashLite = model.contains("flash-lite");
+        String model = modelId == null ? "gemini-3.5-flash-lite" : modelId;
+        String level = thinkingLevel == null ? "adaptive" : thinkingLevel;
         String appliedLevel;
 
-        if ("minimal".equals(thinkingLevel) || "low".equals(thinkingLevel)
-            || "medium".equals(thinkingLevel) || "high".equals(thinkingLevel)) {
-            appliedLevel = thinkingLevel;
+        if ("minimal".equals(level) || "low".equals(level) || "medium".equals(level) || "high".equals(level)) {
+            appliedLevel = level;
         } else {
-            // Adaptive deterministic local classifier (zero latency, no extra provider request).
-            String lower = userPrompt == null ? "" : userPrompt.toLowerCase();
+            String lower = userPrompt == null ? "" : userPrompt.toLowerCase(Locale.ROOT);
+            boolean isFlashLite = model.contains("flash-lite");
             if (containsAny(lower, COMPARISON_KEYWORDS)) {
                 appliedLevel = isFlashLite ? "low" : "medium";
             } else if (containsAny(lower, GUIDANCE_KEYWORDS)) {
@@ -324,94 +457,75 @@ public class RequestAssemblerService {
             }
         }
 
-        // Model restrictions (e.g. Gemini 3.7 Flash doesn't support 'minimal' thinking level).
         ModelThinkingInfo modelInfo = MODEL_REGISTRY.get(model);
-        if (modelInfo != null && !modelInfo.supportedLevels().isEmpty() && !modelInfo.supportedLevels().contains(appliedLevel)) {
-            appliedLevel = modelInfo.supportedLevels().get(0);
+        if (modelInfo != null && !modelInfo.supportedLevels().contains(appliedLevel)) {
+            appliedLevel = modelInfo.supportedLevels().isEmpty() ? "low" : modelInfo.supportedLevels().get(0);
         }
 
         int numericBudget = switch (appliedLevel) {
             case "minimal" -> 0;
             case "low" -> 128;
             case "medium" -> 512;
-            case "high" -> isFlashLite ? 128 : 1024;
-            default -> 512;
+            default -> model.contains("flash-lite") ? 128 : 1024;
         };
 
         String mechanism = modelInfo != null ? modelInfo.mechanism() : "budget";
         ObjectNode thinkingConfig;
         if (numericBudget == 0) {
-            thinkingConfig = null; // omit entirely — sending thinkingBudget:0 causes INVALID_ARGUMENT
+            thinkingConfig = null;
         } else if ("level".equals(mechanism)) {
-            thinkingConfig = mapper.createObjectNode();
-            thinkingConfig.put("thinkingLevel", appliedLevel);
+            thinkingConfig = mapper.createObjectNode().put("thinkingLevel", appliedLevel);
         } else {
-            thinkingConfig = mapper.createObjectNode();
-            thinkingConfig.put("thinkingBudget", numericBudget);
+            thinkingConfig = mapper.createObjectNode().put("thinkingBudget", numericBudget);
         }
-
         return new ThinkingResolution(thinkingConfig, appliedLevel, numericBudget);
     }
 
     // ------------------------------------------------------------------
-    // sanitizeSchemaForGemini — ported from YuzeeRequestAssembler.sanitizeSchemaForGemini
+    // sanitizeSchemaForGemini
     // ------------------------------------------------------------------
 
     /**
-     * Converts a JSON Schema node to a Gemini-compatible Schema using a strict whitelist.
-     * Gemini's responseSchema is a proto-defined subset of JSON Schema.
-     * Whitelist: type, description, nullable, format, enum, properties, required, items, anyOf.
-     * Everything else (additionalProperties, minimum, maximum, maxItems, minItems, title, etc.) is stripped.
-     * Enum: only non-empty string values are kept; integer/number type enums are dropped entirely.
+     * Gemini-compatible Schema via a strict whitelist: type, description, nullable, format, enum,
+     * properties, required, items, anyOf. Enum keeps only non-empty strings; "" marks nullable.
      */
     public JsonNode sanitizeSchemaForGemini(JsonNode node) {
-        if (node == null || node.isNull()) return node;
+        if (node == null || node.isNull() || !node.isContainerNode()) return node;
         if (node.isArray()) {
             ArrayNode arr = mapper.createArrayNode();
             for (JsonNode n : node) arr.add(sanitizeSchemaForGemini(n));
             return arr;
         }
-        if (!node.isObject()) return node;
-
         ObjectNode out = mapper.createObjectNode();
-        if (node.has("type")) out.set("type", node.get("type"));
-        if (node.has("description")) out.set("description", node.get("description"));
-        if (node.has("format")) out.set("format", node.get("format"));
+        if (truthy(node.get("type"))) out.set("type", node.get("type"));
+        if (truthy(node.get("description"))) out.set("description", node.get("description"));
+        if (truthy(node.get("format"))) out.set("format", node.get("format"));
         if (node.has("nullable") && node.get("nullable").isBoolean()) out.set("nullable", node.get("nullable"));
 
-        // Only string enums with non-empty values; drop enums on integer/number types entirely.
-        // When "" was a valid option, mark nullable so Gemini knows the field can be absent/empty.
-        if (node.has("enum") && node.get("enum").isArray()) {
-            String type = node.path("type").asText("");
-            if (!"integer".equals(type) && !"number".equals(type)) {
-                boolean hadEmptyString = false;
-                ArrayNode filtered = mapper.createArrayNode();
-                for (JsonNode e : node.get("enum")) {
-                    if (e.isTextual() && e.asText().isEmpty()) {
-                        hadEmptyString = true;
-                        continue;
-                    }
-                    if (e.isTextual()) filtered.add(e.asText());
-                }
-                if (filtered.size() > 0) out.set("enum", filtered);
-                if (hadEmptyString) out.put("nullable", true);
+        String type = node.path("type").isTextual() ? node.path("type").asText() : "";
+        if (node.path("enum").isArray() && !"integer".equals(type) && !"number".equals(type)) {
+            boolean hadEmptyString = false;
+            ArrayNode filtered = mapper.createArrayNode();
+            for (JsonNode e : node.get("enum")) {
+                if (e.isTextual() && e.asText().isEmpty()) { hadEmptyString = true; continue; }
+                if (e.isTextual()) filtered.add(e.asText());
             }
+            if (filtered.size() > 0) out.set("enum", filtered);
+            if (hadEmptyString) out.put("nullable", true);
         }
 
-        if (node.has("properties") && node.get("properties").isObject()) {
+        if (node.path("properties").isObject()) {
             ObjectNode props = mapper.createObjectNode();
             node.get("properties").fields().forEachRemaining(e -> props.set(e.getKey(), sanitizeSchemaForGemini(e.getValue())));
             out.set("properties", props);
         }
-
-        if (node.has("required") && node.get("required").isArray()) out.set("required", node.get("required"));
-        if (node.has("items")) out.set("items", sanitizeSchemaForGemini(node.get("items")));
-        if (node.has("anyOf") && node.get("anyOf").isArray()) {
+        if (node.path("required").isArray()) out.set("required", node.get("required"));
+        if (truthy(node.get("items"))) out.set("items", sanitizeSchemaForGemini(node.get("items")));
+        if (node.path("anyOf").isArray()) {
             ArrayNode anyOf = mapper.createArrayNode();
             for (JsonNode n : node.get("anyOf")) anyOf.add(sanitizeSchemaForGemini(n));
             out.set("anyOf", anyOf);
         }
-
         return out;
     }
 
@@ -419,15 +533,28 @@ public class RequestAssemblerService {
         try {
             ClassPathResource res = new ClassPathResource(RESPONSE_SCHEMA_CLASSPATH);
             if (!res.exists()) return null;
-            try (InputStream is = res.getInputStream()) {
-                return sanitizeSchemaForGemini(mapper.readTree(is));
-            }
-        } catch (IOException e) {
+            byte[] bytes;
+            try (InputStream is = res.getInputStream()) { bytes = is.readAllBytes(); }
+            schemaHash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+            return sanitizeSchemaForGemini(mapper.readTree(bytes));
+        } catch (Exception e) {
             return null;
         }
     }
 
-    /** The sanitized v1.3 response schema, loaded once at startup and cached. */
+    private static String readResource(String path) {
+        try {
+            ClassPathResource res = new ClassPathResource(path);
+            if (!res.exists()) return "";
+            try (InputStream is = res.getInputStream()) {
+                return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /** getGeminiResponseSchema(): the sanitized v1.3 response schema. */
     public JsonNode getSanitizedResponseSchema() {
         return sanitizedSchema.updateAndGet(cur -> cur != null ? cur : loadSanitizedSchema());
     }

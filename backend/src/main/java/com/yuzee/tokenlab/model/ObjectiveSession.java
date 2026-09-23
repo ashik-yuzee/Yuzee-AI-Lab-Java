@@ -2,15 +2,13 @@ package com.yuzee.tokenlab.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Java port of contract.ts's ObjectiveSession. Plain POJO persisted onto
- * {@link Conversation#getObjectives()} (one map per session) via ObjectMapper#convertValue —
- * see ObjectiveService#toMap/#fromMap. Dynamic, per-objective shaped data (the plan the model
+ * Java port of contract.ts's ObjectiveSession. Persisted as one JSON file per workspace under
+ * data/objective-preview, like the original (see ObjectiveService). Dynamic, per-objective shaped data (the plan the model
  * returned, and the running context handed to the model) stays as Map/List rather than typed
  * fields, matching how the rest of this codebase treats Gemini's dynamic JSON.
  */
@@ -35,10 +33,13 @@ public class ObjectiveSession {
     private Map<String, Object> plan;
     /** Running model context: user_message, prior_context_text, confirmed_facts, approved_evidence, ... */
     private Map<String, Object> context = new LinkedHashMap<>();
-    private List<Map<String, Object>> answers = new ArrayList<>();
+    /** Null for older workspaces that kept only answer_N facts (history.ts answerHistory). */
+    private List<Map<String, Object>> answers;
     private Map<String, Object> pendingAnswer;
     private Map<String, Object> pendingCorrection;
     private String activation;
+    /** Always serialised (null for manual openings), like the original. */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     private Map<String, Object> routing;
     private boolean autoHandoff;
     private Long handoffAt;

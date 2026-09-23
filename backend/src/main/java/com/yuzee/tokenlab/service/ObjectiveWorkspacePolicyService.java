@@ -1,5 +1,6 @@
 package com.yuzee.tokenlab.service;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.yuzee.tokenlab.model.ObjectiveMatch;
 import com.yuzee.tokenlab.model.ObjectiveSession;
 import org.springframework.stereotype.Service;
@@ -23,24 +24,24 @@ public class ObjectiveWorkspacePolicyService {
     public static final String AUTO_OPEN_POLICY_VERSION = "workspace-assist-v6-explicit";
     public static final double AUTO_OPEN_MIN_SIMILARITY = 0.70;
 
-    private static final Pattern DEFERS_1 = Pattern.compile(
+    private static final Pattern DEFERS_1 = RoutingPolicyService.jsRegex(
         "\\b(not now|overview (?:only|first)|stay in chat|no (?:tools|workspace)|do not open|don.t open)\\b",
-        Pattern.CASE_INSENSITIVE);
-    private static final Pattern DEFERS_2 = Pattern.compile(
-        "\\b(?:compare|open|start|run|do (?:this|that|it)|look at)\\b.{0,65}\\blater\\b", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DEFERS_3 = Pattern.compile("^later[!. ]*$", Pattern.CASE_INSENSITIVE);
+        true);
+    private static final Pattern DEFERS_2 = RoutingPolicyService.jsRegex(
+        "\\b(?:compare|open|start|run|do (?:this|that|it)|look at)\\b.{0,65}\\blater\\b", true);
+    private static final Pattern DEFERS_3 = RoutingPolicyService.jsRegex("^later[!. ]*$", true);
 
     /** Port of workspacePolicy.ts's defersWorkspace(). */
     public boolean defersWorkspace(String text) {
         String t = text == null ? "" : text;
-        return DEFERS_1.matcher(t).find() || DEFERS_2.matcher(t).find() || DEFERS_3.matcher(t.trim()).matches();
+        return DEFERS_1.matcher(t).find() || DEFERS_2.matcher(t).find() || DEFERS_3.matcher(RoutingPolicyService.jsTrim(t)).find();
     }
 
-    private static final Pattern REQUESTED_OPEN = Pattern.compile(
+    private static final Pattern REQUESTED_OPEN = RoutingPolicyService.jsRegex(
         "\\b(?:open|start|show|build)\\s+(?:(?:a|the|my|this|that)\\s+)?(?:interactive\\s+)?(?:workspace|worksheet|right side|side panel)\\b",
-        Pattern.CASE_INSENSITIVE);
-    private static final Pattern COMPARISON_WORD = Pattern.compile("\\b(compare|comparison|differences?)\\b", Pattern.CASE_INSENSITIVE);
-    private static final Pattern NOT_COMPARE = Pattern.compile("\\b(?:do not|don't)\\s+compare\\b", Pattern.CASE_INSENSITIVE);
+        true);
+    private static final Pattern COMPARISON_WORD = RoutingPolicyService.jsRegex("\\b(compare|comparison|differences?)\\b", true);
+    private static final Pattern NOT_COMPARE = RoutingPolicyService.jsRegex("\\b(?:do not|don't)\\s+compare\\b", true);
 
     /**
      * Port of workspacePolicy.ts's workspaceDisposition(). {@code decision} is the selection-model
@@ -110,18 +111,19 @@ public class ObjectiveWorkspacePolicyService {
     // user's own prior messages survive as confirmed_facts (the anti-hallucination guard).
     // ------------------------------------------------------------------
 
+    /** activityContext.ts ActivityContext; serialised with the original's snake_case keys. */
     public static final class ActivityContext {
-        public String currentGoal = "";
-        public List<String> confirmedFacts = new ArrayList<>();
-        public String possibleNeed = "";
-        public List<String> missingInformation = new ArrayList<>();
-        public String relevantQuestion = "";
-        public List<String> userConstraints = new ArrayList<>();
+        @JsonProperty("current_goal") public String currentGoal = "";
+        @JsonProperty("confirmed_facts") public List<String> confirmedFacts = new ArrayList<>();
+        @JsonProperty("possible_need") public String possibleNeed = "";
+        @JsonProperty("missing_information") public List<String> missingInformation = new ArrayList<>();
+        @JsonProperty("relevant_question") public String relevantQuestion = "";
+        @JsonProperty("user_constraints") public List<String> userConstraints = new ArrayList<>();
     }
 
     private static String text(Object v, int max) {
         if (!(v instanceof String s)) return "";
-        String t = s.trim();
+        String t = RoutingPolicyService.jsTrim(s);
         return t.length() > max ? t.substring(0, max) : t;
     }
 

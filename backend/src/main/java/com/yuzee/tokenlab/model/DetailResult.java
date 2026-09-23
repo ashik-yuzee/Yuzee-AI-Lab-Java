@@ -1,6 +1,7 @@
 package com.yuzee.tokenlab.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,8 @@ import java.util.List;
  * objectives features use), not a separate file store.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"id", "policyVersion", "conversationId", "request", "retrievedAt", "status", "summary", "facts", "gaps",
+    "nextQuestions", "sources", "evidence", "searchSuggestionsHtml", "usage"})
 public class DetailResult extends DetailAnswer {
     private String policyVersion;
     private String id;

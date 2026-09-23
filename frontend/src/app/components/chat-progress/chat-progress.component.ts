@@ -1,52 +1,59 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, computed, signal } from '@angular/core';
 import { ChatProgressPhase } from '../../models/types';
+import { IconComponent } from '../shared/icon/icon.component';
 
-const PHASE_COPY: Record<ChatProgressPhase, { title: string; subtext: string }> = {
-  routing:   { title: 'Choosing useful guidance',         subtext: 'Finding a focus for your question. You can stop at any time.' },
-  waiting:   { title: 'Getting your answer ready',        subtext: 'You can stop at any time. Your question will stay here.' },
-  thinking:  { title: 'Considering your question',        subtext: 'A clear answer first, then the next useful step.' },
-  receiving: { title: 'Your answer is coming through',    subtext: 'We will show it once the complete response has been checked.' },
-  retrying:  { title: 'Gemini is busy — retrying once',  subtext: 'Your message is kept. You can stop this request at any time.' },
-  reviewing: { title: 'Reviewing the explanation',        subtext: 'Checking the detail against the information provided.' },
-  checking:  { title: 'Checking the display format',      subtext: 'Making sure the answer is ready to display.' }
+// Port of ux/streamProgress.ts (copy) + ChatStreamingStatus.tsx.
+const PHASES: Record<ChatProgressPhase, { titles: string[]; subtext: string }> = {
+  routing: { titles: ['Choosing useful guidance'], subtext: 'Finding a focus for your question. You can stop at any time.' },
+  waiting: { titles: ['Getting your answer ready', 'Waiting for a response'], subtext: 'You can stop at any time. Your question will stay here.' },
+  thinking: { titles: ['Considering your question', 'Working on a useful answer'], subtext: 'A clear answer first, then the next useful step.' },
+  receiving: { titles: ['Your answer is coming through', 'Receiving your answer'], subtext: 'We will show it once the complete response has been checked.' },
+  retrying: { titles: ['Gemini is busy — retrying once'], subtext: 'Your message is kept. You can stop this request at any time.' },
+  reviewing: { titles: ['Reviewing the explanation', 'Checking claims against the context'], subtext: 'Checking the detail against the information provided.' },
+  checking: { titles: ['Checking the display format'], subtext: 'Making sure the answer is ready to display.' },
 };
+
+export function chatProgressCopy(phase: ChatProgressPhase, tick: number, elapsed: number) {
+  const copy = PHASES[phase] ?? PHASES.waiting;
+  return { title: copy.titles[Math.max(0, Math.floor(tick)) % copy.titles.length], subtext: elapsed >= 12000 ? 'This is taking longer than usual. You can keep waiting or stop.' : copy.subtext };
+}
 
 @Component({
   selector: 'app-chat-progress',
   standalone: true,
-  imports: [CommonModule],
-  template: `
-    <div class="chat-progress d-flex align-items-start gap-3">
-      <div class="progress-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 6v6l4 2"/>
-        </svg>
-      </div>
-      <div class="progress-copy flex-1">
-        <strong>{{ copy.title }}</strong>
-        <p class="mb-0">{{ copy.subtext }}</p>
-      </div>
-      <button class="btn btn-sm btn-outline-secondary stop-btn" (click)="stop.emit()">
-        Stop
-      </button>
-    </div>
-  `,
-  styles: [`
-    .chat-progress { padding: 12px 0 16px; min-height: 76px; max-width: 740px; }
-    .progress-icon { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%;
-      background: #f2edff; color: #7957c6; flex-shrink: 0; animation: breathe 2.8s ease-in-out infinite; }
-    @keyframes breathe { 50% { opacity: .5; } }
-    .progress-copy strong { font-size: 14px; font-weight: 600; color: #435369; }
-    .progress-copy p { margin: 4px 0 0; font-size: 12px; color: #718096; }
-    .stop-btn { font-size: 12px; min-height: 36px; }
-    @media (prefers-reduced-motion: reduce) { .progress-icon { animation: none; } }
-  `]
+  imports: [IconComponent],
+  templateUrl: './chat-progress.component.html',
+  styles: [':host{display:block}']
 })
-export class ChatProgressComponent {
-  @Input({ required: true }) phase!: ChatProgressPhase;
+export class ChatProgressComponent implements OnInit, OnDestroy {
+  private readonly phaseValue = signal<ChatProgressPhase>('waiting');
+  private readonly startedAtValue = signal(Date.now());
+  @Input() set phase(value: ChatProgressPhase | null | undefined) { this.phaseValue.set(value || 'waiting'); }
+  @Input() set startedAt(value: number | null | undefined) { this.startedAtValue.set(value || Date.now()); this.tickNow(); }
   @Output() stop = new EventEmitter<void>();
 
-  get copy() { return PHASE_COPY[this.phase] ?? PHASE_COPY.waiting; }
+  private readonly now = signal(Date.now());
+  private readonly reduced = signal(false);
+  private timer?: ReturnType<typeof setInterval>;
+  private media?: MediaQueryList;
+  private readonly onMedia = () => this.reduced.set(!!this.media?.matches);
+
+  readonly copy = computed(() => {
+    const elapsed = Math.max(0, this.now() - this.startedAtValue());
+    return chatProgressCopy(this.phaseValue(), this.reduced() ? 0 : elapsed / 3000, elapsed);
+  });
+
+  ngOnInit(): void {
+    this.media = matchMedia('(prefers-reduced-motion: reduce)');
+    this.onMedia();
+    this.media.addEventListener('change', this.onMedia);
+    this.timer = setInterval(() => this.tickNow(), 1000);
+  }
+
+  ngOnDestroy(): void {
+    clearInterval(this.timer);
+    this.media?.removeEventListener('change', this.onMedia);
+  }
+
+  private tickNow(): void { this.now.set(Date.now()); }
 }

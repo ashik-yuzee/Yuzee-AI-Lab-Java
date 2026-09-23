@@ -1,78 +1,81 @@
 @if (open) {
-  <div class="modal-backdrop" (click)="close()">
-    <div class="modal-card card shadow-lg" (click)="$event.stopPropagation()">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-          <div class="header-icon">🧩</div>
+  <div class="mdl-overlay">
+    <div id="context-inspector-modal" class="mdl-card ci-card">
+      <!-- Header -->
+      <div class="mdl-header">
+        <div class="mdl-header-left">
+          <div class="mdl-icon-box ci-icon-box">
+            <app-icon name="Layers" class="mdl-icon-lg" />
+          </div>
           <div>
-            <h2 class="card-title-text mb-0">Context Inspector</h2>
-            <p class="card-subtitle mb-0">What was assembled into the last request sent to Gemini</p>
+            <h2 class="mdl-title">Context Inspector</h2>
+            <p class="mdl-subtitle">Inspect exact prompt components transmitted to Gemini</p>
           </div>
         </div>
-        <button class="btn btn-sm btn-icon" (click)="close()" title="Close" aria-label="Close">✕</button>
-      </div>
 
-      <div class="tab-bar">
-        <button class="tab-btn" [class.active]="activeTab() === 'included'" (click)="setTab('included')">
-          Retained Context
-        </button>
-        <button class="tab-btn" [class.active]="activeTab() === 'excluded'" (click)="setTab('excluded')">
-          Excluded / Dropped
+        <button (click)="close()" class="mdl-close" title="Close" aria-label="Close">
+          <app-icon name="X" class="mdl-icon-lg" />
         </button>
       </div>
 
-      <div class="card-body">
-        @if (!compaction) {
-          <div class="empty-state">No active prompt payload to inspect yet. Send a turn first.</div>
-        } @else if (activeTab() === 'included') {
-          <div class="metric-card">
-            <div class="metric-row">
-              <span>Strategy</span>
-              <span class="badge-pill">{{ compaction.strategy }}</span>
-            </div>
-            <div class="metric-row">
-              <span>Turns retained</span>
-              <span class="fw-semibold">{{ compaction.turnsKept }}</span>
-            </div>
-            <div class="metric-row">
-              <span>Tokens used of budget</span>
-              <span class="fw-semibold">{{ compaction.tokensUsed | number }} / {{ compaction.tokenBudget | number }}</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill"
-                   [style.width.%]="compaction.tokenBudget > 0 ? (compaction.tokensUsed / compaction.tokenBudget) * 100 : 0">
-              </div>
-            </div>
-          </div>
-          <p class="footnote">
-            Section-level breakdown (system prompt vs. summary vs. recent turns, each with its own token count) is
-            not exposed by the backend today — only the aggregate figures above are available.
-          </p>
-        } @else {
-          @if (compaction.turnsDropped === 0) {
-            <div class="empty-state">No turns were excluded in the latest request — everything fit within budget.</div>
+      <!-- Tab Selector -->
+      <div class="ci-tabs">
+        <button (click)="activeTab.set('included')" class="ci-tab" [class.is-active]="activeTab() === 'included'" [class.is-inactive]="activeTab() !== 'included'">
+          <app-icon name="CheckCircle2" class="ci-icon-sm" />
+          <span>Included Context ({{ included.length }})</span>
+        </button>
+
+        <button (click)="activeTab.set('excluded')" class="ci-tab" [class.is-active]="activeTab() === 'excluded'" [class.is-inactive]="activeTab() !== 'excluded'">
+          <app-icon name="AlertCircle" class="ci-icon-sm is-amber" />
+          <span>Excluded by Optimiser ({{ excluded.length }})</span>
+        </button>
+      </div>
+
+      <!-- Content Body -->
+      <div class="ci-body">
+        @if (activeTab() === 'included') {
+          @if (included.length === 0) {
+            <div class="ci-empty">No active prompt payload to inspect. Send a turn first.</div>
           } @else {
-            <div class="metric-card metric-card-warn">
-              <div class="metric-row">
-                <span>Turns dropped this request</span>
-                <span class="fw-semibold">{{ compaction.turnsDropped }}</span>
+            @for (sec of included; track sec.name) {
+              <div class="ci-sec">
+                <div class="ci-sec-head">
+                  <div>
+                    <span class="ci-sec-name">{{ sec.name }}</span>
+                    <p class="ci-sec-desc">{{ sec.description }}</p>
+                  </div>
+                  <span class="ci-sec-tokens">{{ sec.tokens }} tokens</span>
+                </div>
+                <div class="ci-sec-preview">{{ sec.preview }}</div>
               </div>
-            </div>
-            <p class="footnote">
-              The backend only reports <em>how many</em> turns were evicted, not their content or reason — that would
-              require RequestAssemblerService / ConversationMemoryService to expose the individual dropped turns,
-              which isn't wired up yet. Per-turn previews and per-section "saved tokens" shown in the old app are
-              not fabricated here.
-            </p>
+            }
+          }
+        } @else {
+          @if (excluded.length === 0) {
+            <div class="ci-empty is-excluded">No items were excluded in the latest request. (All context fits within budget).</div>
+          } @else {
+            @for (sec of excluded; track sec.name) {
+              <div class="ci-ex">
+                <div class="ci-sec-head">
+                  <div>
+                    <span class="ci-sec-name">{{ sec.name }}</span>
+                    <p class="ci-ex-reason">Reason: {{ sec.reason }}</p>
+                  </div>
+                  <span class="ci-ex-tokens">Saved ~{{ sec.tokens }} tokens</span>
+                </div>
+                <div class="ci-ex-preview">{{ sec.preview }}</div>
+              </div>
+            }
           }
         }
       </div>
 
-      <div class="card-footer d-flex align-items-center justify-content-between">
-        <span class="text-muted small">
-          Total assembled: <strong>{{ compaction?.tokensUsed ?? 0 | number }} tokens</strong>
+      <!-- Footer -->
+      <div class="ci-footer">
+        <span class="ci-total">
+          Total Assembled Request: <strong>{{ context?.totalAssembledTokens || 0 }} tokens</strong>
         </span>
-        <button class="btn btn-dark btn-sm" (click)="close()">Done</button>
+        <button (click)="close()" class="ci-done">Done</button>
       </div>
     </div>
   </div>

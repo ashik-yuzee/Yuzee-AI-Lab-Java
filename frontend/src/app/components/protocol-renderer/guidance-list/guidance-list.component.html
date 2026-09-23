@@ -1,0 +1,33 @@
+<section class="guidance-section">
+  @if (block.title) { <h4 class="guidance-section-title">{{ block.title }}</h4> }
+  @if (block.text) { <p class="guidance-intro">{{ block.text }}</p> }
+  @if (ordered) {
+    <ol role="list" class="guidance-rows guidance-rows-ordered">
+      <ng-container *ngTemplateOutlet="rowsTpl" />
+    </ol>
+  } @else {
+    <ul role="list" class="guidance-rows">
+      <ng-container *ngTemplateOutlet="rowsTpl" />
+    </ul>
+  }
+</section>
+
+<ng-template #rowsTpl>
+  @for (row of rows; track $index) {
+    <li [attr.data-learning-tone]="row.learningTone" [attr.value]="row.value" [class]="'guidance-row guidance-tone-' + row.tone">
+      <div class="guidance-row-content">
+        <div class="guidance-row-heading">
+          @if (row.title) { <p class="guidance-row-title">{{ row.title }}</p> }
+          @if (row.state) {
+            <span class="guidance-status">@if (row.showIcon) {<app-icon class="status-icon" [name]="row.state.icon" [size]="13" />}{{ row.state.label }}</span>
+          }
+        </div>
+        @if (pathwayLearningCues) { <app-pathway-learning-cues [text]="row.cueText" /> }
+        @if (row.sideLabel) { <p class="guidance-side-label">{{ row.sideLabel }}</p> }
+        @if (row.description) { <p class="guidance-description">{{ row.description }}</p> }
+        @if (row.extraValue) { <p class="guidance-description">{{ row.extraValue }}</p> }
+        @if (row.sideText) { <p class="guidance-description">{{ row.sideText }}</p> }
+      </div>
+    </li>
+  }
+</ng-template>

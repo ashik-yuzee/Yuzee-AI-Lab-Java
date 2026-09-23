@@ -1,31 +1,11 @@
-@if (hasContent()) {
+<ng-template #entered let-entry let-pending="pending">
+  <details class="objective-entered"><summary><app-icon name="CheckCircle2" [size]="17" /><span>{{ entry.question }}</span><small>{{ status(entry, pending) }}</small></summary><div class="objective-answer-value">{{ answerText(entry.answer) }}</div>@if (entry.submittedAt) {<time [attr.datetime]="iso(entry.submittedAt)">{{ local(entry.submittedAt) }}</time>}</details>
+</ng-template>
+
+@if (answers.length || session.pendingAnswer) {
   <section class="objective-answer-history" aria-label="Saved answers">
     <h3>Your answers</h3>
-    @for (entry of entries(); track entry.id) {
-      <details class="objective-entered">
-        <summary>
-          <span class="entered-icon">&#10003;</span>
-          <span>{{ entry.question }}</span>
-          <small>{{ entryStatus(entry, false) }}</small>
-        </summary>
-        <div class="objective-answer-value">{{ answerText(entry.answer) }}</div>
-        @if (entry.submittedAt) {
-          <time>{{ submittedAt(entry) }}</time>
-        }
-      </details>
-    }
-    @if (session.pendingAnswer; as pending) {
-      <details class="objective-entered">
-        <summary>
-          <span class="entered-icon">&#10003;</span>
-          <span>{{ pending.question }}</span>
-          <small>{{ entryStatus(pending, true) }}</small>
-        </summary>
-        <div class="objective-answer-value">{{ answerText(pending.answer) }}</div>
-        @if (pending.submittedAt) {
-          <time>{{ submittedAt(pending) }}</time>
-        }
-      </details>
-    }
+    @for (a of answers; track a.id) {<ng-container *ngTemplateOutlet="entered; context: { $implicit: a, pending: false }" />}
+    @if (session.pendingAnswer) {<ng-container *ngTemplateOutlet="entered; context: { $implicit: session.pendingAnswer, pending: true }" />}
   </section>
 }

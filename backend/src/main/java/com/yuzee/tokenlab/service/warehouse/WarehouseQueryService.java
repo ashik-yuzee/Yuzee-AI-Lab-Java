@@ -1,6 +1,9 @@
 package com.yuzee.tokenlab.service.warehouse;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.yuzee.tokenlab.model.warehouse.CourseQuality;
 import com.yuzee.tokenlab.model.warehouse.ExplorationChoice;
 import com.yuzee.tokenlab.model.warehouse.ProviderMatch;
 import com.yuzee.tokenlab.model.warehouse.WarehouseComparison;
@@ -9,7 +12,6 @@ import com.yuzee.tokenlab.model.warehouse.WarehouseCourse;
 import com.yuzee.tokenlab.model.warehouse.WarehouseExploration;
 import com.yuzee.tokenlab.model.warehouse.WarehousePack;
 import com.yuzee.tokenlab.model.warehouse.WarehouseQueryPlan;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Service;
@@ -18,77 +20,84 @@ import org.sqlite.SQLiteConfig;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.text.Collator;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.cleanText;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.jsString;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.linkedList;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.list;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.number;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.oppList;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.or;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.text;
+import static com.yuzee.tokenlab.service.warehouse.WarehouseText.truthy;
+
 /**
- * JDBC-backed course/provider/career/industry/signal lookups against the derived warehouse index
- * and (read-only) the source {@code training_gov.db}. Ported from:
- * <ul>
- *   <li>catalogue-worker.cjs (the {@code search()} FTS query and the {@code lookup} message handler)</li>
- *   <li>linked-data.cjs ({@code createLinkedReader})</li>
- *   <li>opportunities.cjs ({@code createOpportunityReader})</li>
- *   <li>provider-data.cjs ({@code createProviderReader})</li>
- *   <li>normalize.ts ({@code normalizeCourse})</li>
- *   <li>comparison.ts ({@code buildComparison})</li>
- *   <li>choices.ts ({@code explorationChoice})</li>
- * </ul>
- * Every read is wrapped in a "does this table/column exist" guard, mirroring the old readers' use
- * of {@code sqlite_master} — the source schema is externally supplied and not all tables are
- * guaranteed present.
+ * Read-only lookups against the source {@code training_gov.db} and the derived index. Line-by-line
+ * port of catalogue-worker.cjs (lookup handler, {@code search()}), linked-data.cjs
+ * ({@code createLinkedReader}), opportunities.cjs ({@code createOpportunityReader}),
+ * provider-data.cjs ({@code createProviderReader}), normalize.ts, comparison.ts and choices.ts.
+ * A source table that does not exist reads as no rows, as in the old readers' {@code query()}.
  */
 @Service
 public class WarehouseQueryService {
 
-    private static final List<String> COURSE_FIELDS = List.of(
-        "id", "course_name", "institution_id", "institution_name", "national_code", "course_code",
-        "aqf_level", "course_type", "description", "duration_text", "delivery_modes_json", "locations_json",
-        "entry_requirements", "domestic_fee", "international_fee", "skills_json", "quality_scores_json",
-        "work_readiness_score", "future_readiness_score", "yuzee_readiness_score", "career_outcomes_json",
-        "intelligence_json", "canonical_url", "web_collect_url", "website", "intelligence_enriched_at", "updated_at");
-
+    private static final String COURSE_FIELDS = "id,course_name,institution_id,institution_name,national_code,course_code,aqf_level,course_type,description,duration_text,delivery_modes_json,locations_json,entry_requirements,domestic_fee,international_fee,skills_json,quality_scores_json,work_readiness_score,future_readiness_score,yuzee_readiness_score,career_outcomes_json,intelligence_json,canonical_url,web_collect_url,website,intelligence_enriched_at,updated_at";
     private static final Set<String> STATES = Set.of("ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA");
+    /** JS String#localeCompare. */
+    private static final Collator COLLATOR = Collator.getInstance(Locale.ROOT);
 
     private final WarehouseIndexBuilder indexBuilder;
-    private final String sourcePath;
 
-    public WarehouseQueryService(WarehouseIndexBuilder indexBuilder,
-                                  @Value("${warehouse.db-path:}") String sourcePath) {
+    public WarehouseQueryService(WarehouseIndexBuilder indexBuilder) {
         this.indexBuilder = indexBuilder;
-        this.sourcePath = sourcePath == null ? "" : sourcePath.trim();
     }
 
-    public boolean isAvailable() { return indexBuilder.ensureReady(); }
-
-    /** One JDBC round of open connections to source + derived index, closed together. Mirrors the
-     *  old worker process's single long-lived pair of {@code DatabaseSync} handles, scoped per call
-     *  here since a Java service has no separate worker process to keep them alive in. */
+    /** The source and index connections of one lookup (the worker's two DatabaseSync handles). */
     private final class Session implements AutoCloseable {
         final Connection sourceConn;
         final Connection indexConn;
         final JdbcTemplate source;
         final JdbcTemplate index;
-        final Set<String> sourceTables;
+        final Set<String> tables = new HashSet<>();
 
         Session() throws SQLException {
             SQLiteConfig readOnly = new SQLiteConfig();
             readOnly.setReadOnly(true);
-            sourceConn = DriverManager.getConnection("jdbc:sqlite:" + sourcePath, readOnly.toProperties());
+            sourceConn = DriverManager.getConnection("jdbc:sqlite:" + indexBuilder.getSourcePath(), readOnly.toProperties());
             indexConn = DriverManager.getConnection("jdbc:sqlite:" + indexBuilder.getIndexPath());
             source = new JdbcTemplate(new SingleConnectionDataSource(sourceConn, true));
             index = new JdbcTemplate(new SingleConnectionDataSource(indexConn, true));
-            sourceTables = new LinkedHashSet<>();
-            for (Map<String, Object> row : source.queryForList("SELECT name FROM sqlite_master WHERE type='table'")) {
-                sourceTables.add(String.valueOf(row.get("name")));
-            }
+            for (Map<String, Object> row : source.queryForList("SELECT name FROM sqlite_master WHERE type='table'")) tables.add(String.valueOf(row.get("name")));
         }
 
-        boolean has(String table) { return sourceTables.contains(table); }
+        /** linked-data.cjs query(t, sql, args): no rows when the table is absent. */
+        List<Map<String, Object>> query(String table, String sql, Object... args) {
+            return tables.contains(table) ? source.queryForList(sql, args) : List.of();
+        }
+
+        Map<String, Object> get(String table, String sql, Object... args) {
+            List<Map<String, Object>> rows = query(table, sql, args);
+            return rows.isEmpty() ? null : rows.get(0);
+        }
+
+        Map<String, Object> indexGet(String sql, Object... args) {
+            List<Map<String, Object>> rows = index.queryForList(sql, args);
+            return rows.isEmpty() ? null : rows.get(0);
+        }
 
         @Override
         public void close() {
@@ -97,35 +106,28 @@ public class WarehouseQueryService {
         }
     }
 
-    /** Result of one lookup round. Mirrors the {@code {rows, connected, providerMatches, qualifications}}
-     *  object catalogue-worker.cjs sends back over IPC. */
+    /** The worker's reply: {@code {rows, connected, providerMatches, qualifications}}, rows normalized. */
     public record LookupResult(List<WarehouseCourse> courses, WarehouseConnections connected,
                                 List<ProviderMatch> providerMatches, List<WarehouseComparison.Qualification> qualifications) {}
 
-    /** Ported from catalogue-worker.cjs's {@code process.on('message', ...)} lookup handler. */
-    public LookupResult lookup(List<String> queries, List<String> ids, WarehouseQueryPlan plan) {
-        if (!isAvailable()) return new LookupResult(List.of(), null, List.of(), List.of());
-        List<String> safeQueries = (queries == null ? List.<String>of() : queries).stream()
-            .filter(q -> q != null && !q.isBlank()).map(q -> q.length() > 240 ? q.substring(0, 240) : q)
-            .limit(3).toList();
-        WarehouseQueryPlan safePlan = plan == null ? new WarehouseQueryPlan() : plan;
-
+    /** catalogue-worker.cjs's lookup message handler. Any failure surfaces as an exception. */
+    public LookupResult lookup(List<String> queries, List<String> ids, WarehouseQueryPlan plan) throws SQLException {
+        List<String> qs = queries == null ? List.of() : queries;
+        WarehouseQueryPlan p = plan == null ? new WarehouseQueryPlan() : plan;
         try (Session s = new Session()) {
             List<String> chosen = new ArrayList<>();
-            Set<String> seen = new LinkedHashSet<>();
-            for (String id : ids == null ? List.<String>of() : ids) {
-                if (chosen.size() >= 4) break;
+            Set<String> seen = new HashSet<>();
+            for (String id : (ids == null ? List.<String>of() : ids).stream().limit(4).toList()) {
                 if (id != null && id.matches("\\d+") && seen.add(id)) chosen.add(id);
             }
-
-            List<ProviderMatch> providerMatches = providerMatches(s, safePlan.getProviderQueries());
-            // Duplicate legal names can represent distinct registrations. Resolve only when the
-            // user's requested course actually belongs to exactly one record (linked-data parity).
+            // Interleave queries so one option cannot consume an entire comparison shortlist.
+            List<ProviderMatch> providerMatches = providerMatches(s, p.getProviderQueries());
+            // Duplicate legal names can represent distinct registrations. Resolve only
+            // when the user's requested course actually belongs to exactly one record.
             for (ProviderMatch match : providerMatches) {
-                if (!"AMBIGUOUS".equals(match.getStatus()) || safeQueries.isEmpty()) continue;
+                if (!"AMBIGUOUS".equals(match.getStatus()) || qs.isEmpty()) continue;
                 List<ProviderMatch.ProviderRecord> offering = match.getProviders().stream()
-                    .filter(p -> safeQueries.stream().anyMatch(q -> !search(s, q, p.getId()).isEmpty()))
-                    .collect(Collectors.toList());
+                    .filter(pr -> qs.stream().anyMatch(q -> !search(s, q, pr.getId()).isEmpty())).collect(Collectors.toList());
                 if (offering.size() == 1) {
                     match.setStatus("MATCHED");
                     match.setProviders(offering);
@@ -134,96 +136,80 @@ public class WarehouseQueryService {
             }
             List<ProviderMatch.ProviderRecord> resolved = providerMatches.stream()
                 .filter(m -> "MATCHED".equals(m.getStatus())).flatMap(m -> m.getProviders().stream()).toList();
-
+            List<String> first3 = qs.stream().limit(3).toList();
             List<List<Map<String, Object>>> groups = new ArrayList<>();
-            if (!providerMatches.isEmpty()) {
-                for (ProviderMatch.ProviderRecord p : resolved) {
-                    for (String q : safeQueries) groups.add(search(s, q, p.getId()));
-                }
-            } else {
-                for (String q : safeQueries) groups.add(search(s, q, null));
-            }
-            boolean allCodes = !safeQueries.isEmpty() && safeQueries.stream().allMatch(q -> q.trim().matches("(?i)[A-Z]{3}[0-9]{5}"));
-            int scanDepth = (!providerMatches.isEmpty() && allCodes) ? 1 : 16;
-            for (int n = 0; n < scanDepth && chosen.size() < 4; n++) {
-                for (List<Map<String, Object>> group : groups) {
+            if (!providerMatches.isEmpty()) { for (var pr : resolved) for (String q : first3) groups.add(search(s, q, pr.getId())); }
+            else for (String q : first3) groups.add(search(s, q, null));
+            int depth = !providerMatches.isEmpty() && qs.stream().allMatch(q -> com.yuzee.tokenlab.service.RoutingPolicyService.jsTrim(q).matches("(?i)[A-Z]{3}[0-9]{5}")) ? 1 : 16;
+            for (int n = 0; n < depth && chosen.size() < 4; n++) {
+                for (var group : groups) {
                     if (n >= group.size()) continue;
-                    String courseId = String.valueOf(group.get(n).get("course_id"));
-                    if (chosen.size() < 4 && seen.add(courseId)) chosen.add(courseId);
+                    String courseId = jsString(group.get(n).get("course_id"));
+                    if (!seen.contains(courseId) && chosen.size() < 4) { seen.add(courseId); chosen.add(courseId); }
                 }
             }
-
             List<Map<String, Object>> rows = new ArrayList<>();
-            String fieldList = String.join(",", COURSE_FIELDS);
             for (String id : chosen) {
-                List<Map<String, Object>> hit = s.source.queryForList("SELECT " + fieldList + " FROM live_courses WHERE id=?", id);
+                var hit = s.source.queryForList("SELECT " + COURSE_FIELDS + " FROM live_courses WHERE id=?", id);
                 if (!hit.isEmpty()) rows.add(hit.get(0));
             }
-
-            boolean comparing = safePlan.isComparison() || !providerMatches.isEmpty();
-            List<WarehouseCourse> courses = rows.stream().map(this::normalizeCourse).toList();
-            WarehouseConnections connected = new LinkedDataExpansion(s, safePlan).read(rows);
-
-            List<ProviderMatch> finalProviderMatches = comparing
-                ? (providerMatches.isEmpty()
-                    ? providerMatches(s, rows.stream().map(r -> String.valueOf(r.get("institution_name")))
-                        .filter(n -> n != null && !"null".equals(n)).distinct().toList())
-                    : providerMatches)
-                : List.of();
-            List<WarehouseComparison.Qualification> qualifications = comparing ? qualifications(s, rows) : List.of();
-
-            return new LookupResult(courses, connected, finalProviderMatches, qualifications);
-        } catch (SQLException e) {
-            throw new WarehouseUnavailableException("Warehouse lookup could not be completed.", e);
+            boolean comparing = p.isComparison() || !providerMatches.isEmpty();
+            WarehouseConnections connected = new Linked(s, p).read(rows);
+            List<ProviderMatch> matches = !comparing ? List.of() : !providerMatches.isEmpty() ? providerMatches
+                : providerMatches(s, rows.stream().map(r -> r.get("institution_name")).filter(WarehouseText::truthy).map(WarehouseText::jsString).distinct().toList());
+            return new LookupResult(rows.stream().map(this::normalizeCourse).toList(), connected, matches,
+                comparing ? qualifications(s, rows) : List.of());
         }
     }
 
-    /** Signals a lookup that could not run against the configured database (connection/IO failure,
-     *  as opposed to "database simply not configured", which never reaches here). */
-    public static class WarehouseUnavailableException extends RuntimeException {
-        public WarehouseUnavailableException(String message, Throwable cause) { super(message, cause); }
-    }
-
-    // ---- catalogue full-text search (catalogue-worker.cjs's search()) -------------------
-
+    /** catalogue-worker.cjs search(): all terms must match. */
     private List<Map<String, Object>> search(Session s, String text, String providerId) {
-        String clause = WarehouseText.matchClause(text);
-        if (clause == null) return List.of();
-        String sql = "SELECT course_id,course_name,institution_name,bm25(catalogue,0,5,3,8,8,0) AS rank FROM catalogue " +
-            "WHERE catalogue MATCH ?" + (providerId != null ? " AND institution_id=?" : "") + " ORDER BY rank LIMIT 16";
+        String clause = WarehouseText.catalogueClause(text);
+        if (clause.isEmpty()) return List.of();
+        String sql = "SELECT course_id,course_name,institution_name,bm25(catalogue,0,5,3,8,8,0) AS rank FROM catalogue WHERE catalogue MATCH ?"
+            + (providerId != null ? " AND institution_id=?" : "") + " ORDER BY rank LIMIT 16";
         return providerId != null ? s.index.queryForList(sql, clause, providerId) : s.index.queryForList(sql, clause);
     }
 
-    // ---- provider matching (provider-data.cjs) -------------------------------------------
+    // ---- provider-data.cjs -------------------------------------------------------------------
+
+    private static final List<String> PROVIDER_FIELDS = List.of("id", "legal_name", "rto_code", "rto_type", "city", "state", "about_us_description", "website_url",
+        "has_student_support", "has_disability_support", "has_indigenous_support", "has_library", "has_apprenticeships", "updated_at");
+    private static final Map<String, String> SUPPORT_LABELS = new LinkedHashMap<>();
+    static {
+        SUPPORT_LABELS.put("has_student_support", "Student support");
+        SUPPORT_LABELS.put("has_disability_support", "Disability support");
+        SUPPORT_LABELS.put("has_indigenous_support", "Indigenous learner support");
+        SUPPORT_LABELS.put("has_library", "Library");
+        SUPPORT_LABELS.put("has_apprenticeships", "Apprenticeship support");
+    }
+
+    private Set<String> institutionColumns(Session s) {
+        Set<String> cols = new HashSet<>();
+        for (var r : s.source.queryForList("PRAGMA table_info(live_institutions)")) cols.add(String.valueOf(r.get("name")));
+        return cols;
+    }
 
     private List<ProviderMatch> providerMatches(Session s, List<String> queries) {
         List<ProviderMatch> out = new ArrayList<>();
-        if (!s.has("live_institutions") || queries == null) return out;
-        for (String q : queries.stream().filter(x -> x != null && !x.isBlank()).limit(3).toList()) {
+        if (queries == null || queries.isEmpty()) return out;
+        Set<String> cols = institutionColumns(s);
+        String select = PROVIDER_FIELDS.stream().map(k -> cols.contains(k) ? k : "NULL AS " + k).collect(Collectors.joining(","));
+        for (String q : queries.stream().limit(3).toList()) {
             ProviderMatch match = new ProviderMatch();
             match.setQuery(q);
-            List<String> words = WarehouseText.terms(q, 8);
-            if (words.isEmpty()) { match.setStatus("NOT_FOUND"); out.add(match); continue; }
-            List<Map<String, Object>> exact = s.source.queryForList(
-                "SELECT id,legal_name,rto_code,rto_type,city,state,about_us_description,website_url," +
-                "has_student_support,has_disability_support,has_indigenous_support,has_library,has_apprenticeships,updated_at " +
-                "FROM live_institutions WHERE lower(legal_name)=lower(?) OR rto_code=? LIMIT 4", q, q);
-            List<Map<String, Object>> rows = exact;
+            List<String> words = WarehouseText.providerWords(String.valueOf(q));
+            if (!cols.contains("legal_name") || words.isEmpty()) { match.setStatus("NOT_FOUND"); out.add(match); continue; }
+            List<Map<String, Object>> rows = cols.contains("rto_code")
+                ? s.source.queryForList("SELECT " + select + " FROM live_institutions WHERE lower(legal_name)=lower(?) OR rto_code=? LIMIT 4", q, q)
+                : s.source.queryForList("SELECT " + select + " FROM live_institutions WHERE lower(legal_name)=lower(?) LIMIT 4", q);
             if (rows.isEmpty()) {
-                StringBuilder where = new StringBuilder();
-                List<Object> args = new ArrayList<>();
-                for (String w : words) {
-                    if (!where.isEmpty()) where.append(" AND ");
-                    where.append("legal_name LIKE ? ESCAPE '\\'");
-                    args.add("%" + WarehouseText.safeLike(w) + "%");
-                }
-                rows = s.source.queryForList(
-                    "SELECT id,legal_name,rto_code,rto_type,city,state,about_us_description,website_url," +
-                    "has_student_support,has_disability_support,has_indigenous_support,has_library,has_apprenticeships,updated_at " +
-                    "FROM live_institutions WHERE " + where + " ORDER BY legal_name LIMIT 4", args.toArray());
+                rows = s.source.queryForList("SELECT " + select + " FROM live_institutions WHERE "
+                    + words.stream().map(w -> "legal_name LIKE ? ESCAPE '\\'").collect(Collectors.joining(" AND ")) + " ORDER BY legal_name LIMIT 4",
+                    words.stream().map(w -> "%" + WarehouseText.safeLike(w) + "%").toArray());
             }
             match.setStatus(rows.size() == 1 ? "MATCHED" : rows.isEmpty() ? "NOT_FOUND" : "AMBIGUOUS");
-            for (Map<String, Object> r : rows) match.getProviders().add(projectProvider(r));
+            for (var r : rows) match.getProviders().add(projectProvider(r));
             out.add(match);
         }
         return out;
@@ -231,163 +217,134 @@ public class WarehouseQueryService {
 
     private ProviderMatch.ProviderRecord projectProvider(Map<String, Object> r) {
         ProviderMatch.ProviderRecord p = new ProviderMatch.ProviderRecord();
-        p.setId(String.valueOf(r.get("id")));
-        p.setEvidenceId("warehouse_rto_" + r.get("id"));
-        String name = WarehouseText.cleanText(r.get("legal_name"), 700);
+        p.setId(jsString(r.get("id")));
+        p.setEvidenceId("warehouse_rto_" + jsString(r.get("id")));
+        String name = WarehouseText.providerText(r.get("legal_name"));
         p.setName(name != null ? name : "Provider");
-        p.setRtoCode(WarehouseText.cleanText(r.get("rto_code"), 700));
-        p.setType(WarehouseText.cleanText(r.get("rto_type"), 700));
-        p.setArea(java.util.stream.Stream.of(r.get("city"), r.get("state")).filter(x -> x != null && !String.valueOf(x).isBlank())
-            .map(String::valueOf).collect(Collectors.joining(", ")));
-        p.setDescription(WarehouseText.cleanText(r.get("about_us_description"), 700));
+        p.setRtoCode(WarehouseText.providerText(r.get("rto_code")));
+        p.setType(WarehouseText.providerText(r.get("rto_type")));
+        p.setArea(joinTruthy(r.get("city"), r.get("state")));
+        p.setDescription(WarehouseText.providerText(r.get("about_us_description")));
         List<String> support = new ArrayList<>();
-        addFlagLabel(support, r, "has_student_support", "Student support");
-        addFlagLabel(support, r, "has_disability_support", "Disability support");
-        addFlagLabel(support, r, "has_indigenous_support", "Indigenous learner support");
-        addFlagLabel(support, r, "has_library", "Library");
-        addFlagLabel(support, r, "has_apprenticeships", "Apprenticeship support");
+        SUPPORT_LABELS.forEach((k, label) -> { if (WarehouseText.isOne(r.get(k))) support.add(label); });
         p.setSupport(support);
-        p.setUpdatedAt(WarehouseText.cleanText(r.get("updated_at"), 700));
+        p.setUpdatedAt(WarehouseText.providerText(r.get("updated_at")));
         p.setScope("Provider record; general locations and support do not establish course-specific delivery.");
         return p;
     }
 
-    private void addFlagLabel(List<String> out, Map<String, Object> r, String key, String label) {
-        Object v = r.get(key);
-        if (v != null && ("1".equals(String.valueOf(v)) || Boolean.TRUE.equals(v))) out.add(label);
-    }
-
     private List<WarehouseComparison.Qualification> qualifications(Session s, List<Map<String, Object>> rows) {
-        boolean hasUnits = s.has("qualification_units");
-        List<String> codes = rows.stream().map(r -> r.get("national_code")).filter(c -> c != null)
-            .map(String::valueOf).distinct().limit(4).toList();
+        boolean hasUnits = s.tables.contains("qualification_units");
         List<WarehouseComparison.Qualification> out = new ArrayList<>();
-        for (String code : codes) {
+        for (String code : rows.stream().map(r -> r.get("national_code")).filter(WarehouseText::truthy).map(WarehouseText::jsString).distinct().limit(4).toList()) {
             WarehouseComparison.Qualification q = new WarehouseComparison.Qualification();
             q.setCode(code);
             q.setEvidenceId("warehouse_qualification_" + code);
-            q.setScope("National qualification content (up to 30 units), not a provider-specific elective or delivery plan.");
             if (hasUnits) {
-                for (Map<String, Object> u : s.source.queryForList(
-                        "SELECT unit_code,unit_title,unit_type FROM qualification_units WHERE qualification_code=? ORDER BY unit_type,unit_code LIMIT 30", code)) {
-                    q.getUnits().add(new WarehouseComparison.Unit(
-                        WarehouseText.cleanText(u.get("unit_code"), 700), WarehouseText.cleanText(u.get("unit_title"), 700), WarehouseText.cleanText(u.get("unit_type"), 700)));
+                for (var u : s.source.queryForList("SELECT unit_code,unit_title,unit_type FROM qualification_units WHERE qualification_code=? ORDER BY unit_type,unit_code LIMIT 30", code)) {
+                    q.getUnits().add(new WarehouseComparison.Unit(WarehouseText.providerText(u.get("unit_code")), WarehouseText.providerText(u.get("unit_title")), WarehouseText.providerText(u.get("unit_type"))));
                 }
             }
+            q.setScope("National qualification content (up to 30 units), not a provider-specific elective or delivery plan.");
             out.add(q);
         }
         return out;
     }
 
-    // ---- normalizeCourse (normalize.ts) --------------------------------------------------
+    // ---- normalize.ts --------------------------------------------------------------------------
+
+    private static JsonNode at(JsonNode node, String... path) {
+        JsonNode v = node;
+        for (String p : path) v = v.path(p);
+        return v;
+    }
+
+    private static JsonNode orEmpty(JsonNode v) { return truthy(v) ? v : WarehouseText.MAPPER.createObjectNode(); }
 
     public WarehouseCourse normalizeCourse(Map<String, Object> r) {
-        JsonNode intel = WarehouseText.json(r.get("intelligence_json"));
-        JsonNode facts = intel.path("verified_facts");
-        JsonNode outcome = intel.path("yuzee_outcome_layer");
-        JsonNode skillsNode = WarehouseText.json(r.get("skills_json"));
-        JsonNode qualityScores = WarehouseText.json(r.get("quality_scores_json"));
-        JsonNode trustQuality = intel.path("trust_and_quality");
-
-        Integer frameworkLevel = firstValidLevel(
-            intPath(intel, "classification", "framework_level"),
-            intPath(intel, "course_identity", "framework_level"),
-            WarehouseText.intNumber(r.get("aqf_level")));
+        JsonNode i = WarehouseText.json(r.get("intelligence_json"));
+        JsonNode facts = orEmpty(i.path("verified_facts"));
+        JsonNode outcome = orEmpty(i.path("yuzee_outcome_layer"));
+        JsonNode skills = WarehouseText.json(r.get("skills_json"));
+        ObjectNode q = WarehouseText.MAPPER.createObjectNode();
+        if (i.path("trust_and_quality").isObject()) q.setAll((ObjectNode) i.path("trust_and_quality"));
+        JsonNode scores = WarehouseText.json(r.get("quality_scores_json"));
+        if (scores.isObject()) q.setAll((ObjectNode) scores);
+        Integer frameworkLevel = null;
+        for (Object candidate : new Object[]{at(i, "classification", "framework_level"), at(i, "course_identity", "framework_level"), r.get("aqf_level")}) {
+            Double n = WarehouseText.jsNumberValue(candidate);
+            if (n != null && n == Math.rint(n) && n >= 1 && n <= 10) { frameworkLevel = n.intValue(); break; }
+        }
+        List<CourseQuality> quality = new ArrayList<>();
+        addQuality(quality, "work", "Work readiness", WarehouseText.coalesce(r.get("work_readiness_score"), q.path("work_readiness_score")),
+            "The catalogue’s assessment of preparation for the course’s intended work or progression outcome.");
+        addQuality(quality, "future", "Future relevance", WarehouseText.coalesce(r.get("future_readiness_score"), q.path("future_relevance_score")),
+            "The catalogue’s assessment of relevance to changing work and skills.");
+        addQuality(quality, "overall", "Overall course readiness", WarehouseText.coalesce(r.get("yuzee_readiness_score"), q.path("overall_yuzee_readiness_score")),
+            "The stored Yuzee course assessment. This is not your personal readiness or a job-success probability.");
 
         WarehouseCourse course = new WarehouseCourse();
-        course.setId(String.valueOf(r.get("id")));
-        Object institutionId = r.get("institution_id");
-        course.setProviderId(institutionId == null ? "" : String.valueOf(institutionId));
-        course.setEvidenceId("warehouse_course_" + r.get("id"));
-        String name = WarehouseText.cleanText(r.get("course_name"));
+        course.setId(jsString(r.get("id")));
+        course.setProviderId(r.get("institution_id") == null ? "" : jsString(r.get("institution_id")));
+        course.setEvidenceId("warehouse_course_" + jsString(r.get("id")));
+        String name = cleanText(r.get("course_name"));
         course.setName(name != null ? name : "Course");
-        String provider = WarehouseText.cleanText(r.get("institution_name"));
+        String provider = cleanText(r.get("institution_name"));
         course.setProvider(provider != null ? provider : "Provider not supplied");
-        course.setCode(firstNonNull(WarehouseText.cleanText(r.get("national_code")), WarehouseText.cleanText(r.get("course_code"))));
+        course.setCode(cleanText(or(r.get("national_code"), r.get("course_code"))));
         course.setLevel(frameworkLevel == null ? null : String.valueOf(frameworkLevel));
-        course.setType(firstNonNull(WarehouseText.cleanText(r.get("course_type")), WarehouseText.cleanText(textAt(intel, "classification", "recognition_class"))));
-        course.setDescription(firstNonNull(
-            WarehouseText.cleanText(textAt(outcome, "student_outcome_headline")),
-            WarehouseText.cleanText(textAt(intel, "rendered_content", "short_summary")),
-            WarehouseText.cleanText(r.get("description"))));
-        course.setDuration(firstNonNull(WarehouseText.cleanText(r.get("duration_text")), WarehouseText.cleanText(textAt(facts, "duration"))));
-        List<String> delivery = WarehouseText.list(r.get("delivery_modes_json"), 8);
-        course.setDelivery(!delivery.isEmpty() ? delivery : WarehouseText.list(facts.path("delivery_modes"), 8));
-        List<String> locations = WarehouseText.list(r.get("locations_json"), 8);
-        course.setLocations(!locations.isEmpty() ? locations : WarehouseText.list(facts.path("campuses"), 8));
-        course.setEntry(!isBlankOrNull(r.get("entry_requirements")) ? WarehouseText.list(r.get("entry_requirements"), 8) : WarehouseText.list(facts.path("entry_requirements"), 8));
-
+        course.setType(cleanText(or(r.get("course_type"), at(i, "classification", "recognition_class"))));
+        course.setDescription(cleanText(or(outcome.path("student_outcome_headline"), at(i, "rendered_content", "short_summary"), r.get("description"))));
+        course.setDuration(cleanText(or(r.get("duration_text"), facts.path("duration"))));
+        JsonNode delivery = WarehouseText.json(r.get("delivery_modes_json"));
+        course.setDelivery(list(hasLength(delivery) ? delivery : facts.path("delivery_modes")));
+        JsonNode locations = WarehouseText.json(r.get("locations_json"));
+        course.setLocations(list(hasLength(locations) ? locations : facts.path("campuses")));
+        course.setEntry(list(or(r.get("entry_requirements"), facts.path("entry_requirements"))));
         WarehouseCourse.Fees fees = new WarehouseCourse.Fees();
-        fees.setDomestic(firstNonNull(WarehouseText.cleanText(r.get("domestic_fee")), WarehouseText.cleanText(textAt(facts, "domestic_fee"))));
-        fees.setInternational(firstNonNull(WarehouseText.cleanText(r.get("international_fee")), WarehouseText.cleanText(textAt(facts, "international_fee"))));
-        fees.setDetails(WarehouseText.list(intel.path("cost_full_picture").path("funding_options"), 8));
+        fees.setDomestic(cleanText(WarehouseText.coalesce(r.get("domestic_fee"), facts.path("domestic_fee"))));
+        fees.setInternational(cleanText(WarehouseText.coalesce(r.get("international_fee"), facts.path("international_fee"))));
+        fees.setDetails(list(at(i, "cost_full_picture", "funding_options")));
         course.setFees(fees);
-
-        List<String> skills = WarehouseText.list(skillsNode.path("technical_skills"), 8);
-        if (skills.isEmpty()) skills = WarehouseText.list(intel.path("skills").path("technical_skills"), 8);
-        if (skills.isEmpty()) skills = WarehouseText.list(intel.path("learning_content").path("core_skills"), 8);
-        course.setSkills(skills);
-        List<String> outcomes = WarehouseText.list(intel.path("credit_and_pathways").path("pathway_to_next_level"), 8);
-        if (outcomes.isEmpty()) outcomes = WarehouseText.list(r.get("career_outcomes_json"), 8);
-        course.setOutcomes(outcomes);
-        course.setAssessments(WarehouseText.list(intel.path("assessment_model").path("assessment_types"), 8));
-        course.setBestFor(WarehouseText.list(textAtNode(outcome, "best_suited_for"), 8));
-        List<String> considerations = new ArrayList<>();
-        String weakness = WarehouseText.cleanText(textAt(outcome, "honest_weakness"));
-        if (weakness != null) considerations.add(weakness);
-        considerations.addAll(WarehouseText.list(textAtNode(outcome, "not_ideal_for"), 3));
-        course.setConsiderations(considerations);
-
-        List<CourseQualityRow> quality = new ArrayList<>();
-        addQuality(quality, "work", "Work readiness",
-            r.get("work_readiness_score") != null ? r.get("work_readiness_score") : qualityScores.path("work_readiness_score").isMissingNode() ? null : qualityScores.get("work_readiness_score").asText(),
-            "The catalogue's assessment of preparation for the course's intended work or progression outcome.");
-        addQuality(quality, "future", "Future relevance",
-            r.get("future_readiness_score") != null ? r.get("future_readiness_score") : qualityScores.path("future_relevance_score").isMissingNode() ? null : qualityScores.get("future_relevance_score").asText(),
-            "The catalogue's assessment of relevance to changing work and skills.");
-        addQuality(quality, "overall", "Overall course readiness",
-            r.get("yuzee_readiness_score") != null ? r.get("yuzee_readiness_score") : qualityScores.path("overall_yuzee_readiness_score").isMissingNode() ? null : qualityScores.get("overall_yuzee_readiness_score").asText(),
-            "The stored Yuzee course assessment. This is not your personal readiness or a job-success probability.");
-        for (CourseQualityRow q : quality) course.getQuality().add(new com.yuzee.tokenlab.model.warehouse.CourseQuality(q.key, q.label, q.value, q.explanation));
-
-        course.setQualityExplanation(WarehouseText.cleanText(firstNonNull(
-            trustQuality.path("scoring_reason").isMissingNode() ? null : trustQuality.get("scoring_reason").asText(),
-            qualityScores.path("scoring_reason").isMissingNode() ? null : qualityScores.get("scoring_reason").asText())));
-
-        course.setIntelligence(intelligenceSections(intel));
-
+        course.setSkills(list(or(skills.path("technical_skills"), at(i, "skills", "technical_skills"), at(i, "learning_content", "core_skills"))));
+        course.setOutcomes(list(or(at(i, "credit_and_pathways", "pathway_to_next_level"), WarehouseText.json(r.get("career_outcomes_json")))));
+        course.setAssessments(list(at(i, "assessment_model", "assessment_types")));
+        course.setBestFor(list(outcome.path("best_suited_for")));
+        course.setConsiderations(considerations(outcome));
+        course.setQuality(quality);
+        course.setQualityExplanation(cleanText(q.path("scoring_reason")));
+        course.setIntelligence(intelligenceSections(i));
         WarehouseCourse.ComparisonDetails cd = new WarehouseCourse.ComparisonDetails();
-        cd.setLearning(WarehouseText.list(intel.path("learning_content").path("core_skills"), 8));
-        List<String> practice = new ArrayList<>(WarehouseText.list(facts.path("work_placement").path("model"), 8));
-        JsonNode hours = facts.path("work_placement").path("hours");
-        if (!hours.isMissingNode() && !hours.isNull()) practice.add("Recorded placement hours: " + hours.asText());
-        for (String p : WarehouseText.list(intel.path("work_readiness").path("portfolio_artifacts"), 3)) practice.add("Yuzee portfolio guidance: " + p);
+        cd.setLearning(list(at(i, "learning_content", "core_skills")));
+        List<String> practice = new ArrayList<>(list(at(facts, "work_placement", "model")));
+        JsonNode hours = at(facts, "work_placement", "hours");
+        if (!hours.isMissingNode() && !hours.isNull()) practice.add("Recorded placement hours: " + jsString(hours));
+        for (String t : list(at(i, "work_readiness", "portfolio_artifacts"), 3)) practice.add("Yuzee portfolio guidance: " + t);
         cd.setPractice(practice);
-        List<String> attendance = new ArrayList<>(WarehouseText.list(intel.path("delivery_detail").path("attendance_requirement"), 8));
-        attendance.addAll(WarehouseText.list(intel.path("delivery_detail").path("mode"), 8));
+        List<String> attendance = new ArrayList<>(list(at(i, "delivery_detail", "attendance_requirement")));
+        attendance.addAll(list(at(i, "delivery_detail", "mode")));
         cd.setAttendance(attendance);
         List<String> credit = new ArrayList<>();
-        JsonNode rpl = intel.path("credit_and_pathways").path("rpl_available");
-        if (rpl.isBoolean()) credit.add("Recognition of prior learning: " + (rpl.asBoolean() ? "recorded as available" : "recorded as unavailable"));
-        credit.addAll(WarehouseText.list(intel.path("credit_and_pathways").path("articulation_pathways"), 3));
+        JsonNode rpl = at(i, "credit_and_pathways", "rpl_available");
+        if (rpl.isBoolean()) credit.add("Recognition of prior learning: " + (rpl.booleanValue() ? "recorded as available" : "recorded as unavailable"));
+        credit.addAll(list(at(i, "credit_and_pathways", "articulation_pathways"), 3));
         cd.setCredit(credit);
-        cd.setStrengths(WarehouseText.list(textAtNode(outcome, "best_suited_for"), 8));
-        cd.setLimitations(new ArrayList<>(considerations));
-        cd.setOutcome(WarehouseText.cleanText(textAt(outcome, "student_outcome_headline")));
+        cd.setStrengths(list(outcome.path("best_suited_for")));
+        cd.setLimitations(considerations(outcome));
+        cd.setOutcome(cleanText(outcome.path("student_outcome_headline")));
         course.setComparisonDetails(cd);
-
         WarehouseCourse.Source source = new WarehouseCourse.Source();
-        source.setUrl(firstNonNull(WarehouseText.url(r.get("canonical_url")), WarehouseText.url(r.get("web_collect_url")), WarehouseText.url(r.get("website"))));
-        source.setUpdatedAt(firstNonNull(WarehouseText.cleanText(r.get("intelligence_enriched_at")), WarehouseText.cleanText(r.get("updated_at"))));
+        String url = WarehouseText.url(r.get("canonical_url"));
+        if (url == null) url = WarehouseText.url(r.get("web_collect_url"));
+        if (url == null) url = WarehouseText.url(r.get("website"));
+        source.setUrl(url);
+        source.setUpdatedAt(cleanText(or(r.get("intelligence_enriched_at"), r.get("updated_at"))));
         course.setSource(source);
-
-        // Respect a conflict already identified by the warehouse itself: redact rather than guess.
+        // Respect a conflict already identified by the warehouse itself. Do not silently
+        // pick one of the contradictory interpretations or expose it as provider fact.
         String issueText = course.getQualityExplanation() != null ? course.getQualityExplanation() : "";
-        boolean flagged = issueText.matches("(?is).*(critical conflict|unresolved conflict|conflicting (?:source|course|information|descriptions)|contradict(?:ory|ion)).*")
-            && !issueText.matches("(?is).*\\b(?:no|without|not an?) (?:critical )?(?:conflict|contradiction).*");
-        if (flagged) {
-            course.setEvidenceIssues(List.of(
-                course.getProvider() + ": the catalogue flags conflicting course information. Course-specific duration, delivery, entry requirements and analysis are not established by this record.",
+        if (CONFLICT.matcher(issueText).find() && !NO_CONFLICT.matcher(issueText).find()) {
+            course.setEvidenceIssues(List.of(course.getProvider() + ": the catalogue flags conflicting course information. Course-specific duration, delivery, entry requirements and analysis are not established by this record.",
                 course.getQualityExplanation()));
             course.setDescription(null);
             course.setDuration(null);
@@ -407,832 +364,356 @@ public class WarehouseQueryService {
         return course;
     }
 
-    private record CourseQualityRow(String key, String label, Double value, String explanation) {}
+    private static final Pattern CONFLICT = Pattern.compile("critical conflict|unresolved conflict|conflicting (?:source|course|information|descriptions)|contradict(?:ory|ion)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern NO_CONFLICT = Pattern.compile("\\b(?:no|without|not an?) (?:critical )?(?:conflict|contradiction)", Pattern.CASE_INSENSITIVE);
 
-    private void addQuality(List<CourseQualityRow> out, String key, String label, Object raw, String explanation) {
+    /** JS {@code json(x)?.length} truthiness. */
+    private static boolean hasLength(JsonNode v) {
+        return (v.isArray() && v.size() > 0) || (v.isTextual() && !v.asText().isEmpty());
+    }
+
+    private List<String> considerations(JsonNode outcome) {
+        List<String> out = new ArrayList<>();
+        String weakness = cleanText(outcome.path("honest_weakness"));
+        if (weakness != null) out.add(weakness);
+        out.addAll(list(outcome.path("not_ideal_for"), 3));
+        return out;
+    }
+
+    private void addQuality(List<CourseQuality> out, String key, String label, Object raw, String explanation) {
         Double v = WarehouseText.score(raw);
-        if (v != null) out.add(new CourseQualityRow(key, label, v, explanation));
+        if (v != null) out.add(new CourseQuality(key, label, v, explanation));
     }
 
-    private Integer firstValidLevel(Integer... candidates) {
-        for (Integer c : candidates) if (c != null && c >= 1 && c <= 10) return c;
-        return null;
-    }
+    // Only decision-useful sections are projected. Administrative fields stay in the warehouse.
+    private static final Pattern ADMIN_KEY = Pattern.compile("(?:source|url|confidence|verified|audit|status|score|id)$");
 
-    private Integer intPath(JsonNode node, String a, String b) {
-        JsonNode v = node.path(a).path(b);
-        return v.isMissingNode() || v.isNull() ? null : WarehouseText.intNumber(v.isTextual() ? v.asText() : v.numberValue());
-    }
-
-    private String textAt(JsonNode node, String... path) {
-        JsonNode v = node;
-        for (String p : path) v = v.path(p);
-        return v.isMissingNode() || v.isNull() ? null : (v.isTextual() ? v.asText() : v.toString());
-    }
-
-    private JsonNode textAtNode(JsonNode node, String field) { return node.path(field); }
-
-    @SafeVarargs
-    private <T> T firstNonNull(T... values) {
-        for (T v : values) if (v != null) return v;
-        return null;
-    }
-
-    private boolean isBlankOrNull(Object v) { return v == null || String.valueOf(v).isBlank(); }
-
-    private List<WarehouseCourse.IntelligenceSection> intelligenceSections(JsonNode intel) {
-        List<WarehouseCourse.IntelligenceSection> sections = new ArrayList<>();
-        addSection(sections, "learning", "Learning and practical work", intel.path("learning_content"));
-        JsonNode gaps = intel.path("skill_gap_map");
-        if (gaps.isMissingNode() || gaps.isNull()) gaps = intel.path("skills").path("skills_not_fully_closed");
-        addSection(sections, "gaps", "Skills to build further", gaps);
-        Map<String, JsonNode> practice = new LinkedHashMap<>();
-        practice.put("internships", intel.path("work_readiness").path("internship_plan"));
-        practice.put("portfolio", intel.path("work_readiness").path("portfolio_artifacts"));
-        practice.put("placement", intel.path("work_readiness").path("placement_status"));
-        addSectionMap(sections, "practice", "Practical experience and portfolio", practice);
-        Map<String, JsonNode> roles = new LinkedHashMap<>();
-        roles.put("entry_roles", intel.path("career_pathways").path("entry_roles"));
-        roles.put("roles_with_further_experience", intel.path("career_pathways").path("stretch_roles"));
-        roles.put("not_immediate_roles", intel.path("career_pathways").path("not_immediate_roles"));
-        addSectionMap(sections, "roles", "Roles and progression", roles);
-        Map<String, JsonNode> roleBasis = new LinkedHashMap<>();
-        roleBasis.put("provider_claimed_roles", intel.path("outcome_evidence").path("provider_claimed_roles"));
-        roleBasis.put("yuzee_inferred_roles", intel.path("outcome_evidence").path("yuzee_inferred_roles"));
-        addSectionMap(sections, "role_basis", "How career possibilities are described", roleBasis);
-        addSection(sections, "progression", "Credit and further study", intel.path("credit_and_pathways"));
-        JsonNode costs = intel.path("cost_full_picture");
-        Map<String, JsonNode> costMap = new LinkedHashMap<>();
-        if (costs.isObject()) costs.fields().forEachRemaining(e -> {
-            if (!Set.of("tuition_fee", "confidence", "funding_options").contains(e.getKey())) costMap.put(e.getKey(), e.getValue());
-        });
-        addSectionMap(sections, "costs", "Costs beyond tuition", costMap);
-        Map<String, JsonNode> professional = new LinkedHashMap<>();
-        professional.put("registration_body", intel.path("regulated_profession").path("registration_body"));
-        professional.put("placement_clearances", intel.path("regulated_profession").path("placement_clearances"));
-        professional.put("licensing_steps", intel.path("regulated_profession").path("licensing_steps_after_graduation"));
-        addSectionMap(sections, "professional", "Professional and placement requirements", professional);
-        addSection(sections, "delivery", "Attendance and study setup", intel.path("delivery_detail"));
-        Map<String, JsonNode> ai = new LinkedHashMap<>();
-        ai.put("context", intel.path("ai_readiness").path("context"));
-        ai.put("portfolio_suggestions", intel.path("ai_readiness").path("ai_portfolio_suggestions"));
-        addSectionMap(sections, "ai", "AI and changing work", ai);
-        return sections;
-    }
-
-    private void addSection(List<WarehouseCourse.IntelligenceSection> out, String key, String label, JsonNode value) {
-        List<String> items = readable(value, 0);
-        if (!items.isEmpty()) out.add(new WarehouseCourse.IntelligenceSection(key, label, items.stream().limit(4).map(t -> t.length() > 300 ? t.substring(0, 300) : t).toList()));
-    }
-
-    private void addSectionMap(List<WarehouseCourse.IntelligenceSection> out, String key, String label, Map<String, JsonNode> value) {
-        List<String> items = new ArrayList<>();
-        for (Map.Entry<String, JsonNode> e : value.entrySet()) {
-            for (String t : readable(e.getValue(), 0)) items.add(WarehouseText.label(e.getKey()) + ": " + t);
-            if (items.size() >= 4) break;
+    private List<WarehouseCourse.IntelligenceSection> intelligenceSections(JsonNode i) {
+        List<Object[]> definitions = new ArrayList<>();
+        definitions.add(new Object[]{"learning", "Learning and practical work", i.path("learning_content")});
+        definitions.add(new Object[]{"gaps", "Skills to build further", or(i.path("skill_gap_map"), at(i, "skills", "skills_not_fully_closed"))});
+        definitions.add(new Object[]{"practice", "Practical experience and portfolio", object("internships", at(i, "work_readiness", "internship_plan"),
+            "portfolio", at(i, "work_readiness", "portfolio_artifacts"), "placement", at(i, "work_readiness", "placement_status"))});
+        definitions.add(new Object[]{"roles", "Roles and progression", object("entry_roles", at(i, "career_pathways", "entry_roles"),
+            "roles_with_further_experience", at(i, "career_pathways", "stretch_roles"), "not_immediate_roles", at(i, "career_pathways", "not_immediate_roles"))});
+        definitions.add(new Object[]{"role_basis", "How career possibilities are described", object("provider_claimed_roles", at(i, "outcome_evidence", "provider_claimed_roles"),
+            "yuzee_inferred_roles", at(i, "outcome_evidence", "yuzee_inferred_roles"))});
+        definitions.add(new Object[]{"progression", "Credit and further study", i.path("credit_and_pathways")});
+        ObjectNode costs = WarehouseText.MAPPER.createObjectNode();
+        JsonNode cost = i.path("cost_full_picture");
+        if (cost.isObject()) cost.fields().forEachRemaining(e -> { if (!Set.of("tuition_fee", "confidence", "funding_options").contains(e.getKey())) costs.set(e.getKey(), e.getValue()); });
+        definitions.add(new Object[]{"costs", "Costs beyond tuition", costs});
+        definitions.add(new Object[]{"professional", "Professional and placement requirements", object("registration_body", at(i, "regulated_profession", "registration_body"),
+            "placement_clearances", at(i, "regulated_profession", "placement_clearances"), "licensing_steps", at(i, "regulated_profession", "licensing_steps_after_graduation"))});
+        definitions.add(new Object[]{"delivery", "Attendance and study setup", i.path("delivery_detail")});
+        definitions.add(new Object[]{"ai", "AI and changing work", object("context", at(i, "ai_readiness", "context"),
+            "portfolio_suggestions", at(i, "ai_readiness", "ai_portfolio_suggestions"))});
+        List<WarehouseCourse.IntelligenceSection> out = new ArrayList<>();
+        for (Object[] d : definitions) {
+            List<String> items = readable((JsonNode) d[2], 0).stream().limit(4).map(t -> t.length() > 300 ? t.substring(0, 300) : t).toList();
+            if (!items.isEmpty()) out.add(new WarehouseCourse.IntelligenceSection((String) d[0], (String) d[1], items));
         }
-        if (!items.isEmpty()) out.add(new WarehouseCourse.IntelligenceSection(key, label, items.stream().limit(4).map(t -> t.length() > 300 ? t.substring(0, 300) : t).toList()));
+        return out;
     }
 
-    private static final Set<String> ADMIN_SUFFIX = Set.of("source", "url", "confidence", "verified", "audit", "status", "score", "id");
+    /** A JS object literal whose missing values stay as (empty) keys. */
+    private static ObjectNode object(Object... kv) {
+        ObjectNode o = WarehouseText.MAPPER.createObjectNode();
+        for (int k = 0; k < kv.length; k += 2) {
+            JsonNode v = (JsonNode) kv[k + 1];
+            o.set((String) kv[k], v.isMissingNode() ? NullNode.getInstance() : v);
+        }
+        return o;
+    }
 
-    /** Ported from normalize.ts's `readable()`: flattens a nested intelligence blob into short strings,
-     *  dropping administrative/provenance-looking fields. */
     private List<String> readable(JsonNode v, int depth) {
-        if (v == null || v.isMissingNode() || v.isNull() || depth > 2) return List.of();
+        if (depth > 2 || v == null || v.isMissingNode() || v.isNull()) return List.of();
+        List<String> out = new ArrayList<>();
         if (v.isArray()) {
-            List<String> out = new ArrayList<>();
-            int n = 0;
-            for (JsonNode item : v) {
-                if (n++ >= 4) break;
-                out.addAll(readable(item, depth + 1));
-            }
+            for (int k = 0; k < Math.min(4, v.size()); k++) out.addAll(readable(v.get(k), depth + 1));
             return out;
         }
         if (v.isObject()) {
-            List<String> out = new ArrayList<>();
-            int n = 0;
-            var it = v.fields();
-            while (it.hasNext() && n < 4) {
-                var e = it.next();
-                if (ADMIN_SUFFIX.stream().anyMatch(suffix -> e.getKey().endsWith(suffix))) continue;
-                n++;
-                for (String t : readable(e.getValue(), depth + 1)) out.add(WarehouseText.label(e.getKey()) + ": " + t);
-            }
+            List<Map.Entry<String, JsonNode>> entries = new ArrayList<>();
+            v.fields().forEachRemaining(e -> { if (!ADMIN_KEY.matcher(e.getKey()).find()) entries.add(e); });
+            for (var e : entries.stream().limit(4).toList()) for (String t : readable(e.getValue(), depth + 1)) out.add(WarehouseText.label(e.getKey()) + ": " + t);
             return out;
         }
-        if (v.isBoolean()) return List.of(v.asBoolean() ? "Yes" : "No");
-        String t = WarehouseText.cleanText(v.isTextual() ? v.asText() : v.toString(), 240);
+        if (v.isBoolean()) return List.of(v.booleanValue() ? "Yes" : "No");
+        String t = cleanText(v, 240);
         return t == null ? List.of() : List.of(t);
     }
 
-    // ---- buildComparison (comparison.ts) -------------------------------------------------
+    // ---- comparison.ts -------------------------------------------------------------------------
 
     public WarehouseComparison buildComparison(List<WarehouseCourse> courses, List<ProviderMatch> providerMatches,
                                                 List<WarehouseComparison.Qualification> qualifications, boolean courseRequested) {
-        WarehouseComparison out = new WarehouseComparison();
         Map<String, ProviderMatch.ProviderRecord> byId = new LinkedHashMap<>();
-        for (ProviderMatch m : providerMatches) if ("MATCHED".equals(m.getStatus())) for (var p : m.getProviders()) byId.putIfAbsent(p.getId(), p);
+        for (ProviderMatch m : providerMatches) if ("MATCHED".equals(m.getStatus())) for (var p : m.getProviders()) byId.put(p.getId(), p);
         List<ProviderMatch.ProviderRecord> providers = new ArrayList<>(byId.values());
-
         java.util.function.Function<WarehouseCourse, ProviderMatch.ProviderRecord> provider = c -> providers.stream()
             .filter(p -> p.getId().equals(c.getProviderId()) || p.getName().equals(c.getProvider())).findFirst().orElse(null);
-
         List<WarehouseComparison.Option> options = new ArrayList<>();
         if (!courses.isEmpty()) {
-            for (WarehouseCourse c : courses) {
-                String subtitle = java.util.stream.Stream.of(c.getName(), c.getCode()).filter(x -> x != null && !x.isBlank()).collect(Collectors.joining(" · "));
-                options.add(new WarehouseComparison.Option(c.getId(), c.getProvider(), subtitle));
-            }
+            for (var c : courses) options.add(new WarehouseComparison.Option(c.getId(), c.getProvider(),
+                java.util.stream.Stream.of(c.getName(), c.getCode()).filter(x -> x != null && !x.isEmpty()).collect(Collectors.joining(" · "))));
         } else {
-            for (var p : providers) options.add(new WarehouseComparison.Option(p.getId(), p.getName(), p.getRtoCode() != null ? "RTO " + p.getRtoCode() : "Provider"));
+            for (var p : providers) options.add(new WarehouseComparison.Option(p.getId(), p.getName(), p.getRtoCode() != null && !p.getRtoCode().isEmpty() ? "RTO " + p.getRtoCode() : "Provider"));
         }
-        out.setOptions(options);
-
-        Set<String> codes = courses.stream().map(WarehouseCourse::getCode).filter(c -> c != null).collect(Collectors.toCollection(LinkedHashSet::new));
-        boolean same = courses.size() > 1 && codes.size() == 1 && courses.stream().allMatch(c -> codes.iterator().next().equals(c.getCode()));
-
+        List<String> codes = courses.stream().map(WarehouseCourse::getCode).filter(c -> c != null && !c.isEmpty()).distinct().toList();
+        boolean same = courses.size() > 1 && codes.size() == 1 && courses.stream().allMatch(c -> codes.get(0).equals(c.getCode()));
         List<WarehouseComparison.Row> rows = new ArrayList<>();
         if (!courses.isEmpty()) {
-            addRow(rows, "duration", "Duration", "COURSE_RECORD", courses.stream().map(c -> single(c.getDuration())).toList(),
-                "Compare the time commitment alongside study load and attendance; a shorter course is not automatically better.");
-            addRow(rows, "delivery", "How and where you study", "COURSE_RECORD", courses.stream().map(c -> {
-                List<String> v = new ArrayList<>(c.getDelivery());
-                v.addAll(c.getLocations().stream().limit(4).toList());
-                return v;
-            }).toList(), "Use the course locations shown. Other campuses do not establish delivery at that campus.");
-            addRow(rows, "attendance", "Attendance and practical setup", "YUZEE_ANALYSIS",
-                courses.stream().map(c -> c.getComparisonDetails().getAttendance()).toList(),
-                "Consider whether the recorded attendance pattern fits your work and other commitments.");
-            addRow(rows, "assessment", "Assessment approach", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getAssessments).toList(),
-                "Look at how learning can be demonstrated. Broad assessment descriptions may be shared across the qualification.");
-            addRow(rows, "practice", "Practical experience", "YUZEE_ANALYSIS", courses.stream().map(c -> c.getComparisonDetails().getPractice()).toList(),
-                "Separate a recorded placement arrangement from Yuzee suggestions for building practical evidence.");
-            addRow(rows, "support", "Learner support", "PROVIDER_RECORD", courses.stream().map(c -> {
-                var p = provider.apply(c);
-                return p == null ? List.<String>of() : p.getSupport();
-            }).toList(), "Recorded provider services may help you study; the level of support for this course is not established by a tick alone.");
-            addRow(rows, "credit", "Credit and recognition", "YUZEE_ANALYSIS", courses.stream().map(c -> c.getComparisonDetails().getCredit()).toList(),
-                "Recognition and credit depend on your evidence and the provider decision.");
+            addRow(rows, "duration", "Duration", "COURSE_RECORD", courses.stream().map(c -> single(c.getDuration())).toList(), "Compare the time commitment alongside study load and attendance; a shorter course is not automatically better.");
+            addRow(rows, "delivery", "How and where you study", "COURSE_RECORD", courses.stream().map(c -> { List<String> v = new ArrayList<>(c.getDelivery()); v.addAll(c.getLocations().stream().limit(4).toList()); return v; }).toList(), "Use the course locations shown. Other campuses do not establish delivery at that campus.");
+            addRow(rows, "attendance", "Attendance and practical setup", "YUZEE_ANALYSIS", courses.stream().map(c -> c.getComparisonDetails() == null ? null : c.getComparisonDetails().getAttendance()).toList(), "Consider whether the recorded attendance pattern fits your work and other commitments.");
+            addRow(rows, "assessment", "Assessment approach", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getAssessments).toList(), "Look at how learning can be demonstrated. Broad assessment descriptions may be shared across the qualification.");
+            addRow(rows, "practice", "Practical experience", "YUZEE_ANALYSIS", courses.stream().map(c -> c.getComparisonDetails() == null ? null : c.getComparisonDetails().getPractice()).toList(), "Separate a recorded placement arrangement from Yuzee suggestions for building practical evidence.");
+            addRow(rows, "support", "Learner support", "PROVIDER_RECORD", courses.stream().map(c -> { var p = provider.apply(c); return p == null ? null : p.getSupport(); }).toList(), "Recorded provider services may help you study; the level of support for this course is not established by a tick alone.");
+            addRow(rows, "credit", "Credit and recognition", "YUZEE_ANALYSIS", courses.stream().map(c -> c.getComparisonDetails() == null ? null : c.getComparisonDetails().getCredit()).toList(), "Recognition and credit depend on your evidence and the provider decision.");
             addRow(rows, "cost", "Recorded tuition", "COURSE_RECORD", courses.stream().map(c -> {
                 List<String> v = new ArrayList<>();
                 if (c.getFees().getDomestic() != null) v.add("Domestic: " + c.getFees().getDomestic());
                 if (c.getFees().getInternational() != null) v.add("International: " + c.getFees().getInternational());
                 return v;
             }).toList(), "Compare like student categories and funding conditions. Not supplied never means free.");
-            addRow(rows, "strengths", "Who it may suit", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getBestFor).toList(),
-                "Use Yuzee analysis against your priorities; this is not an established provider advantage.");
-            addRow(rows, "limits", "Trade-offs and further learning", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getConsiderations).toList(),
-                "Common qualification limits apply to all comparable options; do not treat them as a weakness unique to one RTO.");
+            addRow(rows, "strengths", "Who it may suit", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getBestFor).toList(), "Use Yuzee analysis against your priorities; this is not an established provider advantage.");
+            addRow(rows, "limits", "Trade-offs and further learning", "YUZEE_ANALYSIS", courses.stream().map(WarehouseCourse::getConsiderations).toList(), "Common qualification limits apply to all comparable options; do not treat them as a weakness unique to one RTO.");
         } else {
-            addRow(rows, "area", "Provider base", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getArea())).toList(),
-                "An institution address does not establish where a particular course runs.");
-            addRow(rows, "type", "Provider type", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getType())).toList(),
-                "Provider type describes the institution, not a ranking of teaching quality.");
-            addRow(rows, "support", "Learner support", "PROVIDER_RECORD", providers.stream().map(ProviderMatch.ProviderRecord::getSupport).toList(),
-                "Use these recorded services as discussion points for your study needs.");
-            addRow(rows, "about", "Provider overview", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getDescription())).toList(),
-                "Compare the stated focus without treating description length as quality.");
+            addRow(rows, "area", "Provider base", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getArea())).toList(), "An institution address does not establish where a particular course runs.");
+            addRow(rows, "type", "Provider type", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getType())).toList(), "Provider type describes the institution, not a ranking of teaching quality.");
+            addRow(rows, "support", "Learner support", "PROVIDER_RECORD", providers.stream().map(ProviderMatch.ProviderRecord::getSupport).toList(), "Use these recorded services as discussion points for your study needs.");
+            addRow(rows, "about", "Provider overview", "PROVIDER_RECORD", providers.stream().map(p -> single(p.getDescription())).toList(), "Compare the stated focus without treating description length as quality.");
         }
-        out.setRows(rows);
-
         List<String> notes = new ArrayList<>();
-        if (courseRequested) {
-            for (var p : providers) {
-                boolean matched = courses.stream().anyMatch(c -> p.getId().equals(c.getProviderId()) || p.getName().equals(c.getProvider()));
-                if (!matched) notes.add("No matching course was returned for " + p.getName() + "; their provider details alone do not establish that they offer the requested course.");
-            }
+        if (courseRequested) for (var p : providers) {
+            if (courses.stream().noneMatch(c -> p.getId().equals(c.getProviderId()) || p.getName().equals(c.getProvider())))
+                notes.add("No matching course was returned for " + p.getName() + "; their provider details alone do not establish that they offer the requested course.");
         }
-        for (WarehouseCourse c : courses) if (c.getEvidenceIssues() != null && !c.getEvidenceIssues().isEmpty()) notes.add(c.getEvidenceIssues().get(0));
+        for (var c : courses) if (c.getEvidenceIssues() != null && !c.getEvidenceIssues().isEmpty()) notes.add(c.getEvidenceIssues().get(0));
+        WarehouseComparison out = new WarehouseComparison();
         out.setNotes(notes);
-
+        out.setTitle(!courses.isEmpty() ? "Compare the learning experience" : "Compare these providers");
+        out.setOptions(options);
+        out.setRows(rows);
         out.setProviderMatches(providerMatches);
         out.setQualifications(qualifications);
-        out.setTitle(!courses.isEmpty() ? "Compare the learning experience" : "Compare these providers");
-        out.setBaseline(same
-            ? "These options share " + codes.iterator().next() + ". The national qualification is the common starting point; compare the recorded delivery and learner experience below."
-            : courses.size() > 1
-                ? "These records are not all the same qualification. Compare level and intended outcome before interpreting differences as provider quality."
-                : "Use the available provider details now. A named qualification enables a more specific comparison of learning and delivery.");
+        out.setBaseline(same ? "These options share " + codes.get(0) + ". The national qualification is the common starting point; compare the recorded delivery and learner experience below."
+            : courses.size() > 1 ? "These records are not all the same qualification. Compare level and intended outcome before interpreting differences as provider quality."
+            : "Use the available provider details now. A named qualification enables a more specific comparison of learning and delivery.");
         return out;
     }
 
-    private List<String> single(String v) { return v == null ? List.of() : List.of(v); }
+    private List<String> single(String v) { return v == null || v.isEmpty() ? List.of() : List.of(v); }
+
+    private static final Pattern JS_SPACES = com.yuzee.tokenlab.service.RoutingPolicyService.jsRegex("\\s+", false);
 
     private void addRow(List<WarehouseComparison.Row> rows, String key, String label, String basis, List<List<String>> values, String meaning) {
-        List<List<String>> cells = values.stream().map(v -> v == null ? List.<String>of() : v.stream().filter(x -> x != null && !x.isBlank()).toList()).toList();
-        List<String> canonical = cells.stream().map(v -> v.stream().map(x -> x.trim().toLowerCase().replaceAll("\\s+", " ")).sorted().collect(Collectors.joining("|"))).toList();
-        boolean allEmpty = cells.stream().allMatch(List::isEmpty);
-        boolean someEmpty = cells.stream().anyMatch(List::isEmpty);
-        String status = allEmpty ? "UNKNOWN" : someEmpty ? "INCOMPLETE" : (new LinkedHashSet<>(canonical).size() == 1 && cells.size() > 1) ? "SHARED" : "DIFFERENT_RECORDS";
+        List<List<String>> cells = values.stream().map(v -> v == null ? List.<String>of() : v.stream().filter(x -> x != null && !x.isEmpty()).toList()).toList();
+        List<String> canonical = cells.stream().map(v -> v.stream().map(x -> JS_SPACES.matcher(com.yuzee.tokenlab.service.RoutingPolicyService.jsTrim(x).toLowerCase(java.util.Locale.ROOT)).replaceAll(" ")).sorted().collect(Collectors.joining("|"))).toList();
+        String status = cells.stream().allMatch(List::isEmpty) ? "UNKNOWN" : cells.stream().anyMatch(List::isEmpty) ? "INCOMPLETE"
+            : new HashSet<>(canonical).size() == 1 && cells.size() > 1 ? "SHARED" : "DIFFERENT_RECORDS";
         WarehouseComparison.Row row = new WarehouseComparison.Row();
         row.setKey(key); row.setLabel(label); row.setBasis(basis); row.setStatus(status); row.setValues(cells); row.setMeaning(meaning);
         rows.add(row);
     }
 
-    // ---- explorationChoice (choices.ts) --------------------------------------------------
-
-    public ExplorationChoice.SkillState toSkillState(String id, String name, String state) { return new ExplorationChoice.SkillState(id, name, state); }
+    // ---- choices.ts ----------------------------------------------------------------------------
 
     public record ChoiceResult(ExplorationChoice choice, String text) {}
 
     public ChoiceResult explorationChoice(WarehousePack pack, List<String> roleIds, List<ExplorationChoice.SkillState> requested) {
         WarehouseExploration e = pack == null || pack.getConnected() == null ? null : pack.getConnected().getExploration();
-        if (e == null || roleIds == null || requested == null || roleIds.size() > 3 || requested.size() > 12) {
-            throw new IllegalArgumentException("Choose roles and skills shown in this workspace.");
-        }
-        if (new LinkedHashSet<>(roleIds).size() != roleIds.size()
-            || requested.stream().map(ExplorationChoice.SkillState::getId).collect(Collectors.toSet()).size() != requested.size()) {
+        if (e == null || roleIds == null || requested == null || roleIds.size() > 3 || requested.size() > 12) throw new IllegalArgumentException("Choose roles and skills shown in this workspace.");
+        if (new HashSet<>(roleIds).size() != roleIds.size()
+            || requested.stream().map(sk -> sk == null ? null : sk.getId()).collect(Collectors.toCollection(HashSet::new)).size() != requested.size())
             throw new IllegalArgumentException("Choose each role or skill once.");
-        }
         List<WarehouseExploration.Role> roles = new ArrayList<>();
-        for (String id : roleIds) {
-            WarehouseExploration.Role r = e.getRoles().stream().filter(x -> x.getId().equals(id)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Choose a role shown in this workspace."));
-            roles.add(r);
-        }
+        for (String id : roleIds) roles.add(e.getRoles().stream().filter(x -> x.getId().equals(id)).findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Choose a role shown in this workspace.")));
         List<ExplorationChoice.SkillState> skills = new ArrayList<>();
-        for (var s : requested) {
-            var skill = e.getSkills().stream().filter(k -> k.getId().equals(s.getId())).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Choose a skill shown in this workspace."));
-            if (!Set.of("HAVE", "LEARN", "UNSURE").contains(s.getState())) throw new IllegalArgumentException("Choose a skill shown in this workspace.");
-            skills.add(new ExplorationChoice.SkillState(skill.getId(), skill.getName(), s.getState()));
+        for (var sk : requested) {
+            var skill = sk == null ? null : e.getSkills().stream().filter(k -> k.getId().equals(sk.getId())).findFirst().orElse(null);
+            if (skill == null || !Set.of("HAVE", "LEARN", "UNSURE").contains(sk.getState())) throw new IllegalArgumentException("Choose a skill shown in this workspace.");
+            skills.add(new ExplorationChoice.SkillState(skill.getId(), skill.getName(), sk.getState()));
         }
         ExplorationChoice choice = new ExplorationChoice();
         choice.setRoleIds(roles.stream().map(WarehouseExploration.Role::getId).toList());
         choice.setSkills(skills);
-
         List<String> phrases = new ArrayList<>();
-        phrases.add(!roles.isEmpty() ? "I want to explore these roles: " + roles.stream().map(WarehouseExploration.Role::getTitle).collect(Collectors.joining("; ")) + "."
-            : "I have not selected a target role yet.");
-        addSkillPhrase(phrases, skills, "HAVE", "I say I have experience using");
-        addSkillPhrase(phrases, skills, "LEARN", "I want to learn");
-        addSkillPhrase(phrases, skills, "UNSURE", "I am unsure about my experience with");
-        String text = String.join(" ", phrases) + " These replace my previous workspace skill selections. Unmarked skills remain unknown. "
-            + "My reported skills are not verified competence. Help me connect the work, relevant learning options and the recorded demand in my area.";
-        return new ChoiceResult(choice, text);
+        phrases.add(!roles.isEmpty() ? "I want to explore these roles: " + roles.stream().map(WarehouseExploration.Role::getTitle).collect(Collectors.joining("; ")) + "." : "I have not selected a target role yet.");
+        String[][] labels = {{"HAVE", "I say I have experience using"}, {"LEARN", "I want to learn"}, {"UNSURE", "I am unsure about my experience with"}};
+        for (String[] l : labels) {
+            List<String> names = skills.stream().filter(sk -> l[0].equals(sk.getState())).map(ExplorationChoice.SkillState::getName).toList();
+            if (!names.isEmpty()) phrases.add(l[1] + ": " + String.join("; ", names) + ".");
+        }
+        return new ChoiceResult(choice, String.join(" ", phrases) + " These replace my previous workspace skill selections. Unmarked skills remain unknown. My reported skills are not verified competence. Help me connect the work, relevant learning options and the recorded demand in my area.");
     }
 
-    private void addSkillPhrase(List<String> phrases, List<ExplorationChoice.SkillState> skills, String state, String label) {
-        List<String> names = skills.stream().filter(s -> state.equals(s.getState())).map(ExplorationChoice.SkillState::getName).toList();
-        if (!names.isEmpty()) phrases.add(label + ": " + String.join("; ", names) + ".");
-    }
-
-    public List<WarehouseCourse> workspaceCourses(WarehousePack pack) {
-        List<WarehouseCourse> out = new ArrayList<>();
+    /** choices.ts workspaceCourses(): pack courses plus the learning links' course references. */
+    public List<Object> workspaceCourses(WarehousePack pack) {
+        List<Object> out = new ArrayList<>();
         if (pack == null) return out;
         out.addAll(pack.getCourses());
-        if (pack.getConnected() != null && pack.getConnected().getExploration() != null) {
-            // learning links only carry lightweight course refs (id/name/provider), not full records;
-            // callers that need full WarehouseCourse objects should re-fetch by id via lookup().
-        }
+        if (pack.getConnected() != null && pack.getConnected().getExploration() != null)
+            for (var l : pack.getConnected().getExploration().getLearning()) out.addAll(l.getCourses());
         return out;
     }
 
-    // ---- linked-data expansion (linked-data.cjs's createLinkedReader) -------------------
+    // ---- helpers -------------------------------------------------------------------------------
 
-    /** Inner (not static) so it can share the per-lookup {@link Session} without re-plumbing a
-     *  DataSource pair through yet another constructor. One instance per {@code lookup()} call. */
-    private final class LinkedDataExpansion {
-        private final Session s;
-        private final WarehouseQueryPlan plan;
-        private final Set<String> facets;
-        private final boolean allFacets;
+    /** Raw column value as JS would put it in JSON text: null stays null, numbers lose ".0". */
+    private static String str(Object v) { return v == null ? null : jsString(v); }
 
-        LinkedDataExpansion(Session s, WarehouseQueryPlan plan) {
+    /** {@code [a,b,...].filter(Boolean).join(', ')}. */
+    private static String joinTruthy(Object... values) {
+        return Arrays.stream(values).filter(WarehouseText::truthy).map(WarehouseText::jsString).collect(Collectors.joining(", "));
+    }
+
+    private static <T> List<T> limit(List<T> v, int n) { return v == null ? List.of() : v.stream().limit(n).toList(); }
+
+    private static List<String> likeWords(String phrase) {
+        return Arrays.stream(text(phrase, 100).split("\\s+")).filter(w -> !w.isEmpty()).limit(4).toList();
+    }
+
+    private static String likeWhere(String column, List<String> words) {
+        return words.stream().map(w -> column + " LIKE ? ESCAPE '\\'").collect(Collectors.joining(" AND "));
+    }
+
+    private static Object[] likeArgs(List<String> words) {
+        return words.stream().map(w -> "%" + WarehouseText.safeLike(w) + "%").toArray();
+    }
+
+    private static Map<String, Object> metrics(Object... kv) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (int k = 0; k < kv.length; k += 2) m.put((String) kv[k], kv[k + 1]);
+        return m;
+    }
+
+    // ---- linked-data.cjs -----------------------------------------------------------------------
+
+    private static final class Location {
+        String requested = "";
+        Map<String, Object> region;
+        List<Map<String, Object>> candidates = List.of();
+        List<Map<String, Object>> chain = List.of();
+
+        String regionKey() { return region == null ? null : str(region.get("region_key")); }
+        String regionState() { return region == null ? null : str(region.get("state")); }
+        String regionTier() { return region == null ? null : str(region.get("tier")); }
+    }
+
+    private static WarehouseConnections.RegionRef regionRef(Map<String, Object> r) {
+        return new WarehouseConnections.RegionRef(str(r.get("region_key")), str(r.get("name")), str(r.get("tier")), str(r.get("state")));
+    }
+
+    private final class Linked {
+        final Session s;
+        final WarehouseQueryPlan plan;
+        final Set<String> facets;
+        final boolean all;
+        final List<WarehouseConnections.Career> careers = new ArrayList<>();
+        final Map<String, WarehouseConnections.Career> careerMap = new HashMap<>();
+        final List<WarehouseConnections.Signal> signals = new ArrayList<>();
+        final Set<String> signalIds = new HashSet<>();
+        final List<WarehouseConnections.Industry> industries = new ArrayList<>();
+        final List<WarehouseConnections.Relationship> relationships = new ArrayList<>();
+
+        Linked(Session s, WarehouseQueryPlan plan) {
             this.s = s;
             this.plan = plan;
-            this.facets = new LinkedHashSet<>(plan.getFacets() == null ? List.of() : plan.getFacets());
-            this.allFacets = !plan.hasExplicitFacets();
+            this.facets = new HashSet<>(plan.getFacets() == null ? List.of() : plan.getFacets());
+            this.all = !plan.hasExplicitFacets();
         }
 
-        private boolean has(String facet) { return allFacets || facets.contains(facet); }
+        boolean has(String facet) { return all || facets.contains(facet); }
 
-        WarehouseConnections read(List<Map<String, Object>> courses) {
-            ResolvedLocation location = resolveLocation(plan.getLocation());
-            WarehouseConnections out = new WarehouseConnections();
-            out.getLocation().setRequested(location.requested);
-            out.getLocation().setRegion(location.region == null ? null : regionRef(location.region));
-            out.getLocation().setCandidates(location.candidates.stream().map(this::regionRef).toList());
+        Map<String, Object> spine(Object key) { return s.get("region_spine", "SELECT * FROM region_spine WHERE region_key=?", key); }
 
-            Map<String, WarehouseConnections.Career> careerMap = new LinkedHashMap<>();
-            List<WarehouseConnections.Career> careers = out.getCareers();
-            List<WarehouseConnections.ProviderProfile> providers = out.getProviders();
-            List<WarehouseConnections.Industry> industries = out.getIndustries();
-            List<WarehouseConnections.Signal> signals = out.getSignals();
-            List<WarehouseConnections.Relationship> relationships = out.getRelationships();
-            Set<String> signalIds = new LinkedHashSet<>();
-
-            java.util.function.BiConsumer<String, WarehouseConnections.Signal> addSignal = (id, sig) -> {
-                if (signalIds.size() < 18 && signalIds.add(id)) { sig.setId(id); sig.setEvidenceId("warehouse_" + id); signals.add(sig); }
-            };
-
-            // addCareer(code, title, link): builds (or reuses) one career entry, tracking the course->career relationship.
-            java.util.function.BiFunction<String[], WarehouseConnections.CourseLink, WarehouseConnections.Career> addCareer = (codeTitle, link) -> {
-                String code = codeTitle[0];
-                String title = codeTitle.length > 1 ? codeTitle[1] : null;
-                if (code == null || code.isBlank()) return null;
-                if (link == null && careers.stream().anyMatch(c -> code.equals(c.getGroupCode()))) return careerMap.get(code);
-                if (careerMap.size() >= 6 && !careerMap.containsKey(code)) return null;
-                WarehouseConnections.Career c = careerMap.get(code);
-                if (c == null) {
-                    c = buildCareer(code, title);
-                    careerMap.put(code, c);
-                    careers.add(c);
-                }
-                if (link != null && c.getCourseLinks().stream().noneMatch(x -> x.getCourseId().equals(link.getCourseId()))) {
-                    c.getCourseLinks().add(link);
-                    relationships.add(new WarehouseConnections.Relationship("course:" + link.getCourseId(), "career:" + code, "related_career", link.getMethod(), link.getConfidence()));
-                }
-                return c;
-            };
-
-            for (Map<String, Object> course : courses) {
-                String id = String.valueOf(course.get("id"));
-                String code = firstNonNull(str(course.get("national_code")), str(course.get("course_code")), "");
-                if (has("PROVIDER") || has("LOCAL") || has("FUNDING")) {
-                    expandProvider(course, id, code, location, providers, relationships);
-                }
-                if (has("CAREERS") || has("LOCAL") || has("INDUSTRY")) {
-                    expandCareerLinks(course, id, code, addCareer, industries);
+        Location resolveLocation(WarehouseQueryPlan.LocationQuery input) {
+            String name = text(input == null ? null : input.getName(), 100);
+            String postcode = input != null && input.getPostcode() != null && input.getPostcode().matches("\\d{4}") ? input.getPostcode() : "";
+            String state = input != null && STATES.contains(input.getState()) ? input.getState() : "";
+            Location out = new Location();
+            if (name.isEmpty() && postcode.isEmpty() && state.isEmpty()) return out;
+            List<Map<String, Object>> matches = new ArrayList<>();
+            if (!name.isEmpty()) matches = new ArrayList<>(state.isEmpty()
+                ? s.query("region_spine", "SELECT * FROM region_spine WHERE lower(name)=lower(?) LIMIT 6", name)
+                : s.query("region_spine", "SELECT * FROM region_spine WHERE lower(name)=lower(?) AND state=? LIMIT 6", name, state));
+            if (matches.isEmpty() && !postcode.isEmpty()) {
+                var p = state.isEmpty()
+                    ? s.query("dim_location_asgs", "SELECT DISTINCT sa2_code,sa4_code,state_code FROM dim_location_asgs WHERE postcode=? LIMIT 6", postcode)
+                    : s.query("dim_location_asgs", "SELECT DISTINCT sa2_code,sa4_code,state_code FROM dim_location_asgs WHERE postcode=? AND state_code=? LIMIT 6", postcode, state);
+                for (var r : p) {
+                    var m = spine(or(r.get("sa2_code"), r.get("sa4_code")));
+                    if (m != null && matches.stream().noneMatch(x -> String.valueOf(x.get("region_key")).equals(String.valueOf(m.get("region_key"))))) matches.add(m);
                 }
             }
-            for (String phrase : firstN(plan.getOccupationQueries(), 2)) expandOccupationQuery(phrase, addCareer);
-            for (String phrase : firstN(plan.getIndustryQueries(), 2)) expandIndustryQuery(phrase, courses, addCareer, industries);
-
-            WarehouseExploration exploration = new OpportunityReader(s).read(plan, location);
-            out.setExploration(exploration);
-            if (exploration != null) for (var role : exploration.getRoles()) {
-                if (!role.getMappings().isEmpty()) {
-                    var mapping = role.getMappings().get(0);
-                    addCareer.apply(new String[]{mapping.getAnzscoCode(), mapping.getAnzscoTitle()}, null);
-                }
-            }
-
-            List<ResolvedLocation.RegionRow> chain = location.chain.stream().filter(r -> !"NATIONAL".equals(r.tier)).toList();
-            boolean noNamedTargets = plan.getOccupationQueries().isEmpty() && plan.getSkillQueries().isEmpty()
-                && plan.getRoleQueries().isEmpty() && plan.getJobQueries().isEmpty();
-            if (has("LOCAL") && careers.isEmpty() && noNamedTargets) {
-                for (ResolvedLocation.RegionRow region : chain) {
-                    List<Map<String, Object>> rows = s.source.queryForList(
-                        "SELECT * FROM region_demand_edge WHERE region_key=? AND period=(SELECT MAX(period) FROM region_demand_edge WHERE region_key=?) AND active_jobs>0 ORDER BY active_jobs DESC LIMIT 5",
-                        region.key, region.key);
-                    for (var r : rows) addCareer.apply(new String[]{str(r.get("anzsco_code")), archetype(r.get("evidence_json"))}, null);
-                    if (!rows.isEmpty()) break;
-                }
-            }
-
-            for (WarehouseConnections.Career career : new ArrayList<>(careers)) {
-                if (has("LOCAL") || has("CAREERS")) addDemandSignals(career, chain, location, addSignal);
-                if (has("INDUSTRY") && s.has("dim_industry")) {
-                    for (var r : s.source.queryForList(
-                            "SELECT x.anzsic_code,d.industry_name,x.source FROM dim_crosswalk_anzsic_anzsco x JOIN dim_industry d ON d.anzsic_code=x.anzsic_code WHERE x.anzsco_code=? LIMIT 3",
-                            career.getGroupCode())) {
-                        WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
-                        ind.setId(career.getId() + "_" + r.get("anzsic_code"));
-                        ind.setEvidenceId("warehouse_industry_" + career.getId() + "_" + r.get("anzsic_code"));
-                        ind.setName(WarehouseText.text(r.get("industry_name")));
-                        ind.setCareerId(career.getId());
-                        ind.setMethod(WarehouseText.text(r.get("source")));
-                        ind.setScope("Occupation-to-industry mapping");
-                        industries.add(ind);
+            if (matches.isEmpty() && !name.isEmpty()) matches = new ArrayList<>(state.isEmpty()
+                ? s.query("region_spine", "SELECT * FROM region_spine WHERE name LIKE ? ESCAPE '\\' LIMIT 6", WarehouseText.safeLike(name) + " -%")
+                : s.query("region_spine", "SELECT * FROM region_spine WHERE name LIKE ? ESCAPE '\\' AND state=? LIMIT 6", WarehouseText.safeLike(name) + " -%", state));
+            if (name.isEmpty() && postcode.isEmpty() && !state.isEmpty())
+                matches = new ArrayList<>(s.query("region_spine", "SELECT * FROM region_spine WHERE tier='STATE' AND (state=? OR region_key=?) LIMIT 2", state, state));
+            // A town, district and wider region may share a name. Prefer the exact local
+            // node only when every other match is its ancestor, never across distinct places.
+            if (matches.size() > 1) {
+                var locals = matches.stream().filter(r -> "SA2".equals(r.get("tier"))).toList();
+                if (locals.size() == 1) {
+                    Set<String> ancestorKeys = new HashSet<>();
+                    Map<String, Object> parent = locals.get(0);
+                    while (parent != null && ancestorKeys.size() < 6 && !ancestorKeys.contains(str(parent.get("region_key")))) {
+                        ancestorKeys.add(str(parent.get("region_key")));
+                        parent = truthy(parent.get("parent_key")) ? spine(parent.get("parent_key")) : null;
                     }
+                    if (matches.stream().allMatch(r -> ancestorKeys.contains(str(r.get("region_key"))))) matches = new ArrayList<>(locals);
                 }
             }
-
-            if (has("LOCAL") && location.region != null && "SA2".equals(location.region.tier)) {
-                for (var r : s.source.queryForList(
-                        "SELECT row_id,data_item,quarter,value,source FROM salm_unemployment_sa2 WHERE sa2_code=? AND is_unavailable=0 " +
-                        "ORDER BY quarter_date DESC, CASE WHEN lower(data_item) LIKE '%rate%' THEN 0 ELSE 1 END LIMIT 2",
-                        location.region.key)) {
-                    WarehouseConnections.Signal sig = new WarehouseConnections.Signal();
-                    sig.setKind("LOCAL_CONTEXT");
-                    sig.setTitle(WarehouseText.text(r.get("data_item")));
-                    String value = String.valueOf(r.get("value"));
-                    sig.setText(value + (String.valueOf(r.get("data_item")).toLowerCase().contains("rate") ? "%" : ""));
-                    sig.setScope("SA2");
-                    sig.setRegion(location.region.name);
-                    sig.setPeriod(str(r.get("quarter")));
-                    sig.setSource(WarehouseText.text(r.get("source")));
-                    sig.setMethod("Exact region key");
-                    sig.setLocalMatch(true);
-                    addSignal.accept("local_" + r.get("row_id"), sig);
-                }
+            Map<String, Object> region = matches.size() == 1 ? matches.get(0) : null;
+            List<Map<String, Object>> chain = new ArrayList<>();
+            Map<String, Object> node = region;
+            while (node != null && chain.size() < 5) {
+                String key = str(node.get("region_key"));
+                if (chain.stream().anyMatch(r -> java.util.Objects.equals(str(r.get("region_key")), key))) break;
+                chain.add(node);
+                node = truthy(node.get("parent_key")) ? spine(node.get("parent_key")) : null;
             }
-
-            out.setLocalOverview(has("LOCAL") ? localOverview(location) : null);
-            out.setIndustries(industries.stream().limit(12).toList());
+            out.requested = joinTruthy(name, postcode, state);
+            out.region = region;
+            out.candidates = matches.size() > 1 ? matches : List.of();
+            out.chain = chain;
             return out;
         }
 
-        private String archetype(Object evidenceJson) {
-            JsonNode ev = WarehouseText.json(evidenceJson);
-            return WarehouseText.text(ev.path("archetype"));
-        }
-
-        private void addDemandSignals(WarehouseConnections.Career career, List<ResolvedLocation.RegionRow> chain,
-                                       ResolvedLocation location, java.util.function.BiConsumer<String, WarehouseConnections.Signal> addSignal) {
-            for (ResolvedLocation.RegionRow region : chain) {
-                var demand = s.source.queryForList("SELECT * FROM region_demand_edge WHERE region_key=? AND anzsco_code=? ORDER BY period DESC LIMIT 1", region.key, career.getGroupCode());
-                if (!demand.isEmpty()) {
-                    var r = demand.get(0);
-                    WarehouseConnections.Signal sig = new WarehouseConnections.Signal();
-                    sig.setKind("RECORDED_DEMAND");
-                    sig.setCareerId(career.getId());
-                    sig.setTitle("Recorded demand for " + career.getTitle());
-                    sig.setText(r.get("active_jobs") + " recorded job advertisements; " + r.get("employer_count") + " employers in the stored signal.");
-                    WarehouseConnections.Metrics m = new WarehouseConnections.Metrics();
-                    m.setAdvertisements(WarehouseText.intNumber(r.get("active_jobs")));
-                    m.setEmployers(WarehouseText.intNumber(r.get("employer_count")));
-                    sig.setMetrics(m);
-                    sig.setScope(firstNonNull(str(r.get("scope")), region.tier));
-                    sig.setRegion(region.name);
-                    sig.setPeriod(str(r.get("period")));
-                    sig.setSource(str(r.get("source_name")));
-                    sig.setMethod(str(r.get("method")));
-                    sig.setLocalMatch(location.region != null && region.key.equals(location.region.key));
-                    sig.setUpdatedAt(str(r.get("updated_at")));
-                    addSignal.accept("demand_" + r.get("edge_id"), sig);
+        WarehouseConnections.LocalOverview localOverview(Location location) {
+            Map<String, Object> region = location.region;
+            if (region == null) return null;
+            String regionKey = location.regionKey(), tier = location.regionTier();
+            WarehouseConnections.LocalOverview o = new WarehouseConnections.LocalOverview();
+            o.setAncestors(location.chain.stream().filter(r -> !java.util.Objects.equals(str(r.get("region_key")), regionKey) && Set.of("SA3", "SA4").contains(str(r.get("tier"))))
+                .map(r -> new WarehouseConnections.Ancestor(text(r.get("name")), str(r.get("tier")))).toList());
+            for (var r : location.chain.stream().filter(x -> Set.of("SA2", "SA3", "SA4").contains(str(x.get("tier")))).toList()) {
+                var p = s.get("abs_region_profile", "SELECT region_name,region_type,population,remoteness_area,source_year,source_name FROM abs_region_profile WHERE region_key=? ORDER BY source_year DESC LIMIT 1", r.get("region_key"));
+                if (p != null) {
+                    WarehouseConnections.Profile profile = new WarehouseConnections.Profile();
+                    profile.setArea(text(p.get("region_name")));
+                    profile.setScope(text(p.get("region_type")));
+                    profile.setPopulation(number(p.get("population")));
+                    profile.setSetting(text(p.get("remoteness_area")));
+                    profile.setPeriod(jsString(or(p.get("source_year"), "")));
+                    profile.setSource(text(p.get("source_name")));
+                    o.setProfile(profile);
                     break;
                 }
             }
-            var projections = location.region == null ? List.<Map<String, Object>>of() : s.source.queryForList(
-                "SELECT * FROM jsa_employment_projection WHERE anzsco_code=? AND (state_code=? OR state_code IN ('AUS','ALL')) ORDER BY release_date DESC,projection_horizon ASC LIMIT 2",
-                career.getGroupCode(), firstNonNull(location.region.state, "AUS"));
-            for (var r : projections) {
-                WarehouseConnections.Signal sig = new WarehouseConnections.Signal();
-                sig.setKind("PROJECTION");
-                sig.setCareerId(career.getId());
-                sig.setTitle("Employment outlook for " + career.getTitle());
-                sig.setText("Stored projection: " + r.get("growth_pct") + "% employment change over " + r.get("projection_horizon") + " years from " + r.get("projection_year") + ".");
-                WarehouseConnections.Metrics m = new WarehouseConnections.Metrics();
-                m.setGrowthPercent(WarehouseText.number(r.get("growth_pct")));
-                m.setHorizonYears(WarehouseText.intNumber(r.get("projection_horizon")));
-                m.setBaseYear(WarehouseText.intNumber(r.get("projection_year")));
-                sig.setMetrics(m);
-                sig.setScope(Set.of("AUS", "ALL").contains(str(r.get("state_code"))) ? "NATIONAL" : "STATE");
-                sig.setRegion(str(r.get("state_code")));
-                sig.setPeriod(str(r.get("release_date")));
-                sig.setSource("Jobs and Skills Australia");
-                sig.setMethod("Stored employment projection");
-                sig.setLocalMatch(false);
-                sig.setUpdatedAt(str(r.get("updated_at")));
-                addSignal.accept("projection_" + r.get("projection_id"), sig);
-            }
-            if (location.region != null && location.region.state != null) {
-                for (var r : s.source.queryForList(
-                        "SELECT edge_id,employer_name,scope,period,state_code,region_key,updated_at,method FROM employer_job_edge WHERE anzsco_code=? AND state_code=? AND is_active=1 ORDER BY period DESC LIMIT 3",
-                        career.getGroupCode(), location.region.state)) {
-                    WarehouseConnections.Signal sig = new WarehouseConnections.Signal();
-                    sig.setKind("EMPLOYER_SIGNAL");
-                    sig.setCareerId(career.getId());
-                    sig.setTitle(WarehouseText.text(r.get("employer_name")));
-                    sig.setText("Employer recorded against " + career.getTitle() + ".");
-                    sig.setScope(firstNonNull(str(r.get("scope")), "STATE"));
-                    sig.setRegion(str(r.get("state_code")));
-                    sig.setPeriod(str(r.get("period")));
-                    sig.setSource("Stored employer–occupation relationship");
-                    sig.setMethod(str(r.get("method")));
-                    sig.setLocalMatch(r.get("region_key") != null && r.get("region_key").equals(location.region.key));
-                    sig.setUpdatedAt(str(r.get("updated_at")));
-                    addSignal.accept("employer_" + r.get("edge_id"), sig);
-                }
-            }
-        }
-
-        private void expandProvider(Map<String, Object> course, String id, String code, ResolvedLocation location,
-                                     List<WarehouseConnections.ProviderProfile> providers, List<WarehouseConnections.Relationship> relationships) {
-            if (!s.has("live_institutions")) return;
-            Object institutionId = course.get("institution_id");
-            var rows = s.source.queryForList(
-                "SELECT id,legal_name,rto_code,rto_type,higher_education_code,city,state,website_url,has_student_support,has_disability_support,has_library,has_apprenticeships " +
-                "FROM live_institutions WHERE id=?", institutionId == null ? "" : institutionId);
-            if (rows.isEmpty()) return;
-            var p = rows.get(0);
-            String providerId = String.valueOf(p.get("id"));
-            WarehouseConnections.ProviderProfile existing = providers.stream().filter(x -> x.getId().equals(providerId)).findFirst().orElse(null);
-            if (existing == null) {
-                WarehouseConnections.ProviderProfile profile = new WarehouseConnections.ProviderProfile();
-                profile.setId(providerId);
-                profile.setEvidenceId("warehouse_provider_" + providerId);
-                profile.setName(WarehouseText.text(p.get("legal_name")));
-                profile.setType(WarehouseText.text(p.get("rto_type")));
-                profile.setHigherEducationCode(WarehouseText.text(p.get("higher_education_code")));
-                profile.setCity(WarehouseText.text(p.get("city")));
-                profile.setState(WarehouseText.text(p.get("state")));
-                String rtoCode = str(p.get("rto_code"));
-                if (s.has("institution_campuses")) {
-                    for (var c : s.source.queryForList("SELECT location_name,town,state,postcode FROM institution_campuses WHERE rto_code=? LIMIT 8", firstNonNull(rtoCode, ""))) {
-                        WarehouseConnections.Campus campus = new WarehouseConnections.Campus();
-                        campus.setName(WarehouseText.text(c.get("location_name")));
-                        campus.setTown(WarehouseText.text(c.get("town")));
-                        campus.setState(WarehouseText.text(c.get("state")));
-                        campus.setPostcode(WarehouseText.text(c.get("postcode")));
-                        profile.getCampuses().add(campus);
-                    }
-                }
-                List<String> support = new ArrayList<>();
-                addFlagLabel(support, p, "has_student_support", "Student support");
-                addFlagLabel(support, p, "has_disability_support", "Disability support");
-                addFlagLabel(support, p, "has_library", "Library");
-                addFlagLabel(support, p, "has_apprenticeships", "Apprenticeship support");
-                profile.setSupport(support);
-                if (s.has("he_provider_entitlement_v2")) {
-                    var he = s.source.queryForList(
-                        "SELECT csp_undergraduate,csp_postgraduate,hecs_help,fee_help,effective_from,effective_to,current_status " +
-                        "FROM he_provider_entitlement_v2 WHERE institution_id=? ORDER BY effective_from DESC LIMIT 1", p.get("id"));
-                    if (!he.isEmpty()) {
-                        var h = he.get(0);
-                        Map<String, Object> funding = new LinkedHashMap<>();
-                        funding.put("cspUndergraduate", WarehouseText.flag(h.get("csp_undergraduate")));
-                        funding.put("cspPostgraduate", WarehouseText.flag(h.get("csp_postgraduate")));
-                        funding.put("hecsHelp", WarehouseText.flag(h.get("hecs_help")));
-                        funding.put("feeHelp", WarehouseText.flag(h.get("fee_help")));
-                        funding.put("from", h.get("effective_from"));
-                        funding.put("to", h.get("effective_to"));
-                        funding.put("status", str(h.get("current_status")));
-                        profile.setHigherEducationFunding(funding);
-                    }
-                }
-                profile.getCourseIds().add(id);
-                providers.add(profile);
-                existing = profile;
-            } else if (!existing.getCourseIds().contains(id)) {
-                existing.getCourseIds().add(id);
-            }
-            if (has("FUNDING") && !code.isBlank() && s.has("course_funding_verdict")) {
-                String rtoCode = str(p.get("rto_code"));
-                String state = location.region == null ? null : location.region.state;
-                var funding = state != null
-                    ? s.source.queryForList("SELECT scheme,delivery_state,funding_status,student_tuition_out_of_pocket,currency,effective_period FROM course_funding_verdict WHERE rto_code=? AND national_code=? AND delivery_state=? ORDER BY effective_period DESC LIMIT 3", firstNonNull(rtoCode, ""), code, state)
-                    : s.source.queryForList("SELECT scheme,delivery_state,funding_status,student_tuition_out_of_pocket,currency,effective_period FROM course_funding_verdict WHERE rto_code=? AND national_code=? ORDER BY effective_period DESC LIMIT 3", firstNonNull(rtoCode, ""), code);
-                for (var f : funding) {
-                    Map<String, Object> entry = new LinkedHashMap<>(f);
-                    entry.put("courseId", id);
-                    entry.put("courseName", WarehouseText.text(course.get("course_name")));
-                    existing.getFunding().add(entry);
-                }
-            }
-            relationships.add(new WarehouseConnections.Relationship("course:" + id, "provider:" + providerId, "offered_by", "institution_id", null));
-        }
-
-        private void expandCareerLinks(Map<String, Object> course, String id, String code,
-                                        java.util.function.BiFunction<String[], WarehouseConnections.CourseLink, WarehouseConnections.Career> addCareer,
-                                        List<WarehouseConnections.Industry> industries) {
-            if (s.has("course_occupation_edge")) {
-                for (var edge : s.source.queryForList(
-                        "SELECT anzsco_code,anzsco_title,method,confidence_score FROM course_occupation_edge WHERE national_code=? ORDER BY is_primary DESC,confidence_score DESC LIMIT 3", code)) {
-                    addCareer.apply(new String[]{str(edge.get("anzsco_code")), str(edge.get("anzsco_title"))},
-                        new WarehouseConnections.CourseLink(id, WarehouseText.text(course.get("course_name")), str(edge.get("method")), WarehouseText.number(edge.get("confidence_score"))));
-                }
-            }
-            var mappings = s.index.queryForList(
-                "SELECT occupation_code AS anzsco_code,occupation_name AS anzsco_title,match_method AS method,match_confidence AS confidence_score " +
-                "FROM occupation_links WHERE qualification_code=? ORDER BY is_primary DESC LIMIT 3", firstNonNull(code, ""));
-            for (var edge : mappings) {
-                addCareer.apply(new String[]{str(edge.get("anzsco_code")), str(edge.get("anzsco_title"))},
-                    new WarehouseConnections.CourseLink(id, WarehouseText.text(course.get("course_name")), str(edge.get("method")), WarehouseText.number(edge.get("confidence_score"))));
-            }
-            var profileRows = s.index.queryForList("SELECT * FROM profile_links WHERE course_id=? LIMIT 1", id);
-            Map<String, Object> profile = profileRows.isEmpty() ? null : profileRows.get(0);
-            if (profile != null) {
-                for (String occ : WarehouseText.list(profile.get("anzsco_codes_json"), 3)) {
-                    addCareer.apply(new String[]{occ, ""},
-                        new WarehouseConnections.CourseLink(id, WarehouseText.text(course.get("course_name")), str(profile.get("mapping_method")), WarehouseText.number(profile.get("mapping_confidence"))));
-                }
-                if (has("INDUSTRY")) {
-                    for (String name : WarehouseText.list(profile.get("industry_codes_json"), 4)) {
-                        String industryId = id + "_" + industries.size();
-                        if (industries.stream().noneMatch(i -> name.equals(i.getName()) && id.equals(i.getCourseId()))) {
-                            WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
-                            ind.setId(industryId);
-                            ind.setEvidenceId("warehouse_industry_" + industryId);
-                            ind.setName(name);
-                            ind.setCourseId(id);
-                            ind.setMethod(str(profile.get("mapping_method")));
-                            ind.setScope("Course-to-industry mapping");
-                            industries.add(ind);
-                        }
-                    }
-                }
-            }
-        }
-
-        private void expandOccupationQuery(String phrase, java.util.function.BiFunction<String[], WarehouseConnections.CourseLink, WarehouseConnections.Career> addCareer) {
-            if (!s.has("canonical_occupation")) return;
-            List<String> words = firstN(java.util.Arrays.asList(WarehouseText.text(phrase, 100).split("\\s+")), 4);
-            if (words.isEmpty() || words.get(0).isBlank()) return;
-            StringBuilder where = new StringBuilder();
-            List<Object> args = new ArrayList<>();
-            for (String w : words) {
-                if (!where.isEmpty()) where.append(" AND ");
-                where.append("anzsco_title LIKE ? ESCAPE '\\'");
-                args.add("%" + WarehouseText.safeLike(w) + "%");
-            }
-            for (var row : s.source.queryForList("SELECT anzsco_code,anzsco_title FROM canonical_occupation WHERE " + where + " LIMIT 3", args.toArray())) {
-                addCareer.apply(new String[]{str(row.get("anzsco_code")), str(row.get("anzsco_title"))}, null);
-            }
-        }
-
-        private void expandIndustryQuery(String phrase, List<Map<String, Object>> courses,
-                                          java.util.function.BiFunction<String[], WarehouseConnections.CourseLink, WarehouseConnections.Career> addCareer,
-                                          List<WarehouseConnections.Industry> industries) {
-            List<String> words = firstN(java.util.Arrays.asList(WarehouseText.text(phrase, 100).split("\\s+")), 4);
-            if (words.isEmpty() || words.get(0).isBlank()) return;
-            StringBuilder likeWhere = new StringBuilder();
-            List<Object> likeArgs = new ArrayList<>();
-            for (String w : words) {
-                if (!likeWhere.isEmpty()) likeWhere.append(" AND ");
-                likeWhere.append("industry_name LIKE ? ESCAPE '\\'");
-                likeArgs.add("%" + WarehouseText.safeLike(w) + "%");
-            }
-            for (var r : s.index.queryForList("SELECT * FROM industry_links WHERE " + likeWhere + " LIMIT 8", likeArgs.toArray())) {
-                if (industries.stream().noneMatch(x -> r.get("industry_name").equals(x.getName()))) {
-                    WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
-                    ind.setId("mapped_" + r.get("course_id"));
-                    ind.setEvidenceId("warehouse_industry_mapped_" + r.get("course_id"));
-                    ind.setName(str(r.get("industry_name")));
-                    ind.setMethod(str(r.get("mapping_method")));
-                    ind.setScope("Stored course-to-industry mapping");
-                    industries.add(ind);
-                }
-                if (courses.isEmpty()) {
-                    var profileRows = s.index.queryForList("SELECT * FROM profile_links WHERE course_id=? LIMIT 1", r.get("course_id"));
-                    if (!profileRows.isEmpty()) {
-                        for (String code : WarehouseText.list(profileRows.get(0).get("anzsco_codes_json"), 3)) addCareer.apply(new String[]{code, ""}, null);
-                    }
-                    for (var occ : s.index.queryForList("SELECT occupation_code,occupation_name FROM occupation_links WHERE qualification_code=? ORDER BY is_primary DESC LIMIT 2", r.get("qualification_code"))) {
-                        addCareer.apply(new String[]{str(occ.get("occupation_code")), str(occ.get("occupation_name"))}, null);
-                    }
-                }
-            }
-            if (s.has("dim_industry")) {
-                for (var r : s.source.queryForList("SELECT anzsic_code,industry_name FROM dim_industry WHERE " + likeWhere + " LIMIT 3", likeArgs.toArray())) {
-                    WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
-                    ind.setId("sector_" + r.get("anzsic_code"));
-                    ind.setEvidenceId("warehouse_industry_sector_" + r.get("anzsic_code"));
-                    ind.setName(WarehouseText.text(r.get("industry_name")));
-                    ind.setMethod("Named industry match");
-                    ind.setScope("Industry catalogue");
-                    industries.add(ind);
-                    if (courses.isEmpty() && s.has("dim_crosswalk_anzsic_anzsco")) {
-                        for (var link : s.source.queryForList("SELECT anzsco_code FROM dim_crosswalk_anzsic_anzsco WHERE anzsic_code=? LIMIT 3", r.get("anzsic_code"))) {
-                            addCareer.apply(new String[]{str(link.get("anzsco_code")), ""}, null);
-                        }
-                    }
-                }
-            }
-        }
-
-        private WarehouseConnections.Career buildCareer(String code, String title) {
-            var exactRows = s.has("canonical_occupation") ? s.source.queryForList("SELECT * FROM canonical_occupation WHERE anzsco_code=?", code) : List.<Map<String, Object>>of();
-            Map<String, Object> exact = exactRows.isEmpty() ? null : exactRows.get(0);
-            Map<String, Object> group = null;
-            if (exact == null && code.length() > 4 && s.has("canonical_occupation")) {
-                var groupRows = s.source.queryForList("SELECT * FROM canonical_occupation WHERE anzsco_code=?", code.substring(0, 4));
-                group = groupRows.isEmpty() ? null : groupRows.get(0);
-            }
-            Map<String, Object> canonical = exact != null ? exact : group;
-            String key = canonical != null ? str(canonical.get("anzsco_code")) : code;
-            Map<String, Object> onet = null;
-            if (s.has("onet_occupation") && s.has("onet_anzsco_crosswalk")) {
-                var rows = s.source.queryForList(
-                    "SELECT x.job_id,x.method,x.confidence,o.job_title,o.description,o.tasks,o.work_styles FROM onet_anzsco_crosswalk x " +
-                    "JOIN onet_occupation o ON o.job_id=x.job_id WHERE x.anzsco_code=? ORDER BY x.confidence DESC,o.job_title ASC LIMIT 2", key);
-                onet = rows.isEmpty() ? null : rows.get(0);
-            }
-            WarehouseConnections.Career c = new WarehouseConnections.Career();
-            c.setId(code);
-            c.setEvidenceId("warehouse_career_" + code);
-            c.setTitle(WarehouseText.text(firstNonNull(exact != null ? str(exact.get("anzsco_title")) : null, title, canonical != null ? str(canonical.get("anzsco_title")) : null, code)));
-            c.setDescription(WarehouseText.text(firstNonNull(exact != null ? str(exact.get("description")) : null, onet != null ? str(onet.get("description")) : null)));
-            c.setTasks(onet != null ? WarehouseText.list(onet.get("tasks"), 5) : List.of());
-            c.setWorkStyles(onet != null ? WarehouseText.list(onet.get("work_styles"), 3) : List.of());
-            if (onet != null) {
-                c.setSkills(s.source.queryForList("SELECT skill_name FROM onet_job_skill WHERE job_id=? LIMIT 6", onet.get("job_id")).stream()
-                    .map(r -> WarehouseText.text(r.get("skill_name"))).toList());
-            }
-            c.setProfileScope(group != null ? "Occupation-group context: " + group.get("anzsco_title") + " (" + key + ")" : "Occupation profile");
-            c.setProfileMethod(str(firstNonNull(onet != null ? str(onet.get("method")) : null, canonical != null ? str(canonical.get("source")) : null)));
-            c.setProfileSource(onet != null ? "O*NET occupation profile and stored ANZSCO crosswalk" : str(canonical != null ? canonical.get("source") : null));
-            c.setGroupCode(key);
-            return c;
-        }
-
-        // ---- location resolution (linked-data.cjs's resolveLocation/localOverview) --------
-
-        private ResolvedLocation resolveLocation(WarehouseQueryPlan.LocationQuery input) {
-            String name = input == null ? "" : WarehouseText.text(input.getName(), 100);
-            String postcode = input != null && input.getPostcode() != null && input.getPostcode().matches("\\d{4}") ? input.getPostcode() : "";
-            String state = input != null && STATES.contains(input.getState()) ? input.getState() : "";
-            ResolvedLocation out = new ResolvedLocation();
-            if (name.isBlank() && postcode.isBlank() && state.isBlank()) return out;
-            if (!s.has("region_spine")) { out.requested = String.join(", ", nonBlank(name, postcode, state)); return out; }
-
-            List<Map<String, Object>> matches = new ArrayList<>();
-            if (!name.isBlank()) {
-                matches = state.isBlank()
-                    ? s.source.queryForList("SELECT * FROM region_spine WHERE lower(name)=lower(?) LIMIT 6", name)
-                    : s.source.queryForList("SELECT * FROM region_spine WHERE lower(name)=lower(?) AND state=? LIMIT 6", name, state);
-            }
-            if (matches.isEmpty() && !postcode.isBlank() && s.has("dim_location_asgs")) {
-                var asgs = state.isBlank()
-                    ? s.source.queryForList("SELECT DISTINCT sa2_code,sa4_code,state_code FROM dim_location_asgs WHERE postcode=? LIMIT 6", postcode)
-                    : s.source.queryForList("SELECT DISTINCT sa2_code,sa4_code,state_code FROM dim_location_asgs WHERE postcode=? AND state_code=? LIMIT 6", postcode, state);
-                for (var r : asgs) {
-                    String rk = firstNonNull(str(r.get("sa2_code")), str(r.get("sa4_code")));
-                    if (rk == null || rk.isBlank()) continue;
-                    var m = s.source.queryForList("SELECT * FROM region_spine WHERE region_key=?", rk);
-                    if (!m.isEmpty() && matches.stream().noneMatch(x -> rk.equals(str(x.get("region_key"))))) matches.add(m.get(0));
-                }
-            }
-            if (matches.isEmpty() && !name.isBlank()) {
-                matches = state.isBlank()
-                    ? s.source.queryForList("SELECT * FROM region_spine WHERE name LIKE ? ESCAPE '\\' LIMIT 6", WarehouseText.safeLike(name) + " -%")
-                    : s.source.queryForList("SELECT * FROM region_spine WHERE name LIKE ? ESCAPE '\\' AND state=? LIMIT 6", WarehouseText.safeLike(name) + " -%", state);
-            }
-            if (name.isBlank() && postcode.isBlank() && !state.isBlank()) {
-                matches = s.source.queryForList("SELECT * FROM region_spine WHERE tier='STATE' AND (state=? OR region_key=?) LIMIT 2", state, state);
-            }
-            if (matches.size() > 1) {
-                List<Map<String, Object>> locals = matches.stream().filter(r -> "SA2".equals(r.get("tier"))).toList();
-                if (locals.size() == 1) {
-                    Set<String> ancestorKeys = new LinkedHashSet<>();
-                    Map<String, Object> parent = locals.get(0);
-                    while (parent != null && ancestorKeys.size() < 6 && ancestorKeys.add(str(parent.get("region_key")))) {
-                        Object parentKey = parent.get("parent_key");
-                        parent = parentKey == null ? null : s.source.queryForList("SELECT * FROM region_spine WHERE region_key=?", parentKey).stream().findFirst().orElse(null);
-                    }
-                    if (matches.stream().allMatch(r -> ancestorKeys.contains(str(r.get("region_key"))))) matches = locals;
-                }
-            }
-            Map<String, Object> regionRow = matches.size() == 1 ? matches.get(0) : null;
-            out.candidates = matches.size() > 1 ? matches.stream().map(this::regionRow).toList() : List.of();
-            List<ResolvedLocation.RegionRow> chain = new ArrayList<>();
-            Map<String, Object> node = regionRow;
-            Set<String> chainKeys = new LinkedHashSet<>();
-            while (node != null && chain.size() < 5 && chainKeys.add(str(node.get("region_key")))) {
-                chain.add(regionRow(node));
-                Object parentKey = node.get("parent_key");
-                node = parentKey == null ? null : s.source.queryForList("SELECT * FROM region_spine WHERE region_key=?", parentKey).stream().findFirst().orElse(null);
-            }
-            out.chain = chain;
-            out.region = regionRow == null ? null : regionRow(regionRow);
-            out.requested = String.join(", ", nonBlank(name, postcode, state));
-            return out;
-        }
-
-        private List<String> nonBlank(String... values) { return java.util.Arrays.stream(values).filter(v -> v != null && !v.isBlank()).toList(); }
-
-        private ResolvedLocation.RegionRow regionRow(Map<String, Object> r) {
-            return new ResolvedLocation.RegionRow(str(r.get("region_key")), WarehouseText.text(r.get("name")), str(r.get("tier")), str(r.get("state")));
-        }
-
-        private WarehouseConnections.RegionRef regionRef(ResolvedLocation.RegionRow r) {
-            return new WarehouseConnections.RegionRef(r.key, r.name, r.tier, r.state);
-        }
-
-        private WarehouseConnections.LocalOverview localOverview(ResolvedLocation location) {
-            if (location.region == null) return null;
-            ResolvedLocation.RegionRow region = location.region;
-            WarehouseConnections.LocalOverview overview = new WarehouseConnections.LocalOverview();
-            overview.setEvidenceId("warehouse_local_overview_" + region.key);
-            overview.setArea(region.name);
-            overview.setState(region.state);
-            overview.setScope(region.tier);
-            overview.setAncestors(location.chain.stream()
-                .filter(r -> !r.key.equals(region.key) && Set.of("SA3", "SA4").contains(r.tier))
-                .map(r -> new WarehouseConnections.Ancestor(r.name, r.tier)).toList());
-
-            if (s.has("abs_region_profile")) {
-                for (ResolvedLocation.RegionRow r : location.chain.stream().filter(x -> Set.of("SA2", "SA3", "SA4").contains(x.tier)).toList()) {
-                    var rows = s.source.queryForList(
-                        "SELECT region_name,region_type,population,remoteness_area,source_year,source_name FROM abs_region_profile WHERE region_key=? ORDER BY source_year DESC LIMIT 1", r.key);
-                    if (!rows.isEmpty()) {
-                        var p = rows.get(0);
-                        WarehouseConnections.Profile profile = new WarehouseConnections.Profile();
-                        profile.setArea(WarehouseText.text(p.get("region_name")));
-                        profile.setScope(WarehouseText.text(p.get("region_type")));
-                        profile.setPopulation(WarehouseText.intNumber(p.get("population")));
-                        profile.setSetting(WarehouseText.text(p.get("remoteness_area")));
-                        profile.setPeriod(str(firstNonNull(p.get("source_year"), "")));
-                        profile.setSource(WarehouseText.text(p.get("source_name")));
-                        overview.setProfile(profile);
-                        break;
-                    }
-                }
-            }
-
+            String column = tier == null ? null : switch (tier) { case "SA2" -> "sa2_code"; case "SA3" -> "sa3_code"; case "SA4" -> "sa4_code"; default -> null; };
             List<Map<String, Object>> organisations = List.of();
-            String column = switch (region.tier) { case "SA2" -> "sa2_code"; case "SA3" -> "sa3_code"; case "SA4" -> "sa4_code"; default -> null; };
-            if (column != null && s.has("local_market_organisations")) {
-                String sql = "SELECT id,name,organisation_type,suburb,state,source,last_verified_at,updated_at,gemini_proposed FROM local_market_organisations " +
-                    "WHERE (" + column + "=?" + ("SA2".equals(region.tier) ? " OR (lower(suburb)=lower(?) AND state=?)" : "") + ") AND coalesce(gemini_proposed,0)=0 ORDER BY lower(name),updated_at DESC LIMIT 251";
-                organisations = "SA2".equals(region.tier)
-                    ? s.source.queryForList(sql, region.key, region.name, region.state)
-                    : s.source.queryForList(sql, region.key);
+            if (column != null) {
+                String sql = "SELECT id,name,organisation_type,suburb,state,source,last_verified_at,updated_at,gemini_proposed FROM local_market_organisations WHERE (" + column + "=?"
+                    + ("SA2".equals(tier) ? " OR (lower(suburb)=lower(?) AND state=?)" : "") + ") AND coalesce(gemini_proposed,0)=0 ORDER BY lower(name),updated_at DESC LIMIT 251";
+                organisations = "SA2".equals(tier)
+                    ? s.query("local_market_organisations", sql, region.get("region_key"), region.get("name"), region.get("state"))
+                    : s.query("local_market_organisations", sql, region.get("region_key"));
             }
-            List<String> typeOrder = List.of("community_centre", "rto", "university", "tafe", "employment_service", "library", "sport_club", "school", "support_service", "employer", "company", "business");
             Map<String, String[]> categories = Map.ofEntries(
                 Map.entry("school", new String[]{"learning", "Learning and training"}), Map.entry("rto", new String[]{"learning", "Learning and training"}),
                 Map.entry("university", new String[]{"learning", "Learning and training"}), Map.entry("tafe", new String[]{"learning", "Learning and training"}),
@@ -1240,328 +721,513 @@ public class WarehouseQueryService {
                 Map.entry("sport_club", new String[]{"community", "Community activities"}), Map.entry("library", new String[]{"community", "Community activities"}),
                 Map.entry("support_service", new String[]{"support", "Community support"}), Map.entry("employer", new String[]{"business", "Recorded businesses"}),
                 Map.entry("company", new String[]{"business", "Recorded businesses"}), Map.entry("business", new String[]{"business", "Recorded businesses"}));
-
-            List<Map<String, Object>> sorted = organisations.stream().limit(250)
-                .sorted((a, b) -> {
-                    int ta = typeOrder.indexOf(str(a.get("organisation_type")));
-                    int tb = typeOrder.indexOf(str(b.get("organisation_type")));
-                    if (ta != tb) return Integer.compare(ta, tb);
-                    return String.valueOf(a.get("name")).compareTo(String.valueOf(b.get("name")));
-                }).toList();
-
-            Set<String> seen = new LinkedHashSet<>();
-            Map<String, WarehouseConnections.CommunityGroup> groups = new LinkedHashMap<>();
-            for (var o : sorted) {
-                String[] category = categories.get(str(o.get("organisation_type")));
-                String name = WarehouseText.text(o.get("name"));
-                if (category == null || name.isEmpty()) continue;
-                String key = String.join("|", name, str(o.get("organisation_type")), str(o.get("suburb")), str(o.get("state"))).toLowerCase();
+            List<String> typeOrder = List.of("community_centre", "rto", "university", "tafe", "employment_service", "library", "sport_club", "school", "support_service", "employer", "company", "business");
+            List<Map<String, Object>> sorted = new ArrayList<>(organisations.stream().limit(250).toList());
+            sorted.sort(Comparator.<Map<String, Object>>comparingInt(a -> typeOrder.indexOf(str(a.get("organisation_type"))))
+                .thenComparing((a, b) -> COLLATOR.compare(jsString(a.get("name")), jsString(b.get("name")))));
+            Set<String> seen = new HashSet<>();
+            Map<String, WarehouseConnections.CommunityGroup> groups = new HashMap<>();
+            for (var org : sorted) {
+                String[] category = categories.get(str(org.get("organisation_type")));
+                if (category == null || text(org.get("name")).isEmpty()) continue;
+                String key = java.util.stream.Stream.of(org.get("name"), org.get("organisation_type"), org.get("suburb"), org.get("state"))
+                    .map(v -> text(v).toLowerCase(java.util.Locale.ROOT)).collect(Collectors.joining("|"));
                 if (!seen.add(key)) continue;
-                WarehouseConnections.CommunityGroup group = groups.computeIfAbsent(category[0], k -> {
-                    WarehouseConnections.CommunityGroup g = new WarehouseConnections.CommunityGroup();
-                    g.setKey(category[0]); g.setLabel(category[1]);
-                    return g;
-                });
+                var group = groups.computeIfAbsent(category[0], k -> { var g = new WarehouseConnections.CommunityGroup(); g.setKey(category[0]); g.setLabel(category[1]); return g; });
                 group.setRecordedCount(group.getRecordedCount() + 1);
                 if (group.getExamples().size() < 4) {
                     WarehouseConnections.Example ex = new WarehouseConnections.Example();
-                    ex.setName(name);
-                    ex.setType(WarehouseText.text(o.get("organisation_type")));
-                    ex.setSource(WarehouseText.text(o.get("source")));
-                    ex.setUpdatedAt(WarehouseText.text(firstNonNull(str(o.get("last_verified_at")), str(o.get("updated_at")))));
-                    ex.setArea(!WarehouseText.text(o.get("suburb")).isEmpty() ? WarehouseText.text(o.get("suburb")) : region.name);
+                    ex.setName(text(org.get("name")));
+                    ex.setType(text(org.get("organisation_type")));
+                    ex.setSource(text(org.get("source")));
+                    ex.setUpdatedAt(text(or(org.get("last_verified_at"), org.get("updated_at"))));
+                    ex.setArea(!text(org.get("suburb")).isEmpty() ? text(org.get("suburb")) : str(region.get("name")));
                     group.getExamples().add(ex);
                 }
             }
-            for (String k : List.of("community", "learning", "employment", "support", "business")) if (groups.containsKey(k)) overview.getCommunity().add(groups.get(k));
-            overview.setLimited(organisations.size() > 250);
-            return overview;
+            o.setEvidenceId("warehouse_local_overview_" + jsString(region.get("region_key")));
+            o.setArea(str(region.get("name")));
+            o.setState(str(region.get("state")));
+            o.setScope(str(region.get("tier")));
+            for (String k : List.of("community", "learning", "employment", "support", "business")) if (groups.containsKey(k)) o.getCommunity().add(groups.get(k));
+            o.setLimited(organisations.size() > 250);
+            return o;
         }
-    }
 
-    private static final class ResolvedLocation {
-        String requested = "";
-        RegionRow region;
-        List<RegionRow> candidates = new ArrayList<>();
-        List<RegionRow> chain = new ArrayList<>();
-
-        static final class RegionRow {
-            final String key, name, tier, state;
-            RegionRow(String key, String name, String tier, String state) { this.key = key; this.name = name; this.tier = tier; this.state = state; }
+        void addSignal(String id, WarehouseConnections.Signal sig) {
+            if (!signalIds.contains(id) && signals.size() < 18) {
+                signalIds.add(id);
+                sig.setId(id);
+                sig.setEvidenceId("warehouse_" + id);
+                signals.add(sig);
+            }
         }
-    }
 
-    private String str(Object v) { return v == null ? null : String.valueOf(v); }
+        void addCareer(Object rawCode, Object title, WarehouseConnections.CourseLink link) {
+            String code = truthy(rawCode) ? jsString(rawCode) : "";
+            if (link == null && careers.stream().anyMatch(c -> code.equals(c.getGroupCode()))) return;
+            if (code.isEmpty() || careerMap.size() >= 6 && !careerMap.containsKey(code)) return;
+            WarehouseConnections.Career c = careerMap.get(code);
+            if (c == null) {
+                var exact = s.get("canonical_occupation", "SELECT * FROM canonical_occupation WHERE anzsco_code=?", code);
+                var group = exact == null && code.length() > 4 ? s.get("canonical_occupation", "SELECT * FROM canonical_occupation WHERE anzsco_code=?", code.substring(0, 4)) : null;
+                var canonical = exact != null ? exact : group;
+                String key = canonical != null && truthy(canonical.get("anzsco_code")) ? jsString(canonical.get("anzsco_code")) : code;
+                var onet = s.tables.contains("onet_occupation") ? s.get("onet_anzsco_crosswalk",
+                    "SELECT x.job_id,x.method,x.confidence,o.job_title,o.description,o.tasks,o.work_styles FROM onet_anzsco_crosswalk x JOIN onet_occupation o ON o.job_id=x.job_id WHERE x.anzsco_code=? ORDER BY x.confidence DESC,o.job_title ASC LIMIT 2", key) : null;
+                c = new WarehouseConnections.Career();
+                c.setId(code);
+                c.setEvidenceId("warehouse_career_" + code);
+                c.setTitle(text(or(exact == null ? null : exact.get("anzsco_title"), title, canonical == null ? null : canonical.get("anzsco_title"), code)));
+                c.setDescription(text(or(exact == null ? null : exact.get("description"), onet == null ? null : onet.get("description"))));
+                c.setTasks(linkedList(onet == null ? null : onet.get("tasks"), 5));
+                c.setWorkStyles(linkedList(onet == null ? null : onet.get("work_styles"), 3));
+                c.setSkills(onet == null ? List.of() : s.query("onet_job_skill", "SELECT skill_name FROM onet_job_skill WHERE job_id=? LIMIT 6", onet.get("job_id")).stream().map(r -> text(r.get("skill_name"))).toList());
+                c.setProfileScope(group != null ? "Occupation-group context: " + jsString(group.get("anzsco_title")) + " (" + key + ")" : "Occupation profile");
+                c.setProfileMethod(text(or(onet == null ? null : onet.get("method"), canonical == null ? null : canonical.get("source"))));
+                c.setProfileSource(onet != null ? "O*NET occupation profile and stored ANZSCO crosswalk" : text(canonical == null ? null : canonical.get("source")));
+                c.setGroupCode(key);
+                careerMap.put(code, c);
+                careers.add(c);
+            }
+            if (link != null && c.getCourseLinks().stream().noneMatch(x -> x.getCourseId().equals(link.getCourseId()))) {
+                c.getCourseLinks().add(link);
+                relationships.add(new WarehouseConnections.Relationship("course:" + link.getCourseId(), "career:" + code, "related_career", link.getMethod(), link.getConfidence()));
+            }
+        }
 
-    private List<String> firstN(List<String> list, int n) { return list == null ? List.of() : list.stream().filter(x -> x != null && !x.isBlank()).limit(n).toList(); }
-
-    // ---- opportunities (opportunities.cjs's createOpportunityReader) --------------------
-
-    private final class OpportunityReader {
-        private final Session s;
-        OpportunityReader(Session s) { this.s = s; }
-
-        WarehouseExploration read(WarehouseQueryPlan plan, ResolvedLocation location) {
-            Set<String> facets = new LinkedHashSet<>(plan.getFacets() == null ? List.of() : plan.getFacets());
-            boolean requested = facets.contains("SKILLS") || facets.contains("JOBS") || facets.contains("LEARNING") || !plan.getSkillQueries().isEmpty();
-            if (!requested) return null;
-
-            List<String> skills = firstN(plan.getSkillQueries(), 6);
-            List<String> roleTerms = firstN(plan.getOccupationQueries(), 3);
-            Map<String, RoleHit> roles = new LinkedHashMap<>();
-            record Phrases(String kind, List<String> phrases) {}
-            List<Phrases> passes = List.of(
-                new Phrases("role", roleTerms),
-                new Phrases("related", roleTerms.isEmpty() ? concat(plan.getRoleQueries(), plan.getJobQueries()) : List.of()),
-                new Phrases("hint", skills),
-                new Phrases("skill", skills));
-            for (Phrases pass : passes) {
-                for (String phrase : pass.phrases) {
-                    String match = WarehouseText.matchClause(phrase);
-                    if (match == null) continue;
-                    List<Map<String, Object>> found = searchRoles(pass.kind, match, false);
-                    if (found.isEmpty() && !pass.kind.equals("skill") && !pass.kind.equals("hint")) {
-                        List<String> reduced = WarehouseText.terms(phrase, 8).stream()
-                            .filter(w -> !Set.of("officer", "assistant", "technician", "representative", "specialist", "analyst", "worker", "workers", "career").contains(w)).toList();
-                        if (reduced.size() >= 2) found = searchRoles(pass.kind, WarehouseText.matchClause(String.join(" ", reduced)), false);
-                        if (found.isEmpty()) found = searchRoles(pass.kind, match, true);
+        WarehouseConnections read(List<Map<String, Object>> courses) {
+            Location location = resolveLocation(plan.getLocation());
+            List<WarehouseConnections.ProviderProfile> providers = new ArrayList<>();
+            WarehouseExploration exploration = new Opportunities(s).read(plan, location);
+            for (var course : courses) {
+                String id = jsString(course.get("id"));
+                Object rawCode = or(course.get("national_code"), course.get("course_code"), "");
+                String code = truthy(rawCode) ? jsString(rawCode) : "";
+                if (has("PROVIDER") || has("LOCAL") || has("FUNDING")) {
+                    var p = s.get("live_institutions", "SELECT id,legal_name,rto_code,rto_type,higher_education_code,city,state,website_url,has_student_support,has_disability_support,has_library,has_apprenticeships FROM live_institutions WHERE id=?",
+                        course.get("institution_id") == null ? "" : course.get("institution_id"));
+                    String pid = p == null ? null : jsString(p.get("id"));
+                    Object rto = p == null ? null : or(p.get("rto_code"), "");
+                    var existing = p == null ? null : providers.stream().filter(x -> x.getId().equals(pid)).findFirst().orElse(null);
+                    if (p != null && existing == null) {
+                        WarehouseConnections.ProviderProfile pr = new WarehouseConnections.ProviderProfile();
+                        pr.setId(pid);
+                        pr.setEvidenceId("warehouse_provider_" + pid);
+                        pr.setName(text(p.get("legal_name")));
+                        pr.setType(text(p.get("rto_type")));
+                        pr.setHigherEducationCode(text(p.get("higher_education_code")));
+                        pr.setCity(text(p.get("city")));
+                        pr.setState(text(p.get("state")));
+                        for (var r : s.query("institution_campuses", "SELECT location_name,town,state,postcode FROM institution_campuses WHERE rto_code=? LIMIT 8", rto)) {
+                            WarehouseConnections.Campus campus = new WarehouseConnections.Campus();
+                            campus.setName(text(r.get("location_name")));
+                            campus.setTown(text(r.get("town")));
+                            campus.setState(text(r.get("state")));
+                            campus.setPostcode(text(r.get("postcode")));
+                            pr.getCampuses().add(campus);
+                        }
+                        List<String> support = new ArrayList<>();
+                        if (strictOne(p.get("has_student_support"))) support.add("Student support");
+                        if (strictOne(p.get("has_disability_support"))) support.add("Disability support");
+                        if (strictOne(p.get("has_library"))) support.add("Library");
+                        if (strictOne(p.get("has_apprenticeships"))) support.add("Apprenticeship support");
+                        pr.setSupport(support);
+                        var he = s.get("he_provider_entitlement_v2", "SELECT csp_undergraduate,csp_postgraduate,hecs_help,fee_help,effective_from,effective_to,current_status FROM he_provider_entitlement_v2 WHERE institution_id=? ORDER BY effective_from DESC LIMIT 1", p.get("id"));
+                        if (he != null) pr.setHigherEducationFunding(metrics("cspUndergraduate", WarehouseText.flag(he.get("csp_undergraduate")), "cspPostgraduate", WarehouseText.flag(he.get("csp_postgraduate")),
+                            "hecsHelp", WarehouseText.flag(he.get("hecs_help")), "feeHelp", WarehouseText.flag(he.get("fee_help")), "from", he.get("effective_from"), "to", he.get("effective_to"), "status", text(he.get("current_status"))));
+                        pr.getCourseIds().add(id);
+                        providers.add(pr);
+                        existing = pr;
+                    } else if (existing != null) existing.getCourseIds().add(id);
+                    if (p != null && has("FUNDING") && !code.isEmpty()) {
+                        String state = location.regionState();
+                        var funding = truthy(state)
+                            ? s.query("course_funding_verdict", "SELECT scheme,delivery_state,funding_status,student_tuition_out_of_pocket,currency,effective_period FROM course_funding_verdict WHERE rto_code=? AND national_code=? AND delivery_state=? ORDER BY effective_period DESC LIMIT 3", rto, code, state)
+                            : s.query("course_funding_verdict", "SELECT scheme,delivery_state,funding_status,student_tuition_out_of_pocket,currency,effective_period FROM course_funding_verdict WHERE rto_code=? AND national_code=? ORDER BY effective_period DESC LIMIT 3", rto, code);
+                        for (var f : funding) {
+                            Map<String, Object> entry = new LinkedHashMap<>(f);
+                            entry.put("courseId", id);
+                            entry.put("courseName", text(course.get("course_name")));
+                            existing.getFunding().add(entry);
+                        }
                     }
-                    for (var r : found) {
-                        String roleId = str(r.get("role_id"));
-                        RoleHit hit = roles.computeIfAbsent(roleId, k -> new RoleHit(roleId, str(r.get("title"))));
-                        hit.score += "skill".equals(pass.kind) ? 1 : 100;
-                        hit.rank = WarehouseText.number(r.get("rank"));
-                        if ("role".equals(pass.kind)) hit.named = true;
-                        if ("hint".equals(pass.kind)) hit.hint = true;
-                        if ("related".equals(pass.kind) || "hint".equals(pass.kind)) hit.related = true;
-                        if ("skill".equals(pass.kind) && !hit.matchedSkills.contains(phrase)) hit.matchedSkills.add(phrase);
+                    if (p != null) relationships.add(new WarehouseConnections.Relationship("course:" + id, "provider:" + pid, "offered_by", "institution_id", null));
+                }
+                if (has("CAREERS") || has("LOCAL") || has("INDUSTRY")) {
+                    List<Map<String, Object>> edges = new ArrayList<>(s.query("course_occupation_edge", "SELECT anzsco_code,anzsco_title,method,confidence_score FROM course_occupation_edge WHERE national_code=? ORDER BY is_primary DESC,confidence_score DESC LIMIT 3", code));
+                    edges.addAll(s.index.queryForList("SELECT occupation_code AS anzsco_code,occupation_name AS anzsco_title,match_method AS method,match_confidence AS confidence_score FROM occupation_links WHERE qualification_code=? ORDER BY is_primary DESC LIMIT 3", code));
+                    for (var edge : edges) addCareer(or(edge.get("anzsco_code"), ""), edge.get("anzsco_title"),
+                        new WarehouseConnections.CourseLink(id, text(course.get("course_name")), text(edge.get("method")), number(edge.get("confidence_score"))));
+                    var profile = s.indexGet("SELECT * FROM profile_links WHERE course_id=? LIMIT 1", id);
+                    for (String occ : linkedList(profile == null ? null : profile.get("anzsco_codes_json"), 3))
+                        addCareer(occ, "", new WarehouseConnections.CourseLink(id, text(course.get("course_name")), text(profile.get("mapping_method")), number(profile.get("mapping_confidence"))));
+                    if (has("INDUSTRY")) for (String name : linkedList(profile == null ? null : profile.get("industry_codes_json"), 4)) {
+                        if (industries.stream().anyMatch(x -> name.equals(x.getName()) && id.equals(x.getCourseId()))) continue;
+                        WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
+                        ind.setId(id + "_" + industries.size());
+                        ind.setEvidenceId("warehouse_industry_" + id + "_" + industries.size());
+                        ind.setName(name);
+                        ind.setCourseId(id);
+                        ind.setMethod(text(profile.get("mapping_method")));
+                        ind.setScope("Course-to-industry mapping");
+                        industries.add(ind);
                     }
                 }
             }
-            List<RoleHit> values = new ArrayList<>(roles.values());
-            List<RoleHit> focused = !roleTerms.isEmpty() ? values.stream().filter(r -> r.named || r.hint).toList()
-                : values.stream().anyMatch(r -> r.related) ? values.stream().filter(r -> r.related).toList()
-                : !plan.getRoleQueries().isEmpty() ? List.of() : values;
-            List<RoleHit> candidates = focused.stream()
-                .sorted((a, b) -> {
-                    if (a.score != b.score) return Double.compare(b.score, a.score);
-                    double ar = a.rank == null ? 0 : a.rank, br = b.rank == null ? 0 : b.rank;
-                    if (ar != br) return Double.compare(ar, br);
-                    return a.title.compareTo(b.title);
-                }).limit(12).toList();
-
-            List<RoleHit> selected;
-            if (plan.getRoleIds() != null && !plan.getRoleIds().isEmpty()) {
-                selected = candidates.stream().filter(r -> plan.getRoleIds().contains("role:" + r.roleId))
-                    .sorted((a, b) -> Integer.compare(plan.getRoleIds().indexOf("role:" + a.roleId), plan.getRoleIds().indexOf("role:" + b.roleId))).toList();
-            } else {
-                selected = plan.isCandidatePool() ? candidates : candidates.stream().limit(4).toList();
+            for (String phrase : limit(plan.getOccupationQueries(), 2)) {
+                List<String> words = likeWords(phrase);
+                if (words.isEmpty()) continue;
+                for (var row : s.query("canonical_occupation", "SELECT anzsco_code,anzsco_title FROM canonical_occupation WHERE " + likeWhere("anzsco_title", words) + " LIMIT 3", likeArgs(words)))
+                    addCareer(row.get("anzsco_code"), row.get("anzsco_title"), null);
             }
+            for (String phrase : limit(plan.getIndustryQueries(), 2)) {
+                List<String> words = likeWords(phrase);
+                if (words.isEmpty()) continue;
+                for (var r : s.index.queryForList("SELECT * FROM industry_links WHERE " + likeWhere("industry_name", words) + " LIMIT 8", likeArgs(words))) {
+                    if (industries.stream().noneMatch(x -> java.util.Objects.equals(x.getName(), str(r.get("industry_name"))))) {
+                        WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
+                        ind.setId("mapped_" + jsString(r.get("course_id")));
+                        ind.setEvidenceId("warehouse_industry_mapped_" + jsString(r.get("course_id")));
+                        ind.setName(str(r.get("industry_name")));
+                        ind.setMethod(str(r.get("mapping_method")));
+                        ind.setScope("Stored course-to-industry mapping");
+                        industries.add(ind);
+                    }
+                    var profile = s.indexGet("SELECT * FROM profile_links WHERE course_id=? LIMIT 1", r.get("course_id"));
+                    if (courses.isEmpty()) {
+                        for (String code : linkedList(profile == null ? null : profile.get("anzsco_codes_json"), 3)) addCareer(code, "", null);
+                        for (var occ : s.index.queryForList("SELECT occupation_code,occupation_name FROM occupation_links WHERE qualification_code=? ORDER BY is_primary DESC LIMIT 2", r.get("qualification_code")))
+                            addCareer(occ.get("occupation_code"), occ.get("occupation_name"), null);
+                    }
+                }
+                for (var r : s.query("dim_industry", "SELECT anzsic_code,industry_name FROM dim_industry WHERE " + likeWhere("industry_name", words) + " LIMIT 3", likeArgs(words))) {
+                    WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
+                    ind.setId("sector_" + jsString(r.get("anzsic_code")));
+                    ind.setEvidenceId("warehouse_industry_sector_" + jsString(r.get("anzsic_code")));
+                    ind.setName(text(r.get("industry_name")));
+                    ind.setMethod("Named industry match");
+                    ind.setScope("Industry catalogue");
+                    industries.add(ind);
+                    if (courses.isEmpty()) for (var link : s.query("dim_crosswalk_anzsic_anzsco", "SELECT anzsco_code FROM dim_crosswalk_anzsic_anzsco WHERE anzsic_code=? LIMIT 3", r.get("anzsic_code")))
+                        addCareer(link.get("anzsco_code"), "", null);
+                }
+            }
+            if (exploration != null) for (var role : exploration.getRoles()) for (var map : limit(role.getMappings(), 1)) addCareer(map.getAnzscoCode(), map.getAnzscoTitle(), null);
+            List<Map<String, Object>> chain = location.chain.stream().filter(r -> !"NATIONAL".equals(str(r.get("tier")))).toList();
+            // An area-only demand question starts from recorded occupation/region edges.
+            // Do not use this fallback to replace a named skill or career with unrelated work.
+            if (has("LOCAL") && careers.isEmpty() && size(plan.getOccupationQueries()) + size(plan.getSkillQueries()) + size(plan.getRoleQueries()) + size(plan.getJobQueries()) == 0) {
+                for (var region : chain) {
+                    var rows = s.query("region_demand_edge", "SELECT * FROM region_demand_edge WHERE region_key=? AND period=(SELECT MAX(period) FROM region_demand_edge WHERE region_key=?) AND active_jobs>0 ORDER BY active_jobs DESC LIMIT 5", region.get("region_key"), region.get("region_key"));
+                    for (var r : rows) addCareer(r.get("anzsco_code"), text(linkedJson(r.get("evidence_json")).path("archetype")), null);
+                    if (!rows.isEmpty()) break;
+                }
+            }
+            Map<String, Object> sa4 = chain.stream().filter(r -> "SA4".equals(str(r.get("tier")))).findFirst().orElse(null);
+            for (var career : careers) {
+                if (has("LOCAL") || has("CAREERS")) {
+                    boolean found = false;
+                    for (var region : chain) {
+                        var r = s.get("region_demand_edge", "SELECT * FROM region_demand_edge WHERE region_key=? AND anzsco_code=? ORDER BY period DESC LIMIT 1", region.get("region_key"), career.getGroupCode());
+                        if (r != null) {
+                            var sig = signal("RECORDED_DEMAND", career.getId(), "Recorded demand for " + career.getTitle(),
+                                jsString(r.get("active_jobs")) + " recorded job advertisements; " + jsString(r.get("employer_count")) + " employers in the stored signal.",
+                                str(or(r.get("scope"), region.get("tier"))), str(region.get("name")), str(r.get("period")), str(r.get("source_name")), str(r.get("method")),
+                                java.util.Objects.equals(str(region.get("region_key")), location.regionKey()), str(r.get("updated_at")));
+                            sig.setMetrics(metrics("advertisements", number(r.get("active_jobs")), "employers", number(r.get("employer_count"))));
+                            addSignal("demand_" + jsString(r.get("edge_id")), sig);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found && truthy(location.regionState())) {
+                        var r = s.get("ivi_monthly_sa4", "SELECT * FROM ivi_monthly_sa4 WHERE sa4_code=? AND anzsco_code=? ORDER BY period DESC LIMIT 1", sa4 == null ? "" : or(sa4.get("region_key"), ""), career.getGroupCode());
+                        if (r != null) {
+                            var sig = signal("RECORDED_DEMAND", career.getId(), "Recorded vacancies for " + career.getTitle(), jsString(r.get("vacancy_count")) + " vacancies in the stored regional series.",
+                                "SA4", str(r.get("region_name")), str(r.get("period")), str(r.get("source")), "occupation and SA4", "SA4".equals(location.regionTier()), str(r.get("imported_at")));
+                            sig.setMetrics(metrics("advertisements", number(r.get("vacancy_count")), "employers", null));
+                            addSignal("ivi_" + jsString(r.get("row_id")), sig);
+                        }
+                    }
+                    for (var r : s.query("jsa_employment_projection", "SELECT * FROM jsa_employment_projection WHERE anzsco_code=? AND (state_code=? OR state_code IN ('AUS','ALL')) ORDER BY release_date DESC,projection_horizon ASC LIMIT 2",
+                            career.getGroupCode(), truthy(location.regionState()) ? location.regionState() : "AUS")) {
+                        var sig = signal("PROJECTION", career.getId(), "Employment outlook for " + career.getTitle(),
+                            "Stored projection: " + jsString(r.get("growth_pct")) + "% employment change over " + jsString(r.get("projection_horizon")) + " years from " + jsString(r.get("projection_year")) + ".",
+                            Set.of("AUS", "ALL").contains(str(r.get("state_code"))) ? "NATIONAL" : "STATE", str(r.get("state_code")), str(r.get("release_date")),
+                            "Jobs and Skills Australia", "Stored employment projection", false, str(r.get("updated_at")));
+                        sig.setMetrics(metrics("growthPercent", number(r.get("growth_pct")), "horizonYears", number(r.get("projection_horizon")), "baseYear", number(r.get("projection_year"))));
+                        addSignal("projection_" + jsString(r.get("projection_id")), sig);
+                    }
+                    // Employer signals are dated observations, not a promise of an open vacancy.
+                    if (truthy(location.regionState())) for (var r : s.query("employer_job_edge", "SELECT edge_id,employer_name,scope,period,state_code,region_key,updated_at,method FROM employer_job_edge WHERE anzsco_code=? AND state_code=? AND is_active=1 ORDER BY period DESC LIMIT 3", career.getGroupCode(), location.regionState())) {
+                        addSignal("employer_" + jsString(r.get("edge_id")), signal("EMPLOYER_SIGNAL", career.getId(), text(r.get("employer_name")), "Employer recorded against " + career.getTitle() + ".",
+                            str(or(r.get("scope"), "STATE")), str(r.get("state_code")), str(r.get("period")), "Stored employer–occupation relationship", str(r.get("method")),
+                            truthy(r.get("region_key")) && java.util.Objects.equals(str(r.get("region_key")), location.regionKey()) && java.util.Objects.equals(str(r.get("scope")), location.regionTier()),
+                            str(r.get("updated_at"))));
+                    }
+                }
+                if (has("INDUSTRY") && s.tables.contains("dim_industry")) for (var r : s.query("dim_crosswalk_anzsic_anzsco", "SELECT x.anzsic_code,d.industry_name,x.source FROM dim_crosswalk_anzsic_anzsco x JOIN dim_industry d ON d.anzsic_code=x.anzsic_code WHERE x.anzsco_code=? LIMIT 3", career.getGroupCode())) {
+                    WarehouseConnections.Industry ind = new WarehouseConnections.Industry();
+                    ind.setId(career.getId() + "_" + jsString(r.get("anzsic_code")));
+                    ind.setEvidenceId("warehouse_industry_" + career.getId() + "_" + jsString(r.get("anzsic_code")));
+                    ind.setName(text(r.get("industry_name")));
+                    ind.setCareerId(career.getId());
+                    ind.setMethod(text(r.get("source")));
+                    ind.setScope("Occupation-to-industry mapping");
+                    industries.add(ind);
+                }
+            }
+            if (has("LOCAL") && "SA2".equals(location.regionTier())) {
+                for (var r : s.query("salm_unemployment_sa2", "SELECT row_id,data_item,quarter,value,source FROM salm_unemployment_sa2 WHERE sa2_code=? AND is_unavailable=0 ORDER BY quarter_date DESC,CASE WHEN lower(data_item) LIKE '%rate%' THEN 0 ELSE 1 END LIMIT 2", location.region.get("region_key"))) {
+                    addSignal("local_" + jsString(r.get("row_id")), signal("LOCAL_CONTEXT", null, text(r.get("data_item")),
+                        jsString(r.get("value")) + (jsString(r.get("data_item")).toLowerCase(java.util.Locale.ROOT).contains("rate") ? "%" : ""),
+                        "SA2", str(location.region.get("name")), str(r.get("quarter")), str(r.get("source")), "Exact region key", true, null));
+                }
+            }
+            WarehouseConnections out = new WarehouseConnections();
+            out.getLocation().setRequested(location.requested);
+            out.getLocation().setRegion(location.region == null ? null : regionRef(location.region));
+            out.getLocation().setCandidates(location.candidates.stream().map(WarehouseQueryService::regionRef).toList());
+            out.setLocalOverview(has("LOCAL") ? localOverview(location) : null);
+            out.setProviders(providers);
+            out.setCareers(careers);
+            out.setExploration(exploration);
+            out.setIndustries(industries.stream().limit(12).toList());
+            out.setSignals(signals);
+            out.setRelationships(relationships);
+            return out;
+        }
 
+        private WarehouseConnections.Signal signal(String kind, String careerId, String title, String text, String scope, String region, String period,
+                                                   String source, String method, boolean localMatch, String updatedAt) {
+            WarehouseConnections.Signal sig = new WarehouseConnections.Signal();
+            sig.setKind(kind); sig.setCareerId(careerId); sig.setTitle(title); sig.setText(text); sig.setScope(scope); sig.setRegion(region);
+            sig.setPeriod(period); sig.setSource(source); sig.setMethod(method); sig.setLocalMatch(localMatch); sig.setUpdatedAt(updatedAt);
+            return sig;
+        }
+    }
+
+    /** JS {@code x===1} (JDBC integers only). */
+    private static boolean strictOne(Object v) { return v instanceof Number n && !(v instanceof Double) && n.longValue() == 1; }
+
+    private static int size(List<?> v) { return v == null ? 0 : v.size(); }
+
+    /** linked-data.cjs json(): strings parse (else {}), other values pass through ({@code x||{}}). */
+    private static JsonNode linkedJson(Object x) {
+        return x instanceof String ? WarehouseText.json(x) : truthy(x) ? WarehouseText.MAPPER.valueToTree(x) : WarehouseText.MAPPER.createObjectNode();
+    }
+
+    // ---- opportunities.cjs ---------------------------------------------------------------------
+
+    private static final Set<String> ROLE_NOISE = Set.of("officer", "assistant", "technician", "representative", "specialist", "analyst", "worker", "workers", "career");
+
+    private final class Opportunities {
+        final Session s;
+        Opportunities(Session s) { this.s = s; }
+
+        private final class Hit {
+            String roleId, title;
+            Double rank;
+            int score;
+            boolean named, hint, related;
+            final List<String> matchedSkills = new ArrayList<>();
+        }
+
+        private List<Map<String, Object>> searchRoles(String kind, String q, boolean alias) {
+            return s.index.queryForList("SELECT role_id,title,bm25(role_search,0,8,4,1,6) rank FROM role_search WHERE role_search MATCH ? ORDER BY rank LIMIT 12",
+                ("skill".equals(kind) ? "skills : " : alias ? "aliases : " : "title : ") + "(" + q + ")");
+        }
+
+        WarehouseExploration read(WarehouseQueryPlan plan, Location location) {
+            Set<String> facets = new HashSet<>(plan.getFacets() == null ? List.of() : plan.getFacets());
+            boolean requested = facets.contains("SKILLS") || facets.contains("JOBS") || facets.contains("LEARNING") || size(plan.getSkillQueries()) > 0;
+            if (!requested) return null;
+            List<String> skills = (plan.getSkillQueries() == null ? List.<String>of() : plan.getSkillQueries()).stream().map(q -> text(q, 100)).filter(q -> !q.isEmpty()).limit(6).toList();
+            List<String> roleTerms = limit(plan.getOccupationQueries(), 3);
+            List<String> related = new ArrayList<>();
+            if (roleTerms.isEmpty()) { related.addAll(limit(plan.getRoleQueries(), 99)); related.addAll(limit(plan.getJobQueries(), 99)); }
+            Map<String, Hit> roles = new LinkedHashMap<>();
+            // Match each concept separately: someone can bring several transferable skills, not necessarily every skill in one title.
+            Object[][] passes = {{"role", roleTerms}, {"related", related}, {"hint", skills}, {"skill", skills}};
+            for (Object[] pass : passes) {
+                String kind = (String) pass[0];
+                @SuppressWarnings("unchecked") List<String> phrases = (List<String>) pass[1];
+                for (String phrase : phrases) {
+                    String match = WarehouseText.clause(phrase);
+                    if (match.isEmpty()) continue;
+                    var found = searchRoles(kind, match, false);
+                    if (found.isEmpty() && !"skill".equals(kind) && !"hint".equals(kind)) {
+                        List<String> reduced = WarehouseText.tokens(phrase).stream().filter(w -> !ROLE_NOISE.contains(w)).toList();
+                        if (reduced.size() >= 2) found = searchRoles(kind, WarehouseText.clause(String.join(" ", reduced)), false);
+                        if (found.isEmpty()) found = searchRoles(kind, match, true);
+                    }
+                    for (var r : found) {
+                        String roleId = jsString(r.get("role_id"));
+                        Hit hit = roles.computeIfAbsent(roleId, k -> { Hit h = new Hit(); h.roleId = roleId; h.title = str(r.get("title")); h.rank = number(r.get("rank")); return h; });
+                        hit.score += "skill".equals(kind) ? 1 : 100;
+                        hit.named |= "role".equals(kind);
+                        hit.hint |= "hint".equals(kind);
+                        hit.related |= "related".equals(kind) || "hint".equals(kind);
+                        if ("skill".equals(kind) && !hit.matchedSkills.contains(phrase)) hit.matchedSkills.add(phrase);
+                    }
+                }
+            }
+            List<Hit> values = new ArrayList<>(roles.values());
+            List<Hit> focused = !roleTerms.isEmpty() ? values.stream().filter(r -> r.named || r.hint).toList()
+                : values.stream().anyMatch(r -> r.related) ? values.stream().filter(r -> r.related).toList()
+                : size(plan.getRoleQueries()) > 0 ? List.of() : values;
+            List<Hit> candidates = new ArrayList<>(focused);
+            candidates.sort((a, b) -> a.score != b.score ? Integer.compare(b.score, a.score)
+                : !java.util.Objects.equals(a.rank, b.rank) ? Double.compare(a.rank == null ? 0 : a.rank, b.rank == null ? 0 : b.rank)
+                : COLLATOR.compare(String.valueOf(a.title), String.valueOf(b.title)));
+            candidates = candidates.stream().limit(12).toList();
+            List<Hit> selected;
+            if (plan.getRoleIds() != null) {
+                List<String> ids = plan.getRoleIds();
+                selected = candidates.stream().filter(r -> ids.contains("role:" + r.roleId)).sorted(Comparator.comparingInt(r -> ids.indexOf("role:" + r.roleId))).toList();
+            } else selected = plan.isCandidatePool() ? candidates : candidates.stream().limit(4).toList();
             List<WarehouseExploration.Role> selectedRoles = new ArrayList<>();
-            for (RoleHit hit : selected) {
-                var rows = s.has("onet_occupation") ? s.source.queryForList("SELECT job_id,job_title,description,tasks FROM onet_occupation WHERE job_id=?", hit.roleId) : List.<Map<String, Object>>of();
-                Map<String, Object> row = rows.isEmpty() ? null : rows.get(0);
-                var mappingRows = s.has("onet_anzsco_crosswalk")
-                    ? s.source.queryForList("SELECT anzsco_code,anzsco_title,method,confidence FROM onet_anzsco_crosswalk WHERE job_id=? ORDER BY confidence DESC LIMIT 2", hit.roleId)
-                    : List.<Map<String, Object>>of();
-                List<WarehouseExploration.Mapping> mappings = mappingRows.stream()
-                    .map(m -> new WarehouseExploration.Mapping(str(m.get("anzsco_code")), str(m.get("anzsco_title")), str(m.get("method")), WarehouseText.number(m.get("confidence"))))
-                    .toList();
-                List<WarehouseExploration.RoleSkill> requirements = s.index.queryForList(
-                        "SELECT skill_id AS id,name,description FROM role_skills WHERE role_id=? LIMIT 18", hit.roleId).stream()
-                    .map(r -> new WarehouseExploration.RoleSkill(str(r.get("id")), str(r.get("name")), WarehouseText.text(r.get("description")))).toList();
+            for (Hit r : selected) {
+                var row = s.get("onet_occupation", "SELECT job_id,job_title,description,tasks FROM onet_occupation WHERE job_id=?", r.roleId);
+                var mappings = s.query("onet_anzsco_crosswalk", "SELECT anzsco_code,anzsco_title,method,confidence FROM onet_anzsco_crosswalk WHERE job_id=? ORDER BY confidence DESC LIMIT 2", r.roleId).stream()
+                    .map(m -> new WarehouseExploration.Mapping(str(m.get("anzsco_code")), str(m.get("anzsco_title")), str(m.get("method")), number(m.get("confidence")))).toList();
+                var requirements = s.index.queryForList("SELECT skill_id AS id,name,description FROM role_skills WHERE role_id=? LIMIT 18", r.roleId).stream()
+                    .map(k -> new WarehouseExploration.RoleSkill(str(k.get("id")), str(k.get("name")), str(k.get("description")))).toList();
                 WarehouseExploration.Role role = new WarehouseExploration.Role();
-                role.setId("role:" + hit.roleId);
-                role.setEvidenceId("warehouse_role_" + hit.roleId);
-                role.setTitle(hit.title);
-                role.setDescription(row == null ? null : WarehouseText.text(row.get("description")));
-                role.setTasks(row == null ? List.of() : WarehouseText.list(row.get("tasks"), 4));
-                role.setMatchedSkills(hit.matchedSkills);
+                role.setId("role:" + r.roleId);
+                role.setEvidenceId("warehouse_role_" + r.roleId);
+                role.setTitle(r.title);
+                role.setDescription(text(row == null ? null : row.get("description"), 600));
+                role.setTasks(oppList(row == null ? null : row.get("tasks"), 4));
+                role.setMatchedSkills(r.matchedSkills);
                 role.setSkills(requirements);
                 role.setMappings(mappings);
                 role.setSource("O*NET occupation profile");
                 role.setScope("General occupational context; stored Australian crosswalks are shown separately");
-                role.setMatchReason(hit.named ? "Matches the occupation requested" : "Uses one or more of the skills being explored; personal suitability is not established");
+                role.setMatchReason(r.named ? "Matches the occupation requested" : "Uses one or more of the skills being explored; personal suitability is not established");
                 selectedRoles.add(role);
             }
-
             List<WarehouseExploration.LearningLink> learning = new ArrayList<>();
-            if (facets.contains("LEARNING")) {
-                for (String phrase : skills) {
-                    String match = WarehouseText.matchClause(phrase);
-                    if (match == null) continue;
-                    for (var r : s.index.queryForList("SELECT code,name,kind,method FROM learning_search WHERE learning_search MATCH ? ORDER BY rank LIMIT 8", match)) {
-                        String code = str(r.get("code"));
-                        String skillName = str(r.get("name"));
-                        if (learning.stream().anyMatch(x -> code.equals(x.getCode()) && skillName.equals(x.getSkill()))) continue;
-                        var courseRows = s.index.queryForList("SELECT course_id,course_name,institution_name FROM catalogue WHERE national_code=? LIMIT 2", code);
-                        WarehouseExploration.LearningLink link = new WarehouseExploration.LearningLink();
-                        link.setId("learning:" + code + ":" + learning.size());
-                        link.setEvidenceId("warehouse_learning_" + code + "_" + learning.size());
-                        link.setCode(code);
-                        link.setSkill(skillName);
-                        link.setKind(str(r.get("kind")));
-                        link.setMethod(str(r.get("method")));
-                        link.setQuery(phrase);
-                        link.setCourses(courseRows.stream().map(c -> new WarehouseExploration.CourseRef(str(c.get("course_id")), str(c.get("course_name")), str(c.get("institution_name")))).toList());
-                        link.setScope("Stored qualification-to-skill or unit link; delivery and assessment are not established by this link");
-                        learning.add(link);
-                    }
+            if (facets.contains("LEARNING")) for (String phrase : skills) {
+                String match = WarehouseText.clause(phrase);
+                if (match.isEmpty()) continue;
+                for (var r : s.index.queryForList("SELECT code,name,kind,method FROM learning_search WHERE learning_search MATCH ? ORDER BY rank LIMIT 8", match)) {
+                    String code = str(r.get("code")), skill = str(r.get("name"));
+                    if (learning.stream().anyMatch(x -> java.util.Objects.equals(x.getCode(), code) && java.util.Objects.equals(x.getSkill(), skill))) continue;
+                    var courses = s.index.queryForList("SELECT course_id,course_name,institution_name FROM catalogue WHERE national_code=? LIMIT 2", r.get("code"));
+                    WarehouseExploration.LearningLink link = new WarehouseExploration.LearningLink();
+                    link.setId("learning:" + code + ":" + learning.size());
+                    link.setEvidenceId("warehouse_learning_" + code + "_" + learning.size());
+                    link.setCode(code);
+                    link.setSkill(skill);
+                    link.setKind(str(r.get("kind")));
+                    link.setMethod(str(r.get("method")));
+                    link.setQuery(phrase);
+                    link.setCourses(courses.stream().map(c -> new WarehouseExploration.CourseRef(str(c.get("course_id")), str(c.get("course_name")), str(c.get("institution_name")))).toList());
+                    link.setScope("Stored qualification-to-skill or unit link; delivery and assessment are not established by this link");
+                    learning.add(link);
                 }
             }
-
             List<WarehouseExploration.JobAd> jobs = new ArrayList<>();
             List<WarehouseExploration.ObservedSkill> observedSkills = new ArrayList<>();
             WarehouseExploration.Geography geography = null;
             int sampleSize = 0, withSkills = 0;
-            List<String> jobTerms = new LinkedHashSet<>(!plan.getJobQueries().isEmpty() ? plan.getJobQueries()
-                : !roleTerms.isEmpty() ? roleTerms : !plan.getRoleQueries().isEmpty() ? plan.getRoleQueries() : skills)
-                .stream().filter(x -> WarehouseText.matchClause(x) != null).limit(8).toList();
-
-            if (facets.contains("JOBS") && s.has("outside_jobs") && !jobTerms.isEmpty()) {
-                List<JobStage> stages = new ArrayList<>();
-                ResolvedLocation.RegionRow region = location.region;
-                WarehouseQueryPlan.LocationQuery local = plan.getLocation();
-                if (region != null) {
-                    if (local != null && !isBlank(local.getName())) stages.add(new JobStage("g.city=? AND g.state=?", List.of(local.getName().toLowerCase(), region.state), "SUBURB", local.getName(), true));
-                    if (local != null && local.getPostcode() != null && local.getPostcode().matches("\\d{4}")) stages.add(new JobStage("g.postcode=? AND g.state=?", List.of(local.getPostcode(), region.state), "POSTCODE", local.getPostcode(), true));
-                    var sa4 = location.chain.stream().filter(r -> "SA4".equals(r.tier)).findFirst();
-                    if (sa4.isPresent()) stages.add(new JobStage("g.sa4=?", List.of(sa4.get().key), "SA4", sa4.get().name, "SA4".equals(region.tier)));
-                    if (region.state != null && !region.state.isBlank()) stages.add(new JobStage("g.state=?", List.of(region.state), "STATE", region.state, "STATE".equals(region.tier)));
-                } else if (isBlank(location.requested)) {
-                    stages.add(new JobStage("1=1", List.of(), "NATIONAL", "Australia", false));
-                }
-                for (JobStage stage : stages) {
+            List<String> source = size(plan.getJobQueries()) > 0 ? plan.getJobQueries() : !roleTerms.isEmpty() ? roleTerms : size(plan.getRoleQueries()) > 0 ? plan.getRoleQueries() : skills;
+            List<String> jobTerms = new LinkedHashSet<>(source).stream().filter(x -> !WarehouseText.clause(x).isEmpty()).limit(8).toList();
+            if (facets.contains("JOBS") && s.tables.contains("outside_jobs") && !jobTerms.isEmpty()) {
+                WarehouseQueryPlan.LocationQuery local = plan.getLocation() == null ? new WarehouseQueryPlan.LocationQuery() : plan.getLocation();
+                List<Object[]> stages = new ArrayList<>(); // where, args, scope, name, local
+                if (location.region != null) {
+                    String regionState = location.regionState(), tier = location.regionTier();
+                    if (truthy(local.getName())) stages.add(new Object[]{"g.city=? AND g.state=?", new Object[]{text(local.getName(), 160).toLowerCase(java.util.Locale.ROOT), regionState}, "SUBURB", text(local.getName(), 600), true});
+                    if (local.getPostcode() != null && local.getPostcode().matches("\\d{4}")) stages.add(new Object[]{"g.postcode=? AND g.state=?", new Object[]{local.getPostcode(), regionState}, "POSTCODE", local.getPostcode(), true});
+                    var sa4 = location.chain.stream().filter(x -> "SA4".equals(str(x.get("tier")))).findFirst().orElse(null);
+                    if (sa4 != null) stages.add(new Object[]{"g.sa4=?", new Object[]{jsString(sa4.get("region_key"))}, "SA4", str(sa4.get("name")), "SA4".equals(tier)});
+                    if (truthy(regionState)) stages.add(new Object[]{"g.state=?", new Object[]{regionState}, "STATE", regionState, "STATE".equals(tier)});
+                } else if (location.requested.isEmpty()) stages.add(new Object[]{"1=1", new Object[0], "NATIONAL", "Australia", false});
+                // Unresolved/ambiguous user locations never silently become an unrestricted search.
+                for (Object[] stage : stages) {
                     Set<String> candidateIds = new LinkedHashSet<>();
                     for (String phrase : jobTerms) {
                         List<Object> args = new ArrayList<>();
-                        args.add(WarehouseText.matchClause(phrase));
-                        args.addAll(stage.args());
-                        for (var r : s.index.queryForList(
-                                "SELECT j.job_id FROM job_search j JOIN job_geo g ON g.job_id=j.job_id WHERE job_search MATCH ? AND " + stage.where() + " ORDER BY rank LIMIT 100",
-                                args.toArray())) {
+                        args.add(WarehouseText.clause(phrase));
+                        args.addAll(Arrays.asList((Object[]) stage[1]));
+                        for (var r : s.index.queryForList("SELECT j.job_id FROM job_search j JOIN job_geo g ON g.job_id=j.job_id WHERE job_search MATCH ? AND " + stage[0] + " ORDER BY rank LIMIT 100", args.toArray()))
                             candidateIds.add(str(r.get("job_id")));
-                        }
                     }
                     if (candidateIds.isEmpty()) continue;
                     List<String> ids = candidateIds.stream().limit(800).toList();
-                    String placeholders = ids.stream().map(x -> "?").collect(Collectors.joining(","));
-                    List<Object> args = new ArrayList<>(ids);
-                    var found = s.source.queryForList(
-                        "SELECT id,title,company_name,city,state,postal_code,skills_json,requirements_json,description,employment_type,work_mode,salary_text,posted_at,updated_at,expired_at,job_url,source " +
-                        "FROM outside_jobs WHERE id IN (" + placeholders + ") AND privacy_level='PUBLIC' AND status='active' AND upper(country) IN ('AU','AUSTRALIA','AUS') " +
-                        "AND (expired_at IS NULL OR expired_at='' OR julianday(expired_at)>julianday('now')) ORDER BY COALESCE(NULLIF(posted_at,''),updated_at) DESC,id DESC LIMIT 40",
-                        args.toArray());
+                    var found = s.query("outside_jobs", "SELECT id,title,company_name,city,state,postal_code,skills_json,requirements_json,description,employment_type,work_mode,salary_text,posted_at,updated_at,expired_at,job_url,source FROM outside_jobs WHERE id IN ("
+                        + ids.stream().map(x -> "?").collect(Collectors.joining(",")) + ") AND privacy_level='PUBLIC' AND status='active' AND upper(country) IN ('AU','AUSTRALIA','AUS') AND (expired_at IS NULL OR expired_at='' OR julianday(expired_at)>julianday('now')) ORDER BY COALESCE(NULLIF(posted_at,''),updated_at) DESC,id DESC LIMIT 40", ids.toArray());
                     if (found.isEmpty()) continue;
-                    geography = new WarehouseExploration.Geography(stage.scope(), stage.name(), stage.local());
+                    String stageName = (String) stage[3];
+                    geography = new WarehouseExploration.Geography((String) stage[2], stageName, (Boolean) stage[4]);
                     sampleSize = found.size();
-                    Map<String, int[]> counts = new LinkedHashMap<>();
-                    Map<String, String> displayNames = new LinkedHashMap<>();
+                    Map<String, Object[]> counts = new LinkedHashMap<>(); // norm -> {name, count}
                     for (var r : found) {
-                        List<String> names = new ArrayList<>(new LinkedHashSet<>(WarehouseText.list(r.get("skills_json"), 30)));
+                        List<String> names = new ArrayList<>(new LinkedHashSet<>(oppList(r.get("skills_json"), 30)));
                         if (!names.isEmpty()) withSkills++;
                         for (String name : names) {
-                            String k = name.toLowerCase().trim();
-                            counts.computeIfAbsent(k, x -> new int[1])[0]++;
-                            displayNames.putIfAbsent(k, name);
+                            Object[] entry = counts.computeIfAbsent(text(name, 160).toLowerCase(java.util.Locale.ROOT), k -> new Object[]{name, 0});
+                            entry[1] = (Integer) entry[1] + 1;
                         }
                     }
-                    int finalSampleSize = sampleSize;
-                    List<Map.Entry<String, int[]>> sortedCounts = counts.entrySet().stream()
-                        .sorted((a, b) -> b.getValue()[0] != a.getValue()[0] ? Integer.compare(b.getValue()[0], a.getValue()[0]) : displayNames.get(a.getKey()).compareTo(displayNames.get(b.getKey())))
-                        .limit(8).toList();
-                    for (int i = 0; i < sortedCounts.size(); i++) {
-                        var e = sortedCounts.get(i);
+                    List<Object[]> top = counts.values().stream()
+                        .sorted((a, b) -> !a[1].equals(b[1]) ? Integer.compare((Integer) b[1], (Integer) a[1]) : COLLATOR.compare((String) a[0], (String) b[0])).limit(8).toList();
+                    for (int k = 0; k < top.size(); k++) {
                         WarehouseExploration.ObservedSkill os = new WarehouseExploration.ObservedSkill();
-                        os.setId("observed:" + i);
-                        os.setEvidenceId("warehouse_observed_skill_" + i);
-                        os.setName(displayNames.get(e.getKey()));
-                        os.setCount(e.getValue()[0]);
-                        os.setDenominator(finalSampleSize);
+                        os.setName((String) top.get(k)[0]);
+                        os.setCount((Integer) top.get(k)[1]);
+                        os.setId("observed:" + k);
+                        os.setEvidenceId("warehouse_observed_skill_" + k);
+                        os.setDenominator(sampleSize);
                         os.setScope("Structured skills in the retrieved advertisement sample only");
-                        os.setGeography(stage.name());
+                        os.setGeography(stageName);
                         observedSkills.add(os);
                     }
                     for (var r : found.stream().limit(6).toList()) {
                         WarehouseExploration.JobAd job = new WarehouseExploration.JobAd();
-                        job.setId(str(r.get("id")));
-                        job.setEvidenceId("warehouse_job_" + r.get("id"));
-                        job.setTitle(WarehouseText.text(r.get("title"), 200));
-                        job.setCompany(WarehouseText.text(r.get("company_name"), 160));
-                        job.setArea(java.util.stream.Stream.of(r.get("city"), r.get("state"), r.get("postal_code")).filter(x -> x != null && !String.valueOf(x).isBlank()).map(String::valueOf).collect(Collectors.joining(", ")));
-                        job.setSkills(WarehouseText.list(r.get("skills_json")));
-                        job.setRequirements(WarehouseText.list(r.get("requirements_json"), 6));
-                        job.setDescription(WarehouseText.text(r.get("description"), 800));
-                        job.setEmploymentType(WarehouseText.text(r.get("employment_type"), 100));
-                        job.setWorkMode(WarehouseText.text(r.get("work_mode"), 100));
-                        job.setSalary(WarehouseText.text(r.get("salary_text"), 160));
-                        job.setPostedAt(str(r.get("posted_at")));
-                        job.setUpdatedAt(str(r.get("updated_at")));
-                        String jobUrl = str(r.get("job_url"));
-                        job.setUrl(jobUrl != null && jobUrl.matches("(?i)^https?://.*") ? jobUrl : null);
-                        job.setSource(WarehouseText.text(r.get("source")));
+                        job.setId(jsString(r.get("id")));
+                        job.setEvidenceId("warehouse_job_" + jsString(r.get("id")));
+                        job.setTitle(text(r.get("title"), 200));
+                        job.setCompany(text(r.get("company_name"), 160));
+                        job.setArea(joinTruthy(r.get("city"), r.get("state"), r.get("postal_code")));
+                        job.setSkills(oppList(r.get("skills_json")));
+                        job.setRequirements(oppList(r.get("requirements_json"), 6));
+                        job.setDescription(text(r.get("description"), 800));
+                        job.setEmploymentType(text(r.get("employment_type"), 100));
+                        job.setWorkMode(text(r.get("work_mode"), 100));
+                        job.setSalary(text(r.get("salary_text"), 160));
+                        job.setPostedAt(truthy(r.get("posted_at")) ? str(r.get("posted_at")) : null);
+                        job.setUpdatedAt(truthy(r.get("updated_at")) ? str(r.get("updated_at")) : null);
+                        String url = truthy(r.get("job_url")) ? jsString(r.get("job_url")) : "";
+                        job.setUrl(Pattern.compile("^https?://", Pattern.CASE_INSENSITIVE).matcher(url).find() ? url : null);
+                        job.setSource(text(r.get("source"), 600));
                         job.setGeography(geography);
                         jobs.add(job);
                     }
                     break;
                 }
             }
-
             Map<String, WarehouseExploration.SkillRef> skillsById = new LinkedHashMap<>();
-            for (var role : selectedRoles) {
-                for (var skill : role.getSkills()) {
-                    var ref = skillsById.computeIfAbsent(skill.getId(), k -> {
-                        WarehouseExploration.SkillRef sr = new WarehouseExploration.SkillRef();
-                        sr.setId(skill.getId()); sr.setName(skill.getName()); sr.setDescription(skill.getDescription());
-                        return sr;
-                    });
-                    ref.getRoleIds().add(role.getId());
-                }
+            for (var role : selectedRoles) for (var sk : role.getSkills()) {
+                skillsById.computeIfAbsent(sk.getId(), k -> { var ref = new WarehouseExploration.SkillRef(); ref.setId(sk.getId()); ref.setName(sk.getName()); ref.setDescription(sk.getDescription()); return ref; })
+                    .getRoleIds().add(role.getId());
             }
-            List<WarehouseExploration.SkillRef> displayedSkills = skillsById.values().stream()
-                .sorted((a, b) -> b.getRoleIds().size() != a.getRoleIds().size() ? Integer.compare(b.getRoleIds().size(), a.getRoleIds().size()) : a.getName().compareTo(b.getName()))
-                .limit(12).toList();
-
-            WarehouseExploration exploration = new WarehouseExploration();
-            exploration.setRoles(selectedRoles);
-            exploration.setSkills(displayedSkills);
-            exploration.setLearning(learning.stream().limit(8).toList());
-            exploration.setJobs(jobs);
-            exploration.setObservedSkills(observedSkills);
-            exploration.setGeography(geography);
-            WarehouseExploration.Coverage coverage = new WarehouseExploration.Coverage();
-            coverage.setSampleSize(sampleSize);
-            coverage.setWithStructuredSkills(withSkills);
-            coverage.setReturnedJobs(jobs.size());
-            exploration.setCoverage(coverage);
-            return exploration;
+            List<WarehouseExploration.SkillRef> displayed = new ArrayList<>(skillsById.values());
+            displayed.sort((a, b) -> a.getRoleIds().size() != b.getRoleIds().size() ? Integer.compare(b.getRoleIds().size(), a.getRoleIds().size()) : COLLATOR.compare(String.valueOf(a.getName()), String.valueOf(b.getName())));
+            WarehouseExploration e = new WarehouseExploration();
+            e.setRoles(selectedRoles);
+            e.setSkills(displayed.stream().limit(12).toList());
+            e.setLearning(learning.stream().limit(8).toList());
+            e.setJobs(jobs);
+            e.setObservedSkills(observedSkills);
+            e.setGeography(geography);
+            e.getCoverage().setSampleSize(sampleSize);
+            e.getCoverage().setWithStructuredSkills(withSkills);
+            e.getCoverage().setReturnedJobs(jobs.size());
+            return e;
         }
-
-        private List<Map<String, Object>> searchRoles(String kind, String match, boolean alias) {
-            String column = "skill".equals(kind) ? "skills" : alias ? "aliases" : "title";
-            return s.index.queryForList("SELECT role_id,title,bm25(role_search,0,8,4,1,6) rank FROM role_search WHERE role_search MATCH ? ORDER BY rank LIMIT 12",
-                column + " : (" + match + ")");
-        }
-
-        private boolean isBlank(String v) { return v == null || v.isBlank(); }
-
-        private List<String> concat(List<String> a, List<String> b) {
-            List<String> out = new ArrayList<>(a == null ? List.of() : a);
-            out.addAll(b == null ? List.of() : b);
-            return out;
-        }
-
-        private final class RoleHit {
-            final String roleId;
-            final String title;
-            double score;
-            Double rank;
-            boolean named, hint, related;
-            List<String> matchedSkills = new ArrayList<>();
-            RoleHit(String roleId, String title) { this.roleId = roleId; this.title = title; }
-        }
-
-        private record JobStage(String where, List<Object> args, String scope, String name, boolean local) {}
     }
 }

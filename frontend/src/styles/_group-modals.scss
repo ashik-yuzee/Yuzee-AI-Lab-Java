@@ -1,0 +1,127 @@
+// Global styles for the "modals" component group, ported from the original app.
+// Owned by that group's port; see styles.scss for import order.
+//
+// Shared modal chrome (overlay / card / header / footer) repeated verbatim across the original's
+// SettingsModal, CareerContextModal, ContextInspectorModal, MemoryTimelineModal,
+// AnalyticsDashboardModal, ExportModal and BenchmarkModal. Declarations are copied from the
+// original's compiled Tailwind CSS. Per-modal differences (max-width, icon tint) live in each
+// component's own .scss.
+.mdl-overlay {
+  position: fixed;
+  inset: 0px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: color-mix(in oklab, var(--color-slate-900) 40%, transparent);
+  padding: calc(var(--spacing) * 4);
+  --tw-backdrop-blur: blur(var(--blur-xs));
+  -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+}
+.mdl-card {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-200);
+  background-color: var(--color-white);
+  --tw-shadow: 0 25px 50px -12px var(--tw-shadow-color, rgb(0 0 0 / 0.25));
+  box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+}
+.mdl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom-style: var(--tw-border-style);
+  border-bottom-width: 1px;
+  border-color: var(--color-slate-200);
+  background-color: var(--color-slate-50);
+  padding: calc(var(--spacing) * 4);
+}
+.mdl-header-left {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+}
+.mdl-icon-box {
+  border-radius: var(--radius-lg);
+  padding: calc(var(--spacing) * 2);
+}
+.mdl-icon-lg {
+  height: calc(var(--spacing) * 5);
+  width: calc(var(--spacing) * 5);
+}
+.mdl-title {
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  --tw-font-weight: var(--font-weight-bold);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-slate-900);
+}
+.mdl-subtitle {
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+  color: var(--color-slate-500);
+}
+.mdl-close {
+  border-radius: var(--radius-lg);
+  padding: calc(var(--spacing) * 1.5);
+  color: var(--color-slate-400);
+  @media (hover: hover) {
+    &:hover {
+      background-color: color-mix(in oklab, var(--color-slate-200) 60%, transparent);
+      color: var(--color-slate-700);
+    }
+  }
+}
+.mdl-footer {
+  display: flex;
+  align-items: center;
+  border-top-style: var(--tw-border-style);
+  border-top-width: 1px;
+  border-color: var(--color-slate-200);
+  background-color: var(--color-slate-50);
+  padding: calc(var(--spacing) * 4);
+}
+.mdl-btn-done {
+  border-radius: var(--radius-lg);
+  background-color: var(--color-slate-800);
+  padding-inline: calc(var(--spacing) * 4);
+  padding-block: calc(var(--spacing) * 2);
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-white);
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-slate-900);
+    }
+  }
+}
+.mdl-btn-outline {
+  cursor: pointer;
+  border-radius: var(--radius-lg);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-slate-300);
+  padding-inline: calc(var(--spacing) * 4);
+  padding-block: calc(var(--spacing) * 2);
+  font-size: var(--text-xs);
+  line-height: var(--tw-leading, var(--text-xs--line-height));
+  --tw-font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-slate-700);
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-slate-100);
+    }
+  }
+}
+.mdl-pointer {
+  cursor: pointer;
+}

@@ -63,8 +63,8 @@ public class PersistenceConfig {
 
     @Bean
     @ConditionalOnExpression(URL_BLANK)
-    public ConversationRepository fileConversationRepository(ObjectMapper mapper) {
-        return new FileConversationRepository(mapper);
+    public ConversationRepository fileConversationRepository() {
+        return new FileConversationRepository();
     }
 
     @Bean

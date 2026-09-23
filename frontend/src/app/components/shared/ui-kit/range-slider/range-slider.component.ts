@@ -1,16 +1,14 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 
-/** Port of AppleSlider.tsx — Bootstrap's native `.form-range` input plus the original's
- * label/value/min-max/helper text layout, restyled with custom SCSS. */
+/** 1:1 port of AppleSlider.tsx (value/onChange → [value]/(valueChange)). */
 @Component({
   selector: 'app-range-slider',
   standalone: true,
-  imports: [CommonModule],
   templateUrl: './range-slider.component.html',
   styleUrl: './range-slider.component.scss'
 })
-export class RangeSliderComponent {
+export class RangeSliderComponent implements AfterViewChecked {
+  @ViewChild('input', { static: true }) input!: ElementRef<HTMLInputElement>;
   @Input() id?: string;
   @Input({ required: true }) label!: string;
   @Input({ required: true }) value!: number;
@@ -27,22 +25,16 @@ export class RangeSliderComponent {
 
   get displayValue(): string {
     if (this.formatValue) return this.formatValue(this.value);
-    return this.value.toLocaleString() + (this.unit ? ` ${this.unit}` : '');
-  }
-
-  get minText(): string {
-    return this.minLabel ?? `${this.min}${this.unit}`;
-  }
-
-  get maxText(): string {
-    return this.maxLabel ?? `${this.max}${this.unit}`;
-  }
-
-  get hasFootRow(): boolean {
-    return !!(this.minLabel || this.maxLabel || this.helperText);
+    return `${this.value.toLocaleString()}${this.unit ? ` ${this.unit}` : ''}`;
   }
 
   onInput(e: Event): void {
     this.valueChange.emit(Number((e.target as HTMLInputElement).value));
+  }
+
+  /** Controlled like React's <input value>: the thumb snaps back to `value` until the parent changes it. */
+  ngAfterViewChecked(): void {
+    const el = this.input.nativeElement;
+    if (Number(el.value) !== this.value) el.value = String(this.value);
   }
 }

@@ -1,0 +1,301 @@
+@if (lab.isSettingsOpen()) {
+<div class="mdl-overlay">
+  <div id="settings-developer-modal" class="mdl-card set-card">
+    <!-- Header -->
+    <div class="mdl-header">
+      <div class="mdl-header-left">
+        <div class="mdl-icon-box set-icon-box">
+          <app-icon name="Settings" class="mdl-icon-lg" />
+        </div>
+        <div>
+          <h2 class="mdl-title">App Settings</h2>
+          <p class="mdl-subtitle">Storage, API status, and lab shortcuts</p>
+        </div>
+      </div>
+      <button (click)="close()" class="mdl-close" aria-label="Close">
+        <app-icon name="X" class="mdl-icon-lg" />
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="set-body">
+
+      <!-- API & Runtime Status -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="Wifi" class="set-head-icon" />
+          <span class="set-head-label">Connection &amp; Runtime</span>
+        </div>
+        <div class="set-status-box">
+          <div class="set-row">
+            <span class="set-key">Gemini API Key</span>
+            @if (lab.capabilities()?.geminiApiKeyPresent) {
+              <span class="set-ok"><app-icon name="ShieldCheck" class="set-icon-sm" /> Connected</span>
+            } @else {
+              <span class="set-warn"><app-icon name="Info" class="set-icon-sm" /> Not configured</span>
+            }
+          </div>
+          <div class="set-row">
+            <span class="set-key">Runtime</span>
+            <span class="set-mono-medium">{{ lab.capabilities()?.runtime || 'preview-adapter' }}</span>
+          </div>
+          <div class="set-row">
+            <span class="set-key">Context Caching</span>
+            <span class="set-cache" [class.is-on]="lab.capabilities()?.supportsExplicitCache" [class.is-off]="!lab.capabilities()?.supportsExplicitCache">
+              {{ lab.capabilities()?.supportsExplicitCache ? 'Enabled' : 'Disabled' }}
+            </span>
+          </div>
+          @if (!lab.capabilities()?.geminiApiKeyPresent) {
+            <p class="set-key-warning">
+              Set <code class="set-code-mono">GEMINI_API_KEY</code> in your <code>.env</code> file and restart the server to enable live Gemini calls.
+            </p>
+          }
+        </div>
+      </div>
+
+      <!-- Appearance -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="Type" class="set-head-icon" />
+          <span class="set-head-label">Appearance</span>
+        </div>
+        <div class="set-box-row">
+          <div>
+            <p class="set-pref-title">Font</p>
+            <p class="set-pref-sub">System font or Open Sans</p>
+          </div>
+          <div class="set-font-seg">
+            <button (click)="fontPref() !== 'system' && toggleFont()" class="set-font-btn" [class.is-on]="fontPref() === 'system'" [class.is-off]="fontPref() !== 'system'">
+              System
+            </button>
+            <button (click)="fontPref() !== 'open-sans' && toggleFont()" class="set-font-btn" [class.is-on]="fontPref() === 'open-sans'" [class.is-off]="fontPref() !== 'open-sans'">
+              Open Sans
+            </button>
+          </div>
+        </div>
+
+        <!-- Accent color -->
+        <div class="set-box">
+          <div class="set-accent-head">
+            <div>
+              <p class="set-pref-title">Accent color</p>
+              <p class="set-pref-sub">Used for buttons, links, and highlights</p>
+            </div>
+            <span class="set-accent-current" [style.background-color]="accent()"></span>
+          </div>
+          <div class="set-accent-list">
+            @for (p of accentPresets; track p.value) {
+              <button
+                (click)="applyAccent(p.value)"
+                [title]="p.name"
+                class="set-accent-preset"
+                [style.background-color]="p.value"
+                [style.border-color]="accent() === p.value ? '#0d0d0d' : 'transparent'"
+                [style.box-shadow]="accent() === p.value ? '0 0 0 1px #0d0d0d' : 'none'"
+              ></button>
+            }
+            <!-- Custom hex input -->
+            <input
+              type="color"
+              [value]="accent()"
+              (input)="onCustomAccent($event)"
+              class="set-accent-custom"
+              title="Custom color"
+              style="padding: 0"
+            />
+          </div>
+        </div>
+      </div>
+
+      <app-router-model-selector />
+
+      <!-- Local Data Storage -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="Database" class="set-head-icon" />
+          <span class="set-head-label">Local Data Storage</span>
+        </div>
+        <div class="set-box-row">
+          <div class="set-local-text">
+            <div>
+              <span class="set-strong">{{ lab.localStorageStats().conversationCount }}</span>{{ ' ' }}conversation{{ lab.localStorageStats().conversationCount !== 1 ? 's' : '' }} stored locally
+            </div>
+            <div class="set-muted">{{ storageSize }} · survives page refresh &amp; server restarts</div>
+          </div>
+          @if (cleared()) {
+            <span class="set-cleared"><app-icon name="Check" class="set-icon-sm" /> Cleared</span>
+          } @else {
+            @if (clearConfirm()) {
+              <div class="set-confirm">
+                <span class="set-confirm-q">Delete all?</span>
+                <button (click)="handleClear()" class="set-yes">Yes</button>
+                <button (click)="clearConfirm.set(false)" class="set-no">No</button>
+              </div>
+            } @else {
+              <button (click)="clearConfirm.set(true)" class="set-clear-btn">
+                <app-icon name="Trash2" class="set-icon-xs" /> Clear
+              </button>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Export Telemetry -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="Download" class="set-head-icon" />
+          <span class="set-head-label">Export Data</span>
+        </div>
+        <div class="set-box-row">
+          <div class="set-local-text">
+            <div class="set-strong">Conversation logs &amp; token metrics</div>
+            <div class="set-muted">JSON (full telemetry) or CSV (per-turn spreadsheet)</div>
+          </div>
+          <button (click)="openExportModal()" class="set-export-btn">
+            <app-icon name="Download" class="set-icon-xs" /> Export
+          </button>
+        </div>
+      </div>
+
+      <!-- Lifetime Consumption — non-resettable -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="BarChart3" class="set-head-icon is-violet" />
+          <span class="set-head-label">Lifetime Token Consumption</span>
+          <span class="set-head-aside">cannot be reset</span>
+        </div>
+        <div class="set-life-box">
+          @if (lifetime(); as lt) {
+            <!-- Chat stats -->
+            <div class="set-life-group">Chat</div>
+            <div class="set-row">
+              <span class="set-key">API calls</span>
+              <span class="set-val">{{ lt.calls.toLocaleString() }}</span>
+            </div>
+            <div class="set-row">
+              <span class="set-key">Input tokens</span>
+              <span class="set-val">{{ k(lt.inputTokens) }}k</span>
+            </div>
+            <div class="set-row">
+              <span class="set-key">Cached reads</span>
+              <span class="set-val is-emerald">{{ k(lt.cachedTokens) }}k</span>
+            </div>
+            <div class="set-row">
+              <span class="set-key">Output tokens</span>
+              <span class="set-val">{{ k(lt.outputTokens) }}k</span>
+            </div>
+            @if (lt.thinkingTokens > 0) {
+              <div class="set-row">
+                <span class="set-key">Thinking tokens</span>
+                <span class="set-val is-indigo">{{ k(lt.thinkingTokens) }}k</span>
+              </div>
+            }
+            <div class="set-cost-row">
+              <span class="set-cost-key">Chat cost</span>
+              <span class="set-cost-val">{{ formatCost(lt.costUsd) }}</span>
+            </div>
+
+            <!-- Whiteboard / Pathway stats -->
+            @if (lt.whiteboard; as wb) {
+              <div class="set-life-group is-spaced">Pathway / Whiteboard</div>
+              <div class="set-row">
+                <span class="set-key">API calls</span>
+                <span class="set-val">{{ wb.calls.toLocaleString() }}</span>
+              </div>
+              <div class="set-row">
+                <span class="set-key">Input tokens</span>
+                <span class="set-val">{{ k(wb.inputTokens) }}k</span>
+              </div>
+              <div class="set-row">
+                <span class="set-key">Output tokens</span>
+                <span class="set-val">{{ k(wb.outputTokens) }}k</span>
+              </div>
+              <div class="set-row">
+                <span class="set-key">Whiteboard cost</span>
+                <span class="set-val is-violet">{{ formatCost(wb.costUsd) }}</span>
+              </div>
+            }
+
+            <!-- Combined total -->
+            <div class="set-total-row">
+              <span class="set-total-key">Total lifetime cost</span>
+              <span class="set-total-val">{{ formatCost(lt.costUsd + (lt.whiteboard?.costUsd ?? 0)) }}</span>
+            </div>
+          } @else {
+            <div class="set-loading">Loading…</div>
+          }
+        </div>
+      </div>
+
+      <!-- Master Prompt Viewer -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="FileText" class="set-head-icon" />
+          <span class="set-head-label">Master Prompt</span>
+        </div>
+        <div class="set-prompt-box">
+          <!-- Header row — always visible -->
+          <div class="set-prompt-head">
+            <div class="set-prompt-meta">
+              <div class="set-prompt-file">{{ promptData()?.filename ?? 'loading…' }}</div>
+              <div class="set-prompt-path">{{ promptData()?.filepath ?? '' }}</div>
+              @if (promptData(); as pd) {
+                <div class="set-prompt-info">
+                  {{ (pd.bytes / 1024).toFixed(1) }} KB · SHA256:{{ ' ' }}<span class="set-code-mono">{{ pd.hash.slice(0, 12) }}…</span>
+                </div>
+              }
+            </div>
+            <div class="set-prompt-actions">
+              <button (click)="copyPrompt()" [disabled]="!promptData()" class="set-prompt-btn">
+                @if (promptCopied()) {
+                  <app-icon name="Check" class="set-icon-xs set-icon-ok" />
+                } @else {
+                  <app-icon name="Copy" class="set-icon-xs" />
+                }
+                {{ promptCopied() ? 'Copied' : 'Copy' }}
+              </button>
+              <button (click)="promptOpen.set(!promptOpen())" [disabled]="!promptData()" class="set-prompt-btn">
+                <app-icon [name]="promptOpen() ? 'ChevronUp' : 'ChevronDown'" class="set-icon-xs" />
+                {{ promptOpen() ? 'Hide' : 'View' }}
+              </button>
+            </div>
+          </div>
+          <!-- Collapsible content -->
+          @if (promptOpen() && promptData()) {
+            <div class="set-prompt-content">
+              <pre class="set-prompt-pre">{{ promptData()!.content }}</pre>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Lab Shortcuts -->
+      <div class="set-section">
+        <div class="set-section-head">
+          <app-icon name="FlaskConical" class="set-head-icon is-indigo" />
+          <span class="set-head-label">Advanced Lab Shortcuts</span>
+        </div>
+        <p class="set-lab-note">
+          AI model configuration (strategy, thinking, budget, prompts) lives in the Lab to keep it all in one place.
+        </p>
+        <div class="set-lab-grid">
+          @for (s of labShortcuts; track s.tab) {
+            <button (click)="openLabTab(s.tab)" class="set-lab-btn group">
+              <div class="set-lab-label">{{ s.label }}</div>
+              <div class="set-lab-desc">{{ s.desc }}</div>
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="mdl-footer set-footer">
+      <div class="set-footer-note">
+        AI config lives in <span class="set-footer-link">Lab →</span>
+      </div>
+      <button (click)="close()" class="mdl-btn-outline">Close</button>
+    </div>
+  </div>
+</div>
+}

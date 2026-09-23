@@ -1,64 +1,31 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, computed, signal } from '@angular/core';
 
-/** Port of ChatTurnDivider.tsx — pure-presentational date/time divider between message groups. */
+/** Port of ChatTurnDivider.tsx. */
 @Component({
   selector: 'app-chat-turn-divider',
   standalone: true,
-  imports: [CommonModule],
-  template: `
-    <div class="chat-turn-divider" data-chat-turn-divider>
-      @if (valid) {
-        <time [attr.datetime]="isoString" [attr.title]="titleString">{{ day }} {{ time }}</time>
-      } @else {
-        <span>New exchange</span>
-      }
-    </div>
-  `,
-  styles: [`
-    .chat-turn-divider { margin-bottom: 24px; text-align: center; font-size: 13px; line-height: 24px; color: #718096; }
-  `]
+  templateUrl: './chat-turn-divider.component.html',
+  styleUrl: './chat-turn-divider.component.scss'
 })
 export class ChatTurnDividerComponent {
-  @Input() createdAt?: number;
+  private readonly createdAtValue = signal<number | undefined>(undefined);
+  @Input() set createdAt(value: number | undefined) { this.createdAtValue.set(value); }
 
-  private get date(): Date | null {
-    return typeof this.createdAt === 'number' && Number.isFinite(this.createdAt) && this.createdAt > 0
-      ? new Date(this.createdAt)
-      : null;
-  }
+  readonly date = computed(() => {
+    const createdAt = this.createdAtValue();
+    const date = typeof createdAt === 'number' && Number.isFinite(createdAt) && createdAt > 0 ? new Date(createdAt) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  });
 
-  get valid(): boolean {
-    const d = this.date;
-    return !!d && !Number.isNaN(d.getTime());
-  }
-
-  get day(): string {
-    const d = this.date;
-    if (!d || !this.valid) return '';
-    const now = new Date();
-    const yesterday = new Date(now);
+  readonly day = computed(() => {
+    const date = this.date();
+    if (!date) return '';
+    const now = new Date(), yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
-    if (d.toDateString() === now.toDateString()) return 'Today';
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString('en-AU', {
-      day: 'numeric',
-      month: 'short',
-      ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {})
-    });
-  }
+    return date.toDateString() === now.toDateString() ? 'Today'
+      : date.toDateString() === yesterday.toDateString() ? 'Yesterday'
+      : date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}) });
+  });
 
-  get time(): string {
-    const d = this.date;
-    if (!d || !this.valid) return '';
-    return d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
-  }
-
-  get isoString(): string {
-    return this.date?.toISOString() ?? '';
-  }
-
-  get titleString(): string {
-    return this.date?.toLocaleString() ?? '';
-  }
+  readonly time = computed(() => this.date()?.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase() ?? '');
 }

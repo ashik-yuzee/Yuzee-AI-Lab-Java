@@ -8,8 +8,7 @@ import java.util.Map;
  * old Node app's db.ts.
  * <p>
  * Two implementations wired in config.PersistenceConfig: JdbcConversationLogService (Postgres)
- * and FileConversationLogService (a local append-only JSON-lines log, used when there is no DB —
- * the old app simply dropped turn logs when DATABASE_URL was unset; this port keeps them instead).
+ * and FileConversationLogService (no DB: turn logs are dropped, as in the original).
  */
 public interface ConversationLogService {
 

@@ -1,17 +1,23 @@
-<div class="btn-group segmented-control" role="tablist" [class.segmented-control-sm]="size === 'sm'">
+<div role="tablist" class="seg" [class]="className">
   @for (opt of options; track opt.id) {
-    <input
-      type="radio"
-      class="btn-check"
-      [id]="controlId + '-' + opt.id"
-      [name]="controlId"
-      autocomplete="off"
-      [checked]="opt.id === value"
-      (change)="select(opt.id)" />
-    <label class="segmented-control-btn" [for]="controlId + '-' + opt.id" role="tab" [attr.aria-selected]="opt.id === value">
-      @if (opt.icon) { <i class="segmented-control-icon {{ opt.icon }}" aria-hidden="true"></i> }
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="opt.id === value"
+      (click)="valueChange.emit(opt.id)"
+      class="seg-btn"
+      [class.is-sm]="size === 'sm'"
+      [class.is-md]="size !== 'sm'"
+      [class.is-selected]="opt.id === value"
+      [class.is-unselected]="opt.id !== value"
+    >
+      @if (opt.icon) {
+        <app-icon [name]="opt.icon" class="seg-icon" [class.is-selected]="opt.id === value" [class.is-unselected]="opt.id !== value" />
+      }
       <span>{{ opt.label }}</span>
-      @if (opt.badge) { <span class="segmented-control-badge">{{ opt.badge }}</span> }
-    </label>
+      @if (opt.badge) {
+        <span class="seg-badge" [class.is-selected]="opt.id === value" [class.is-unselected]="opt.id !== value">{{ opt.badge }}</span>
+      }
+    </button>
   }
 </div>

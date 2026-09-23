@@ -1,45 +1,47 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RoutingService } from '../../../services/routing.service';
+import { Component, OnDestroy, signal } from '@angular/core';
+import { RouterStatus, RoutingService, RUNTIME_ROUTER_MODELS } from '../../../services/routing.service';
 
-type RoutingStatus = 'idle' | 'loading' | 'ready' | 'error';
+let nextId = 0;
 
-/**
- * Port of RouterModelSelector.tsx (yuzee-ai-token-lab/src/components/RouterModelSelector.tsx).
- *
- * The old component let users pick between multiple router models (RUNTIME_ROUTER_MODELS:
- * a local BGE-small embedder + a Cloudflare LLM fallback), persisted via
- * getRouterModel/setRouterModel (routing/models.ts + services/MicroToolRouter.ts).
- *
- * This app's RoutingService (frontend/src/app/services/routing.service.ts) does not carry that
- * concept forward: it always tries one hardcoded local embedding model first (internally
- * 'Xenova/bge-small-en-v1.5', matching the old default) and automatically falls back to a
- * server-side Cloudflare LLM call when the in-browser worker is unavailable — there is no
- * setRouterModel()/getRouterModel() equivalent to wire a picker to. Building a dropdown that
- * looks like it switches models, but calls nothing real, would be exactly the fake control this
- * port is meant to avoid. So instead this surfaces the real, read-only state RoutingService does
- * expose — which model is in play, whether it's ready — plus the one real action it exposes,
- * `startWarmup()`, as a retry button when the local model failed to load.
- */
+/** 1:1 port of RouterModelSelector.tsx. */
 @Component({
   selector: 'app-router-model-selector',
   standalone: true,
-  imports: [CommonModule],
   templateUrl: './router-model-selector.component.html',
   styleUrl: './router-model-selector.component.scss'
 })
-export class RouterModelSelectorComponent {
-  constructor(public routing: RoutingService) {}
+export class RouterModelSelectorComponent implements OnDestroy {
+  readonly id = `router-model-${nextId++}`;
+  readonly models: readonly { id: string; label: string; tokenBudget?: number; description: string }[] = RUNTIME_ROUTER_MODELS;
+  selected = signal('');
+  status = signal<RouterStatus>('idle');
+  private readonly unsubscribe: () => void;
 
-  readonly statusText: Record<RoutingStatus, string> = {
-    idle: 'Loads when guidance starts.',
-    loading: 'Preparing local routing model…',
-    ready: 'Ready.',
-    error: 'Local model unavailable — falls back to server-side routing. Chat remains available.'
-  };
+  constructor(private routing: RoutingService) {
+    this.selected.set(routing.getRouterModel());
+    this.status.set(routing.status());
+    this.unsubscribe = routing.onRouterStatus(value => { this.status.set(value); this.selected.set(routing.getRouterModel()); });
+  }
 
-  get status(): RoutingStatus {
-    return this.routing.status();
+  ngOnDestroy(): void { this.unsubscribe(); }
+
+  /** routerModel(): only the ONNX list is searched, so the Cloudflare entry falls back to BGE-small's text (as in the original). */
+  get description(): string {
+    return RUNTIME_ROUTER_MODELS[0].description;
+  }
+
+  get statusText(): string {
+    const s = this.status();
+    return s === 'ready' ? 'Ready'
+      : s === 'loading' ? 'Preparing selected model…'
+      : s === 'unavailable' ? 'Model unavailable. Chat remains available.'
+      : 'Loads when guidance starts.';
+  }
+
+  onSelect(e: Event): void {
+    const el = e.target as HTMLSelectElement;
+    this.routing.setRouterModel(el.value);
+    el.value = this.selected(); // controlled <select value>
   }
 
   retry(): void {

@@ -1,222 +1,248 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { TokenLabService } from '../../../services/token-lab.service';
+import { Conversation, OptimizationStrategy, ResponseMode, ThinkingLevel } from '../../../models/types';
+import { IconComponent } from '../../shared/icon/icon.component';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { RouterModelSelectorComponent } from '../../shared/router-model-selector/router-model-selector.component';
-import { OptimizationStrategy, ResponseMode } from '../../../models/types';
+import { RangeSliderComponent } from '../../shared/ui-kit/range-slider/range-slider.component';
+import { ToggleSwitchComponent } from '../../shared/ui-kit/toggle-switch/toggle-switch.component';
 
-type LabTab = 'memory' | 'prompt' | 'routing' | 'benchmark' | 'analytics';
+/** Mirrors the original's StructuredMemoryCapsule. */
+interface StructuredMemoryCapsule { facts: string; goals: string; constraints: string; decisions: string; openThreads: string; }
 
-interface StrategyOption { id: OptimizationStrategy; title: string; desc: string; }
-interface ResponseModeOption { id: ResponseMode; label: string; desc: string; }
-interface SystemPromptInfo { version: string; hash: string; byteSize: number; label: string; }
+/** Per-conversation settings the original Conversation carries; not (yet) on models/types.ts Conversation. */
+interface LabConversation extends Omit<Conversation, 'careerContext' | 'createdAt' | 'updatedAt' | 'messages'> {
+  careerContext?: StructuredMemoryCapsule;
+  useInteractionsApi?: boolean;
+  useFlashLiteUtility?: boolean;
+  usePathwayRag?: boolean;
+}
 
-/**
- * Port of AdvancedLabModal.tsx (yuzee-ai-token-lab/src/components/AdvancedLabModal.tsx, 923
- * lines), rebuilt against what the Java backend actually persists/exposes rather than the old
- * app's full field set. See this component's ngOnInit-adjacent methods and the file-level report
- * for exactly what was kept, dropped, or turned into a read-only note, and why:
- *
- * - Kept as real, working controls: `strategy` and `responseMode` (Conversation fields, PUT
- *   /api/conversations/{id}), reset-memory (POST .../reset-memory), system-prompt metadata +
- *   reload (GET /api/system-prompt, POST /api/system-prompt/reload), session stats + reset
- *   (TokenLabService.sessionStats / resetSessionStats()), and the router model status (via
- *   RouterModelSelectorComponent).
- * - Dropped entirely (no backend field, and a fake control would be worse than no control):
- *   contextBudget / recentTurnsToKeep sliders, thinkingLevel picker (server picks this per-turn —
- *   see the read-only note in the memory tab instead), structured memory capsule editor (this
- *   app already has a dedicated Career Context modal for that), useInteractionsApi /
- *   useFlashLiteUtility toggles, and the old inline benchmark tab (this app already has a
- *   dedicated Benchmark modal — see `openBenchmark`).
- * - Simplified: the old "View Prompt" content viewer is gone because
- *   SystemPromptService.getInfo() only returns version/hash/byteSize/label, never the prompt
- *   text — there is no endpoint to fetch it from.
- */
+// prompts/quizPrompt.ts QUIZ_PROMPT_VERSION in the original.
+const QUIZ_PROMPT_VERSION = '1.11';
+// data/models.ts: GEMINI_MODELS.filter(m => m.selectable).map(m => m.id) in the original.
+const SELECTABLE_MODEL_IDS = [
+  'gemini-3.7-flash', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash',
+  'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'
+];
+const DEFAULT_MODEL_ID = 'gemini-3.7-flash';
+const EMPTY_CAPSULE: StructuredMemoryCapsule = { facts: '', goals: '', constraints: '', decisions: '', openThreads: '' };
+const BENCHMARK_STRATEGIES = ['BASELINE', 'SUMMARY_RECENT', 'ADAPTIVE_HYBRID', 'SEMANTIC_EVIDENCE'] as const;
+
+/** 1:1 port of yuzee-ai-token-lab/src/components/AdvancedLabModal.tsx. */
 @Component({
   selector: 'app-advanced-lab-modal',
   standalone: true,
-  imports: [CommonModule, ConfirmDialogComponent, RouterModelSelectorComponent],
+  imports: [IconComponent, ConfirmDialogComponent, RouterModelSelectorComponent, RangeSliderComponent, ToggleSwitchComponent],
   templateUrl: './advanced-lab-modal.component.html',
   styleUrl: './advanced-lab-modal.component.scss'
 })
 export class AdvancedLabModalComponent implements OnChanges {
   @Input() open = false;
-  @Input() conversationId: string | null = null;
-  @Input() modelId = 'gemini-3.6-flash';
-
   @Output() closed = new EventEmitter<void>();
-  /** Integration point: this modal has no benchmark logic of its own — the parent should open
-   *  the existing BenchmarkModalComponent when this fires. */
-  @Output() openBenchmark = new EventEmitter<void>();
 
-  readonly tabs: { id: LabTab; label: string }[] = [
-    { id: 'memory', label: 'Strategy & Memory' },
-    { id: 'prompt', label: 'Prompt & Response' },
-    { id: 'routing', label: 'Routing' },
-    { id: 'benchmark', label: 'Benchmark' },
-    { id: 'analytics', label: 'Session Analytics' }
+  readonly quizPromptVersion = QUIZ_PROMPT_VERSION;
+  readonly modelIds = SELECTABLE_MODEL_IDS;
+  readonly benchmarkStrategyIds = BENCHMARK_STRATEGIES;
+
+  readonly navTabs = [
+    { id: 'context', label: 'Context & Memory', icon: 'Layers' },
+    { id: 'reasoning', label: 'Thinking & Reasoning', icon: 'Brain' },
+    { id: 'prompt', label: 'Prompt & Response', icon: 'FileText' },
+    { id: 'generation', label: 'Generation Parameters', icon: 'Wand2' },
+    { id: 'optimization', label: 'Optimization & Economics', icon: 'Sliders' },
+    { id: 'benchmark', label: 'Benchmark Matrix', icon: 'Play' },
+    { id: 'analytics', label: 'Session Analytics', icon: 'BarChart3' }
   ];
 
-  activeTab = signal<LabTab>('memory');
-
-  readonly strategies: StrategyOption[] = [
+  readonly strategies = [
     { id: 'ADAPTIVE_HYBRID', title: 'Adaptive Hybrid (Recommended)', desc: 'Prioritized budget + stable prefix caching + incremental compaction.' },
-    { id: 'SEMANTIC_EVIDENCE', title: 'Semantic Evidence (Experimental)', desc: 'Episodic memory with typed temporal records; retrieves relevant evidence instead of compacting.' },
-    { id: 'SUMMARY_RECENT', title: 'Summary + Recent Turns', desc: 'Compacts older turns into a semantic summary while retaining the most recent turns.' },
-    { id: 'SLIDING_WINDOW', title: 'Sliding Window', desc: 'Keeps only the most recent turns within a fixed window; older turns are dropped, not summarized.' },
-    { id: 'BASELINE', title: 'Baseline (Full History)', desc: 'Sends the full historical transcript without compaction (unbounded token growth).' }
+    { id: 'SEMANTIC_EVIDENCE', title: 'Semantic Evidence (Experimental)', desc: 'Episodic memory with typed temporal records. Retrieves relevant evidence from past episodes instead of compacting.' },
+    { id: 'SUMMARY_RECENT', title: 'Summary + Recent Turns', desc: 'Compacts older turns into a semantic summary while retaining last N turns.' },
+    { id: 'BASELINE', title: 'Baseline (Full History)', desc: 'Sends full historical transcript without compaction (unbounded token growth).' }
   ];
 
-  readonly responseModes: ResponseModeOption[] = [
+  readonly capsuleFields: { key: keyof StructuredMemoryCapsule; label: string; placeholder: string }[] = [
+    { key: 'facts', label: 'Facts & Background', placeholder: 'e.g. 2 years IT support, Linux CLI, CompTIA Network+' },
+    { key: 'goals', label: 'Target Roles & Goals', placeholder: 'e.g. Junior SOC Analyst within 6-9 months' },
+    { key: 'constraints', label: 'Constraints (Budget & Time)', placeholder: 'e.g. Under $1,000 learning budget, 12 hrs/week' },
+    { key: 'decisions', label: 'Agreed Decisions', placeholder: 'e.g. Prioritizing CompTIA Security+ over CySA+ first' },
+    { key: 'openThreads', label: 'Open Threads & Questions', placeholder: 'e.g. Evaluating TryHackMe SOC Level 1 vs BTL1' }
+  ];
+
+  readonly thinkingLevels = [
+    { id: 'minimal', label: 'Minimal', tokens: '0 tokens', desc: 'Direct response' },
+    { id: 'low', label: 'Low', tokens: '128 tokens', desc: 'Light validation' },
+    { id: 'medium', label: 'Medium', tokens: '512 tokens', desc: 'Structured trade-offs' },
+    { id: 'high', label: 'High', tokens: '1,024 tokens', desc: 'Deep multi-step logic' },
+    { id: 'adaptive', label: 'Adaptive (Auto)', tokens: 'Dynamic', desc: 'Zero-cost classifier' }
+  ];
+
+  readonly responseModes = [
     { id: 'standard', label: 'Standard', desc: 'Balanced steps & advice' },
     { id: 'quick', label: 'Quick / Concise', desc: 'High-density bullet points' },
     { id: 'explain', label: 'Explain Deeply', desc: 'Prerequisites & concepts' },
     { id: 'explore', label: 'Explore Paths', desc: 'Comparative pathways' },
-    { id: 'detail', label: 'Detail', desc: 'Longer, more thorough responses' },
     { id: 'decide', label: 'Decision Matrix', desc: 'Pros, cons & costs' },
-    { id: 'vanilla', label: 'Vanilla', desc: 'No cap — AI Studio parity' }
+    { id: 'vanilla', label: 'Vanilla', desc: 'No cap — 8192 tokens, AI Studio parity' }
   ];
 
-  conversation = computed(() => this.lab.conversations().find(c => c.id === this.conversationId) ?? null);
-  sessionStats: TokenLabService['sessionStats'];
+  // Local state (same names/defaults as the original's useState hooks)
+  benchmarkPrompt = signal('Help me transition into cybersecurity and build a 6-month study roadmap.');
+  benchmarkResults = signal<any[] | null>(null);
+  isBenchmarking = signal(false);
+  isResetMemoryConfirmOpen = signal(false);
+  isResetStatsConfirmOpen = signal(false);
+  benchmarkModel = signal('');
+  benchmarkStrategies = signal<string[]>([...BENCHMARK_STRATEGIES]);
+  benchmarkIsLive = signal(false);
+  defaultPromptContent = signal('');
+  showPromptContent = signal(false);
+  isReloadingPrompt = signal(false);
+  reloadPromptStatus = signal<string | null>(null);
 
-  savingStrategy = signal(false);
-  savingResponseMode = signal(false);
+  /** `conv` in the original: currentConversation or this exact defaults object. */
+  conv = computed<LabConversation>(() => (this.lab.currentConversation() as LabConversation | null) ?? {
+    id: 'default',
+    title: 'Career Exploration',
+    model: DEFAULT_MODEL_ID,
+    strategy: 'ADAPTIVE_HYBRID',
+    contextBudget: 270000,
+    recentTurnsToKeep: 100,
+    thinkingLevel: 'adaptive',
+    responseMode: 'standard',
+    careerContext: { ...EMPTY_CAPSULE },
+    systemPromptMode: 'default',
+    useInteractionsApi: false,
+    useFlashLiteUtility: true,
+    temperature: undefined,
+    topP: undefined,
+    maxOutputTokens: undefined,
+    useMultiTurn: true,
+    useStructuredOutput: false,
+    usePathwayRag: false,
+  });
+  currentCapsule = computed<StructuredMemoryCapsule>(() => this.conv().careerContext || EMPTY_CAPSULE);
 
-  promptInfo = signal<SystemPromptInfo | null>(null);
-  loadingPromptInfo = signal(false);
-  reloadingPrompt = signal(false);
-  reloadStatus = signal<string | null>(null);
-  reloadStatusIsError = signal(false);
+  constructor(private api: ApiService, public lab: TokenLabService) {}
 
-  resetMemoryConfirmOpen = signal(false);
-  resettingMemory = signal(false);
-  resetMemoryStatus = signal<string | null>(null);
-
-  resetStatsConfirmOpen = signal(false);
-
-  constructor(private api: ApiService, public lab: TokenLabService) {
-    this.sessionStats = this.lab.sessionStats;
-  }
-
+  /** Original useEffect([isAdvancedLabOpen, defaultPromptContent]): fetch the prompt once per open until loaded. */
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['open'] && this.open) {
-      this.loadPromptInfo();
-      this.lab.loadSessionStats();
-    }
+    if (changes['open'] && this.open && !this.defaultPromptContent()) this.fetchSystemPrompt();
   }
 
-  setActiveTab(tab: LabTab): void {
-    this.activeTab.set(tab);
+  // ---- context-backed state/actions ----
+
+  activeLabTab(): string { return this.lab.activeLabTab(); }
+
+  effectiveTab(): string {
+    const t = this.activeLabTab();
+    return this.navTabs.some(n => n.id === t) ? t : 'context';
   }
+
+  setActiveLabTab(id: string): void { this.lab.activeLabTab.set(id); }
+
+  sharedSettings() { return this.lab.sharedSettings(); }
+
+  updateSharedSettings(patch: Parameters<TokenLabService['updateSharedSettings']>[0]): Promise<void> {
+    return this.lab.updateSharedSettings(patch);
+  }
+
+  updateCurrentConversationSettings(updates: Partial<LabConversation>): Promise<void> {
+    return this.lab.updateCurrentConversationSettings(updates as Partial<Conversation>);
+  }
+
+  // ---- handlers ----
 
   close(): void {
+    this.lab.isAdvancedLabOpen.set(false);
     this.closed.emit();
   }
 
-  triggerBenchmark(): void {
-    this.openBenchmark.emit();
-    this.closed.emit();
+  handleCareerFieldChange(field: keyof StructuredMemoryCapsule, value: string): void {
+    this.updateCurrentConversationSettings({ careerContext: { ...(this.conv().careerContext || EMPTY_CAPSULE), [field]: value } });
   }
 
-  async selectStrategy(id: OptimizationStrategy): Promise<void> {
-    const conv = this.conversation();
-    if (!conv || conv.strategy === id || this.savingStrategy()) return;
-    this.savingStrategy.set(true);
-    try {
-      await firstValueFrom(this.api.put(`/conversations/${conv.id}`, { strategy: id }));
-      this.lab.conversations.update(cs => cs.map(c => c.id === conv.id ? { ...c, strategy: id } : c));
-    } finally {
-      this.savingStrategy.set(false);
-    }
-  }
+  inputValue(e: Event): string { return (e.target as HTMLInputElement).value; }
 
-  async selectResponseMode(id: ResponseMode): Promise<void> {
-    const conv = this.conversation();
-    if (!conv || conv.responseMode === id || this.savingResponseMode()) return;
-    this.savingResponseMode.set(true);
-    try {
-      await firstValueFrom(this.api.put(`/conversations/${conv.id}`, { responseMode: id }));
-      this.lab.conversations.update(cs => cs.map(c => c.id === conv.id ? { ...c, responseMode: id } : c));
-    } finally {
-      this.savingResponseMode.set(false);
-    }
-  }
-
-  async loadPromptInfo(): Promise<void> {
-    this.loadingPromptInfo.set(true);
-    try {
-      const info = await firstValueFrom(this.api.get<SystemPromptInfo>('/system-prompt'));
-      this.promptInfo.set(info);
-    } catch {
-      this.promptInfo.set(null);
-    } finally {
-      this.loadingPromptInfo.set(false);
-    }
+  private fetchSystemPrompt(): void {
+    firstValueFrom(this.api.get<{ content: string }>('/system-prompt'))
+      .then(r => this.defaultPromptContent.set(r.content)).catch(() => {});
   }
 
   async reloadPrompt(): Promise<void> {
-    if (this.reloadingPrompt()) return;
-    this.reloadingPrompt.set(true);
-    this.reloadStatus.set(null);
+    this.isReloadingPrompt.set(true);
+    this.reloadPromptStatus.set(null);
     try {
-      await firstValueFrom(this.api.post('/system-prompt/reload'));
-      await this.loadPromptInfo();
-      this.reloadStatusIsError.set(false);
-      const info = this.promptInfo();
-      this.reloadStatus.set(info ? `Reloaded — v${info.version} · ${info.hash}` : 'Reloaded.');
-    } catch {
-      this.reloadStatusIsError.set(true);
-      this.reloadStatus.set('Reload failed.');
+      const r = await firstValueFrom(this.api.post<{ ok: boolean; hash: string; bytes: number }>('/system-prompt/reload', null))
+        .catch((e: any) => { throw new Error(`Failed to reload prompt: ${e?.status}`); });
+      const hadContent = !!this.defaultPromptContent();
+      this.defaultPromptContent.set('');
+      this.fetchSystemPrompt();
+      // The original's [isAdvancedLabOpen, defaultPromptContent] effect re-fires when the content changes to '': a second GET.
+      if (hadContent) this.fetchSystemPrompt();
+      this.reloadPromptStatus.set(`Reloaded — ${(r.bytes / 1024).toFixed(1)} KB · ${r.hash.slice(0, 8)}`);
+    } catch (e: any) {
+      this.reloadPromptStatus.set(`Error: ${e.message}`);
     } finally {
-      this.reloadingPrompt.set(false);
+      this.isReloadingPrompt.set(false);
     }
   }
 
-  openResetMemoryConfirm(): void {
-    if (!this.conversation()) return;
-    this.resetMemoryConfirmOpen.set(true);
+  toggleBenchmarkStrategy(s: string, checked: boolean): void {
+    this.benchmarkStrategies.update(prev => checked ? [...prev, s] : prev.filter(x => x !== s));
   }
 
-  async confirmResetMemory(): Promise<void> {
-    const conv = this.conversation();
-    this.resetMemoryConfirmOpen.set(false);
-    if (!conv) return;
-    this.resettingMemory.set(true);
-    this.resetMemoryStatus.set(null);
+  async runBenchmarkTest(): Promise<void> {
     try {
-      await firstValueFrom(this.api.post(`/conversations/${conv.id}/reset-memory`));
-      this.lab.conversations.update(cs => cs.map(c => c.id === conv.id ? { ...c, summaryText: undefined } : c));
-      this.resetMemoryStatus.set('Memory reset.');
-    } catch {
-      this.resetMemoryStatus.set('Reset failed.');
+      this.isBenchmarking.set(true);
+      const res = await firstValueFrom(this.api.post<{ results: any[] }>('/benchmark', {
+        conversationId: this.conv().id,
+        prompt: this.benchmarkPrompt(),
+        model: this.benchmarkModel() || this.conv().model,
+        strategies: this.benchmarkStrategies() as OptimizationStrategy[],
+        isLive: this.benchmarkIsLive(),
+      }));
+      this.benchmarkResults.set(res.results);
+    } catch (e) {
+      console.error('Benchmark failed:', e);
     } finally {
-      this.resettingMemory.set(false);
+      this.isBenchmarking.set(false);
     }
   }
 
-  openResetStatsConfirm(): void {
-    this.resetStatsConfirmOpen.set(true);
-  }
-
-  async confirmResetStats(): Promise<void> {
-    this.resetStatsConfirmOpen.set(false);
-    await this.lab.resetSessionStats();
-  }
-
-  exportTelemetryJson(): void {
-    const conv = this.conversation();
-    if (!conv) return;
-    const blob = new Blob([JSON.stringify(conv, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+  exportConversationJSON(): void {
+    const conv = this.conv();
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(conv, null, 2));
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `yuzee-token-lab-${conv.id}.json`;
+    a.setAttribute('href', dataStr);
+    a.setAttribute('download', `yuzee-token-lab-${conv.id}.json`);
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+  }
+
+  stats(): any { return this.lab.sessionStats(); }
+
+  /** `n?.toLocaleString() ?? "—"` */
+  fmt(n: any): string { return n?.toLocaleString() ?? '—'; }
+
+  /** `s.replace(/_/g, " ")` */
+  strategyLabel(s: string): string { return s.replace(/_/g, ' '); }
+
+  asStrategy(id: string): OptimizationStrategy { return id as OptimizationStrategy; }
+  asThinking(id: string): ThinkingLevel { return id as ThinkingLevel; }
+  asResponseMode(id: string): ResponseMode { return id as ResponseMode; }
+
+  confirmResetMemory(): void {
+    this.lab.resetMemory();
+    this.isResetMemoryConfirmOpen.set(false);
+  }
+
+  confirmResetStats(): void {
+    this.lab.resetSessionStats();
+    this.isResetStatsConfirmOpen.set(false);
   }
 }
