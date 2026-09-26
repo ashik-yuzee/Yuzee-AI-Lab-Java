@@ -215,7 +215,22 @@ public class ObjectiveService {
      * (the caller's timeout when shorter). Also the warehouse query planner's model.
      */
     public JsonNode callObjectiveModel(JsonNode request, Long timeoutMs) {
-        return callObjectiveModel(request, timeoutMs, null);
+        return callObjectiveModel(request, timeoutMs, ROUTE_SIGNAL.get());
+    }
+
+    /**
+     * server.ts passes the route's AbortSignal (100s timer) into every operation. The operations run on the
+     * request thread, so the signal rides in a ThreadLocal instead of widening every method signature.
+     */
+    private static final ThreadLocal<java.util.concurrent.CompletableFuture<?>> ROUTE_SIGNAL = new ThreadLocal<>();
+
+    public <T> T withRouteSignal(java.util.concurrent.CompletableFuture<?> signal, java.util.function.Supplier<T> operation) {
+        ROUTE_SIGNAL.set(signal);
+        try {
+            return operation.get();
+        } finally {
+            ROUTE_SIGNAL.remove();
+        }
     }
 
     /** callObjectiveModel with the caller's AbortSignal: a completed {@code signal} cancels the request. */
@@ -998,7 +1013,8 @@ public class ObjectiveService {
         input.setContext(json(retrievalContext));
         List<String> selectedCourseIds = asList(ctx.get("selected_course_ids")).stream().map(String::valueOf).collect(Collectors.toList());
         input.setSelectedCourseIds(selectedCourseIds);
-        Map<String, Object> pack = mapper.convertValue(warehouseService.retrieve(input), MAP_TYPE);
+        Map<String, Object> pack = mapper.convertValue(ROUTE_SIGNAL.get() != null
+            ? warehouseService.retrieve(input, ROUTE_SIGNAL.get()) : warehouseService.retrieve(input), MAP_TYPE);
         // Retrieval for the current choice is model context. Previously shown alternatives remain UI history.
         Map<String, Object> currentWarehouse = mapper.convertValue(pack, MAP_TYPE);
         List<Object> packCourses = new ArrayList<>(asList(pack.get("courses")));

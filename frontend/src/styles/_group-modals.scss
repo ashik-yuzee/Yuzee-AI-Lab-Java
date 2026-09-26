@@ -51,7 +51,8 @@
   border-radius: var(--radius-lg);
   padding: calc(var(--spacing) * 2);
 }
-.mdl-icon-lg {
+/* app-icon.… outweighs IconComponent's own :host 24px size (same weight, injected later) */
+.mdl-icon-lg, app-icon.mdl-icon-lg {
   height: calc(var(--spacing) * 5);
   width: calc(var(--spacing) * 5);
 }

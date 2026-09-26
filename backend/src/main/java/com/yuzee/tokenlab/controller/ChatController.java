@@ -286,8 +286,12 @@ public class ChatController {
         Conversation conv = convOpt.get();
         Map<String, Object> b = body != null ? body : Map.of();
         String sessionId = str(b.get("sessionId"));
+        // server.ts: const timer=setTimeout(()=>abort.abort(),100000) -- the signal reaches every model and warehouse call.
+        // ponytail: no res.on('close') abort -- the servlet cannot see a disconnect before it writes the reply
+        java.util.concurrent.CompletableFuture<Object> abort = new java.util.concurrent.CompletableFuture<>();
+        abort.completeOnTimeout(null, 100, java.util.concurrent.TimeUnit.SECONDS);
         try {
-            Object result = switch (operation) {
+            Object result = objectiveService.withRouteSignal(abort, () -> switch (operation) {
                 case "select" -> objectiveService.select(conv, b, () -> conversationService.findById(id)
                     .map(c -> c.getMessages() != null && !c.getMessages().isEmpty()
                         && Objects.equals(c.getMessages().get(c.getMessages().size() - 1).getId(), b.get("sourceMessageId")))
@@ -298,7 +302,7 @@ public class ChatController {
                 case "correct" -> objectiveService.correct(conv, sessionId, b);
                 case "answer" -> objectiveService.advance(conv, sessionId, b);
                 default -> null;
-            };
+            });
             if (result == null) return ResponseEntity.status(404).body(Map.of("error", "Unknown workspace action."));
             return ResponseEntity.ok(result);
         } catch (Exception e) {

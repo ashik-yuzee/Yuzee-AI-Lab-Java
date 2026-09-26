@@ -97,6 +97,16 @@ export class ObjectivesService {
     if (!value) { this.active?.abort(); this.busy.set(false); this.open.set(false); }
   }
 
+  /** ObjectiveProvider unmounts with the lab (Renderer page): the state the conversation effect does not reset starts over. */
+  resetForUnmount(): void {
+    this.active?.abort();
+    this.active = null;
+    this.transferLock = false;
+    this.enabled.set(this.readEnabled());
+    this.catalogueOpen.set(false);
+    this.transferring.set('');
+  }
+
   setOpen(value: boolean): void { this.open.set(value); }
   setSelectedId(id: string): void { this.selectedId.set(id); }
   setCatalogueOpen(value: boolean): void { this.catalogueOpen.set(value); }

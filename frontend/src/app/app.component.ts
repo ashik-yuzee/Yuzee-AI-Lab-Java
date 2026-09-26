@@ -99,7 +99,14 @@ export class AppComponent implements OnInit {
     this.lab.isTokenInspectorOpen.set(false);
   }
 
-  /** The original unmounts TokenLabProvider while the Renderer page shows; coming back remounts it and reloads. */
+  /** The original unmounts TokenLabProvider and ObjectiveProvider while the Renderer page shows. */
+  openRenderer(): void {
+    this.lab.resetForUnmount();
+    this.objectives.resetForUnmount();
+    this.page.set('renderer');
+  }
+
+  /** Coming back remounts the providers, which load again from scratch. */
   backFromRenderer(): void {
     this.page.set('chat');
     void this.lab.loadInitialData();

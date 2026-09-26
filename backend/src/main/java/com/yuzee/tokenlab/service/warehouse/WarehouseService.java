@@ -75,7 +75,20 @@ public class WarehouseService {
         if (!indexBuilder.sourceExists()) { state = "UNAVAILABLE"; return; }
         state = "PREPARING";
         started = true;
-        worker.submit(() -> { state = indexBuilder.ensureReady() ? "READY" : "UNAVAILABLE"; });
+        worker.submit(() -> {
+            try {
+                state = indexBuilder.ensureReady() ? "READY" : "UNAVAILABLE"; // 'failed' message: the worker stays up
+            } catch (Throwable crash) {
+                // child 'error'/'exit': state UNAVAILABLE and the next lookup/retrieve starts a fresh worker
+                log.warn("Warehouse worker stopped", crash);
+                stopped();
+            }
+        });
+    }
+
+    private synchronized void stopped() {
+        started = false;
+        state = "UNAVAILABLE";
     }
 
     public boolean isAvailable() { return "READY".equals(state); }
@@ -146,6 +159,7 @@ public class WarehouseService {
             return pack;
         } catch (Exception e) {
             if (signal != null && signal.isDone()) throw aborted();
+            if (e.getCause() instanceof Error) stopped(); // worker crash, not a caught lookup error: restart on next call
             log.warn("Warehouse lookup failed", e);
             return base("UNAVAILABLE", "Connected data could not be loaded. Please try again.", qs);
         }

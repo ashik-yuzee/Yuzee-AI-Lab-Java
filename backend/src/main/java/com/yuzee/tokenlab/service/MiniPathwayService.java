@@ -404,7 +404,9 @@ public class MiniPathwayService {
                 draft.accept(event);
             }
         }, r -> done[0] = r, errors::add);
-        // Gemini reports cumulative usage, not the cost of each chunk.
+        // Gemini reports cumulative usage, not the cost of each chunk. As in service.ts's finally, a stream that
+        // broke part-way still adds the usage it reported.
+        if (done[0] == null && !errors.isEmpty() && errors.get(0) instanceof GeminiService.PartialStreamException p) done[0] = p.partial;
         if (done[0] != null) {
             usage.merge("inputTokens", done[0].promptTokens, Integer::sum);
             usage.merge("outputTokens", done[0].outputTokens, Integer::sum);
@@ -430,6 +432,10 @@ public class MiniPathwayService {
 
     static List<String> validateMiniPathwayInvariants(JsonNode response) {
         List<String> issues = new ArrayList<>();
+        // service.ts: validateProtocol(r).protocolAccepted is not enough; r.schema_version must be '1.3'.
+        if (!"1.3".equals(response.path("schema_version").asText(null))) {
+            issues.add("The mini pathway was not in a readable format. Please try again.");
+        }
         boolean boundaryViolation =
             !"B_DELIVERY".equals(response.path("current_mode").asText(""))
                 || !"none".equals(response.path("interaction").path("kind").asText(""))
@@ -483,8 +489,8 @@ public class MiniPathwayService {
                 + "arrangements and checks instead.");
         }
 
-        JsonNode overview = findBlockById(blocks, "overview");
-        if (overview == null || overview.path("text").asText("").trim().isEmpty()) {
+        // overview, route-comparison and experience-playbook use blocks.some(...): any matching block passes.
+        if (!anyBlock(blocks, "overview", null, b -> !b.path("text").asText("").trim().isEmpty())) {
             issues.add("Include overview: a plain-language orientation to the goal and known constraints.");
         }
 
@@ -514,19 +520,24 @@ public class MiniPathwayService {
             }
         }
 
-        JsonNode comparison = findBlockByIdAndType(blocks, "route-comparison", TABLE_OR_COMPARISON);
-        if (comparison == null || comparison.path("rows").isEmpty()) {
+        if (!anyBlock(blocks, "route-comparison", TABLE_OR_COMPARISON, b -> !b.path("rows").isEmpty())) {
             issues.add("Include route-comparison: time, cost, risk, foundational knowledge and flexibility, with "
                 + "unknowns identified.");
         }
 
-        JsonNode playbook = findBlockByIdAndType(blocks, "experience-playbook", Set.of("steps"));
-        if (playbook == null || playbook.path("items").size() != 6) {
+        if (!anyBlock(blocks, "experience-playbook", Set.of("steps"), b -> b.path("items").size() == 6)) {
             issues.add("Include experience-playbook as a six-item steps block: target experience, evidence, "
                 + "preparation, readiness, experience goals, and follow-on strategy. Tailor it to the current goal, "
                 + "including exploratory activities when the career is undecided.");
         }
         return issues;
+    }
+
+    private static boolean anyBlock(JsonNode blocks, String id, Set<String> types, java.util.function.Predicate<JsonNode> ok) {
+        for (JsonNode b : blocks) {
+            if (id.equals(b.path("id").asText("")) && (types == null || types.contains(b.path("type").asText(""))) && ok.test(b)) return true;
+        }
+        return false;
     }
 
     private static JsonNode findBlockById(JsonNode blocks, String id) {

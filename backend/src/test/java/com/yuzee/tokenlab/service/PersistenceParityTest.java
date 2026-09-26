@@ -79,7 +79,7 @@ class PersistenceParityTest {
             r.text = prompt.startsWith("Write a short title") ? "Career Change Plan." : "- Goal: nursing";
             return r;
         }
-        @Override public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs) throws IOException {
+        @Override public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs, java.util.function.Consumer<okhttp3.Call> onCall) throws IOException {
             return M.readTree("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"- Goal: nursing\"}]},\"finishReason\":\"STOP\"}],"
                 + "\"usageMetadata\":{\"promptTokenCount\":11,\"candidatesTokenCount\":5,\"totalTokenCount\":16}}");
         }

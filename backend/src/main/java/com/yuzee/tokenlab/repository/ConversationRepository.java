@@ -32,4 +32,7 @@ public interface ConversationRepository {
 
     /** pruneExpired(): a no-op without PostgreSQL. */
     void pruneExpired();
+
+    /** db.ts keepAlive(): SELECT 1 so the Supabase free tier does not auto-pause; a no-op without PostgreSQL. */
+    default void keepAlive() { }
 }

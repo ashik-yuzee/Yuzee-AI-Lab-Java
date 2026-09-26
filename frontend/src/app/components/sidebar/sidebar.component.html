@@ -32,7 +32,16 @@
 
     <!-- Conversations List -->
     <div class="sidebar-list">
-      <div class="sidebar-label">Conversations</div>
+      <div class="sidebar-label-row">
+        <div class="sidebar-label">Conversations</div>
+        @if (lab.conversations().length > 0) {
+          <button id="btn-delete-all-convs" (click)="deleteAllOpen.set(true)" [disabled]="deletingAll()"
+                  class="sidebar-reset sidebar-delete-all" title="Delete all conversations">
+            <app-icon name="Trash2" class="sidebar-reset-icon" />
+            <span>{{ deletingAll() ? 'Deleting…' : 'Delete all' }}</span>
+          </button>
+        }
+      </div>
 
       @if (lab.conversations().length === 0) {
         <div class="sidebar-empty">
@@ -136,4 +145,16 @@
   [isDestructive]="true"
   (confirmed)="confirmDelete()"
   (cancelled)="conversationToDelete.set(null)"
+/>
+
+<!-- Delete All Confirmation Dialog (not in the original; user-requested) -->
+<app-confirm-dialog
+  [isOpen]="deleteAllOpen()"
+  title="Delete All Conversations"
+  [message]="deleteAllMessage"
+  confirmLabel="Delete All"
+  cancelLabel="Cancel"
+  [isDestructive]="true"
+  (confirmed)="confirmDeleteAll()"
+  (cancelled)="deleteAllOpen.set(false)"
 />

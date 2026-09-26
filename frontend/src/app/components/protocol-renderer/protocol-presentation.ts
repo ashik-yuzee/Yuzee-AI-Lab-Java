@@ -111,7 +111,7 @@ function normalizeUri(value: string): string {
  * which escaped user text can produce) and filled in only after the rest has been sanitised.
  * The filled-in markup is fixed; its only user-derived part, a footnote label, is URI-normalised and escaped.
  */
-interface MdCtx { nonce: string; store: string[]; defined: Set<string>; defs: Map<string, string[]>; order: string[]; refCounts: Map<string, number>; }
+interface MdCtx { nonce: string; store: string[]; defined: Set<string>; defs: Map<string, string[]>; order: string[]; refCounts: Map<string, number>; links: Map<string, { url: string; title?: string }>; }
 let md: MdCtx;
 /** Per-render: true for ChatArea's plain <Markdown> (no ProtocolV13Renderer table components). */
 let plainTables = false;
@@ -119,6 +119,8 @@ const markAttrs = (attrs: string) => `class="md-${md.nonce}-${md.store.push(attr
 const markEl = (html: string) => `<span class="mde-${md.nonce}-${md.store.push(html) - 1}"></span>`;
 const footnoteId = (label: string) => label.replace(/[\t\n\r ]+/g, ' ').trim().toLowerCase();
 const FOOTDEF = /^ {0,3}\[\^([^\]\s]+)\]:[ \t]?(.*)$/;
+/** CommonMark link reference definition: `[label]: url "title"`. */
+const LINKDEF = /^ {0,3}\[((?!\^)[^\]]+)\]:[ \t]*<?([^\s<>]+)>?(?:[ \t]+(?:"([^"]*)"|'([^']*)'|\(([^)]*)\)))?[ \t]*$/;
 
 function inline(src: string): string {
   const slots: string[] = [];
@@ -144,6 +146,16 @@ function inline(src: string): string {
     hold(`<img src="${href(url)}" alt="${esc(alt)}"${title ? ` title="${esc(title)}"` : ''}>`));
   s = s.replace(/\[([^\]]+)\]\(\s*<?((?:[^()\s<>]|\([^()\s]*\))*)>?(?:\s+"([^"]*)")?\s*\)/g, (_m, text: string, url: string, title?: string) =>
     hold(`<a href="${href(url)}"${title ? ` title="${esc(title)}"` : ''}>${inline(text)}</a>`));
+  // Reference-style images and links: full [text][ref], collapsed [text][] and shortcut [text], only to defined labels.
+  const ref = (text: string, label: string) => md.links.get(footnoteId(label || text));
+  s = s.replace(/!\[([^\]]*)\](?:\[([^\]]*)\])?/g, (m, alt: string, label?: string) => {
+    const r = ref(alt, label ?? '');
+    return r ? hold(`<img src="${href(r.url)}" alt="${esc(alt)}"${r.title ? ` title="${esc(r.title)}"` : ''}>`) : m;
+  });
+  s = s.replace(/\[((?!\^)[^\]]+)\](?:\[([^\]]*)\])?/g, (m, text: string, label?: string) => {
+    const r = ref(text, label ?? '');
+    return r ? hold(`<a href="${href(r.url)}"${r.title ? ` title="${esc(r.title)}"` : ''}>${inline(text)}</a>`) : m;
+  });
   s = s.replace(/<((?:https?|mailto):[^\s<>]+)>/g, (_m, url: string) => hold(`<a href="${href(url)}">${esc(url)}</a>`));
   // GFM autolink literals.
   s = s.replace(/(^|[\s(*_~])((?:https?:\/\/|www\.)[^\s<]*[^\s<.,:;"')\]*_~?!])/g, (_m, pre: string, url: string) =>
@@ -199,6 +211,18 @@ function blockList(lines: string[]): MdBlock[] {
   while (i < lines.length) {
     const line = lines[i];
     if (!line.trim()) { i++; continue; }
+
+    // Link reference definitions render nothing (they are collected before rendering).
+    if (LINKDEF.test(line)) { i++; continue; }
+
+    // Indented code block: 4+ spaces, running through blank lines; trailing blank lines are not part of it.
+    if (/^ {4}/.test(line)) {
+      const body: string[] = [];
+      while (i < lines.length && (/^ {4}/.test(lines[i]) || !lines[i].trim())) body.push(lines[i++].slice(4));
+      while (body.length && !body[body.length - 1].trim()) body.pop();
+      push(`<pre><code>${esc(body.join('\n'))}\n</code></pre>`);
+      continue;
+    }
 
     // GFM footnote definition: rendered in the footnotes section, not here.
     const def = line.match(FOOTDEF);
@@ -377,8 +401,14 @@ export function markdownToHtml(markdown: string, sanitize: (html: string) => str
   if (!markdown) return '';
   plainTables = !!options.plainTables;
   const lines = markdown.replace(/\r\n?/g, '\n').replace(/\u0000/g, '\uFFFD').replace(/^\t+/gm, t => '    '.repeat(t.length)).split('\n');
-  md = { nonce: Math.random().toString(36).slice(2, 10), store: [], defined: new Set(), defs: new Map(), order: [], refCounts: new Map() };
-  for (const l of lines) { const d = l.match(FOOTDEF); if (d) md.defined.add(footnoteId(d[1])); }
+  md = { nonce: Math.random().toString(36).slice(2, 10), store: [], defined: new Set(), defs: new Map(), order: [], refCounts: new Map(), links: new Map() };
+  // ponytail: definitions are collected from every line, including inside code blocks; scan per block if that ever matters
+  for (const l of lines) {
+    const d = l.match(FOOTDEF);
+    if (d) md.defined.add(footnoteId(d[1]));
+    const link = l.match(LINKDEF);
+    if (link && !md.links.has(footnoteId(link[1]))) md.links.set(footnoteId(link[1]), { url: link[2], title: link[3] ?? link[4] ?? link[5] });
+  }
   let html = blocks(lines);
   if (md.order.length) {
     // mdast-util-to-hast footer: referenced definitions in first-reference order, back-links in the last paragraph.

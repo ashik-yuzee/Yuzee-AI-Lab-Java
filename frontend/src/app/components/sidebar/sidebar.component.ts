@@ -98,6 +98,21 @@ export class SidebarComponent {
     return `Are you sure you want to delete "${this.conversationToDelete()?.title}"? All turns and associated memory compaction history will be removed.`;
   }
 
+  // Delete all (not in the original; user-requested).
+  deleteAllOpen = signal(false);
+  deletingAll = signal(false);
+
+  get deleteAllMessage(): string {
+    const n = this.lab.conversations().length;
+    return `Are you sure you want to delete all ${n} conversation${n === 1 ? '' : 's'}? All turns and associated memory compaction history will be removed. This cannot be undone.`;
+  }
+
+  async confirmDeleteAll(): Promise<void> {
+    this.deleteAllOpen.set(false);
+    this.deletingAll.set(true);
+    try { await this.lab.removeAllConversations(); } finally { this.deletingAll.set(false); }
+  }
+
   confirmDelete(): void {
     const target = this.conversationToDelete();
     if (!target) return;

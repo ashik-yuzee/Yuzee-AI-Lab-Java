@@ -180,6 +180,22 @@
   color: #8a929d;
   text-transform: uppercase;
 }
+/* Delete all (not in the original; user-requested): label row reuses the footer Reset button look. */
+.sidebar-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline-end: calc(var(--spacing) * 2);
+}
+.sidebar-delete-all:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+@media (hover: hover) {
+  .sidebar-delete-all:not(:disabled):hover {
+    color: var(--color-red-600);
+  }
+}
 :where(.sidebar-empty > :not(:last-child)) {
   --tw-space-y-reverse: 0;
   margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));

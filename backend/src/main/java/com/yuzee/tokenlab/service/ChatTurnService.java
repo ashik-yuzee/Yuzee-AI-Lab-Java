@@ -689,14 +689,17 @@ public class ChatTurnService {
         final AtomicBoolean ended = new AtomicBoolean();
         final AtomicBoolean timeoutFired = new AtomicBoolean();
         final AtomicReference<GeminiService.OpenStream> openStream = new AtomicReference<>();
+        final AtomicReference<okhttp3.Call> reviewCall = new AtomicReference<>();
         String streamPhase = "waiting";
 
-        /** res 'close': abort the provider and release the objective transfer. */
+        /** res 'close': abort the provider (stream and teaching review) and release the objective transfer. */
         void closed() {
             aborted.set(true);
             ended.set(true);
             GeminiService.OpenStream s = openStream.get();
             if (s != null) s.cancel();
+            okhttp3.Call review = reviewCall.get();
+            if (review != null) review.cancel();
             if (releaseKey != null) objectiveTransfers.remove(releaseKey);
         }
 
@@ -871,13 +874,17 @@ public class ChatTurnService {
                 && teachingReviewSchema.path("properties").has("content_blocks")
                 && teachingReviewSchema.path("properties").path("content_blocks").isObject()
                 && teachingReview.shouldReviewTeaching(parsedResponse)) {
+                // server.ts adds each review response's usage straight into realUsageMetadata, so it counts even when the review then fails.
+                final Map<String, Object>[] usageHolder = new Map[]{realUsageMetadata};
                 try {
                     t.sendProgress("reviewing");
                     final JsonNode candidate = parsedResponse;
-                    final Map<String, Object>[] usageHolder = new Map[]{realUsageMetadata};
                     ReviewRetryService.ReviewOutcome<JsonNode> review = reviewRetry.runReview(() -> {
                         JsonNode reviewed = gemini.generateContentRaw(assembledReq.model,
-                            reviewBody(t, candidate, teachingReviewSchema), 60_000);
+                            reviewBody(t, candidate, teachingReviewSchema), 60_000, call -> {
+                                t.reviewCall.set(call);
+                                if (t.aborted.get()) call.cancel(); // closed before the call was registered
+                            });
                         Map<String, Object> reviewUsage = reviewed.has("usageMetadata")
                             ? mapper.convertValue(reviewed.get("usageMetadata"), Map.class) : null;
                         usageHolder[0] = teachingReview.combineGenerationUsage(usageHolder[0], reviewUsage);
@@ -886,7 +893,6 @@ public class ChatTurnService {
                         }
                         return teachingReview.applyReviewedBlocks(candidate, GeminiService.responseText(reviewed));
                     }, t.aborted::get);
-                    realUsageMetadata = usageHolder[0];
                     teachingReviewAudit = review.audit;
                     parsedResponse = review.value;
                     text = json(parsedResponse);
@@ -904,6 +910,7 @@ public class ChatTurnService {
                     log.warn("[teaching-review] {}", json(warn));
                     teachingReviewError = "The explanation review could not be completed. Your message is saved; please retry.";
                 }
+                realUsageMetadata = usageHolder[0];
             }
             if (isJsonValid && helpEvidenceService.outdatedHelpClaim(json(
                 parsedResponse != null && parsedResponse.isObject() && parsedResponse.has("content_blocks")

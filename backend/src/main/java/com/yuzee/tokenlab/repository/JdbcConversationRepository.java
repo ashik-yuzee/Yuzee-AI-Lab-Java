@@ -176,6 +176,15 @@ public class JdbcConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public void keepAlive() {
+        try {
+            jdbc.queryForObject("SELECT 1", Integer.class);
+        } catch (Exception e) {
+            log.error("[db] keepAlive failed:", e);
+        }
+    }
+
+    @Override
     public List<Conversation> loadConversations() {
         try {
             List<Map<String, Object>> convRows = jdbc.query(

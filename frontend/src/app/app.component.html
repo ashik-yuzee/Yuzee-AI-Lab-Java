@@ -56,7 +56,7 @@
   } @else {
     <!-- AuthedApp -->
     <div id="yuzee-token-lab-root" class="app-root">
-      <app-navbar (openRenderer)="page.set('renderer')" />
+      <app-navbar (openRenderer)="openRenderer()" />
       <!-- Only the inner panes scroll. Hidden overflow would let anchor/focus
            navigation scroll this shell and leave a blank area below it. -->
       <div class="workspace-shell" data-workspace-shell>

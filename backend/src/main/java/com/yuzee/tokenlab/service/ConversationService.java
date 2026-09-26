@@ -141,4 +141,10 @@ public class ConversationService {
     public void pruneExpiredConversations() {
         repository.pruneExpired();
     }
+
+    /** server.ts hourly keepAlive() ping (a no-op without PostgreSQL). */
+    @Scheduled(initialDelay = 60 * 60 * 1000L, fixedRate = 60 * 60 * 1000L)
+    public void keepDatabaseAlive() {
+        repository.keepAlive();
+    }
 }

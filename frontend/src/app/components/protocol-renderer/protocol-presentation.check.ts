@@ -20,4 +20,11 @@ assert.equal(markdownToHtml('| A | B |\n|:--|--:|\n| 1 | 2 |', h => h, { plainTa
   '<table><thead><tr><th style="text-align:left">A</th><th style="text-align:right">B</th></tr></thead><tbody><tr><td style="text-align:left">1</td><td style="text-align:right">2</td></tr></tbody></table>');
 // Alignment survives Angular-style sanitising that strips style attributes (it is added after).
 assert.ok(markdownToHtml('| A |\n|:-:|', h => h.replace(/ style="[^"]*"/g, ''), { plainTables: true }).includes('style="text-align:center"'));
+// Indented code blocks (4+ spaces) and reference-style links (verified against the original's react-markdown).
+assert.equal(markdownToHtml('Intro\n\n    code line\n      more\n\n    after blank\n\nText'),
+  '<p>Intro</p>\n<pre><code>code line\n  more\n\nafter blank\n</code></pre>\n<p>Text</p>');
+assert.equal(markdownToHtml('Para\n    not code'), '<p>Para\nnot code</p>');
+assert.equal(markdownToHtml('See [the docs][d] and [Docs] or [x][].\n\n[d]: https://a.com "T"\n[docs]: <https://b.com>\n[x]: https://c.com'),
+  '<p>See <a href="https://a.com" title="T">the docs</a> and <a href="https://b.com">Docs</a> or <a href="https://c.com">x</a>.</p>');
+assert.equal(markdownToHtml('[not a ref] stays'), '<p>[not a ref] stays</p>');
 console.log('protocol-presentation: ok');

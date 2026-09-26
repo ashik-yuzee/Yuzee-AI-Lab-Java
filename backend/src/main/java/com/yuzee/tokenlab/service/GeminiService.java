@@ -154,6 +154,15 @@ public class GeminiService {
         }
     }
 
+    /** A stream that broke after it opened; {@code partial} holds the text and usage received before the failure. */
+    public static class PartialStreamException extends IOException {
+        public final StreamResult partial;
+        PartialStreamException(IOException cause, StreamResult partial) {
+            super(cause.getMessage(), cause);
+            this.partial = partial;
+        }
+    }
+
     /** Richer result for {@link #streamGenerateRich}, carrying the full usage breakdown Gemini reports. */
     public static class StreamResult {
         public String text = "";
@@ -259,6 +268,9 @@ public class GeminiService {
                             }
                         } catch (Exception ignored) {}
                     }
+                } catch (IOException readFailure) {
+                    result.text = fullText.toString();
+                    throw new PartialStreamException(readFailure, result);
                 }
 
                 result.text = fullText.toString();
@@ -651,6 +663,11 @@ public class GeminiService {
 
     /** generateContent with a caller-built body and timeout; returns the raw response JSON. */
     public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs) throws IOException {
+        return generateContentRaw(model, body, timeoutMs, call -> { });
+    }
+
+    /** generateContentRaw that hands the in-flight call to {@code onCall}, so the caller can cancel it (the SDK abortSignal). */
+    public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs, Consumer<Call> onCall) throws IOException {
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("GEMINI_API_KEY not configured");
         String url = baseUrl + "/models/" + model + ":generateContent?key=" + apiKey;
         Request request = new Request.Builder()
@@ -659,7 +676,9 @@ public class GeminiService {
             .build();
         OkHttpClient client = timeoutMs > 0
             ? httpClient.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).build() : httpClient;
-        try (Response response = client.newCall(request).execute()) {
+        Call call = client.newCall(request);
+        onCall.accept(call);
+        try (Response response = call.execute()) {
             String text = response.body() != null ? response.body().string() : "";
             if (!response.isSuccessful()) throw new GeminiHttpException(response.code(), text);
             return mapper.readTree(text);

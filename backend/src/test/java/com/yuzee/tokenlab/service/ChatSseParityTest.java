@@ -122,7 +122,7 @@ class ChatSseParityTest {
                 };
             }
 
-            @Override public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs) throws java.io.IOException {
+            @Override public JsonNode generateContentRaw(String model, ObjectNode body, long timeoutMs, java.util.function.Consumer<okhttp3.Call> onCall) throws java.io.IOException {
                 if (!body.path("generationConfig").has("responseSchema")) {
                     return M.readTree("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"- Goal: nursing\"}]}}],\"usageMetadata\":{\"promptTokenCount\":50,\"candidatesTokenCount\":10,\"totalTokenCount\":60}}");
                 }

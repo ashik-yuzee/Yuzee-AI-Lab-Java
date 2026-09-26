@@ -326,6 +326,12 @@ export class TokenLabService {
     } catch (e) { console.error('Failed to delete conversation:', e); }
   }
 
+  /** Not in the original (user-requested): deletes every conversation through the same per-conversation
+   *  DELETE, so server-side cleanup and its guards apply. Any that fail stay in the list. */
+  async removeAllConversations(): Promise<void> {
+    for (const { id } of this.conversations()) await this.removeConversation(id);
+  }
+
   async updateCurrentConversationSettings(updates: Partial<Conversation>): Promise<void> {
     if (updates.model) this.activeModelId.set(updates.model);
     const current = this.currentConversation();
@@ -708,6 +714,36 @@ export class TokenLabService {
   }
 
   dismissCostWarning(): void { this.dailyCostWarning.set({ level: null, totalCostUsd: 0 }); }
+
+  /**
+   * The Renderer page unmounts TokenLabProvider: its unmount effect aborts the active stream and every useState/useRef
+   * starts over when the chat comes back. Profile, location and contradictions re-read the same localStorage keys.
+   */
+  resetForUnmount(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+    this.sendLock = false;
+    this.pendingOriginalMessage = null;
+    this.shownThresholds.clear();
+    this.loadDone = false;
+    this.conversations.set([]);
+    this.currentConversation.set(null);
+    this.isLoading.set(true);
+    this.capabilities.set(null);
+    this.sessionStats.set(null);
+    this.sharedSettings.set(null);
+    this.activeTurnTelemetry.set(null);
+    this.dailyCostWarning.set({ level: null, totalCostUsd: 0 });
+    this.isStreaming.set(false);
+    this.activeModelId.set(DEFAULT_MODEL_ID);
+    for (const flag of [this.isTokenInspectorOpen, this.isWhiteboardOpen, this.whiteboardHasPathway, this.isAdvancedLabOpen,
+      this.isContextInspectorOpen, this.isCareerContextOpen, this.isMemoryTimelineOpen, this.isBenchmarkOpen, this.isAnalyticsOpen,
+      this.isSettingsOpen, this.isExportOpen, this.isProfileOpen, this.hasDeferredMessage]) flag.set(false);
+    this.whiteboardGenerateTick.set(0);
+    this.activeLabTab.set('context');
+    this.isSidebarOpen.set(typeof window !== 'undefined' && window.innerWidth >= 1024);
+    this.pendingClarificationQuestions.set(null);
+  }
 
   stopStreaming(): void {
     if (!this.abortController) return;

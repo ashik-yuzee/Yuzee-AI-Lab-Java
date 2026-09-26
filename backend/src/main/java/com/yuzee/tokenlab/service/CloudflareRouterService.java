@@ -34,7 +34,7 @@ public class CloudflareRouterService {
             + "pick the best matching tool or return \"none\".\n"
             + "Tools: SKILL_001=CV/resume help, SKILL_002=interview prep, SKILL_003=career change, "
             + "SKILL_004=study options, SKILL_005=job search, SKILL_006=visa/immigration, SKILL_007=course info, "
-            + "SKILL_008=funding/scholarships, SKILL_009=workplace skills, SKILL_010=general guidance.\n"
+            + "SKILL_008=funding/scholarships, SKILL_009=workplace skills, SKILL_010=general\n"
             + "Respond with JSON only: {\"toolId\":\"SKILL_XXX\",\"score\":0.85,\"reason\":\"brief reason\"} or "
             + "{\"toolId\":null,\"score\":0,\"reason\":\"no match\"}.",
         "needs", "You are a classifier for an educational guidance app. Classify what the user needs.\n"
@@ -76,7 +76,7 @@ public class CloudflareRouterService {
         if (text == null || text.isEmpty()) {
             return new Result(400, Map.of("error", "text required"));
         }
-        String systemPrompt = SYSTEM_PROMPTS.get(task);
+        String systemPrompt = task == null ? null : SYSTEM_PROMPTS.get(task); // Map.of rejects a null key
         if (systemPrompt == null) {
             return new Result(400, Map.of("error", "unknown task"));
         }

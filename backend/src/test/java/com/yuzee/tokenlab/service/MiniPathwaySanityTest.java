@@ -154,6 +154,28 @@ class MiniPathwaySanityTest {
     }
 
     @Test
+    void anyMatchingBlockSatisfiesOverviewComparisonAndPlaybook() throws Exception {
+        // reportReview.ts uses blocks.some(...): an empty first block with the id does not hide a complete later one.
+        JsonNode response = mapper.readTree("""
+            {"content_blocks":[
+              {"id":"overview","type":"text","text":" "},
+              {"id":"overview","type":"text","text":"An orientation to the goal."},
+              {"id":"route-summary","type":"table","rows":[{"id":"core","cells":[]}]},
+              {"id":"core-timeline","type":"steps","items":[{"id":"s1","title":"Start"}]},
+              {"id":"core-considerations","type":"text","text":"Some risks to weigh."},
+              {"id":"route-comparison","type":"table","rows":[]},
+              {"id":"route-comparison","type":"comparison","rows":[{"id":"r1","cells":[]}]},
+              {"id":"experience-playbook","type":"steps","items":[{"id":"1","title":"a"}]},
+              {"id":"experience-playbook","type":"steps","items":[
+                {"id":"1","title":"a"},{"id":"2","title":"b"},{"id":"3","title":"c"},
+                {"id":"4","title":"d"},{"id":"5","title":"e"},{"id":"6","title":"f"}
+              ]}
+            ]}
+            """);
+        assertTrue(MiniPathwayService.reviewMiniPathwayReport(response).isEmpty());
+    }
+
+    @Test
     void invariantsRejectAnActiveQuestionOrServiceAction() throws Exception {
         JsonNode blocked = mapper.readTree("""
             {"current_mode":"A_CONVERSATION","interaction":{"kind":"question"},
@@ -165,13 +187,17 @@ class MiniPathwaySanityTest {
         assertFalse(MiniPathwayService.validateMiniPathwayInvariants(blocked).isEmpty());
 
         JsonNode clean = mapper.readTree("""
-            {"current_mode":"B_DELIVERY","interaction":{"kind":"none","recommended_actions":[]},
+            {"schema_version":"1.3","current_mode":"B_DELIVERY","interaction":{"kind":"none","recommended_actions":[]},
              "service_trigger":{"trigger_now":false,"actions":[]},
              "followups":{"enabled":false,"triggers":[]},
              "rmo_readiness":{"ready_to_generate":false},
              "content_blocks":[{"id":"overview","type":"text","text":"hi"}]}
             """);
         assertTrue(MiniPathwayService.validateMiniPathwayInvariants(clean).isEmpty());
+
+        // service.ts validateMiniPathwayOutput: r.schema_version!=='1.3' is rejected even when the protocol accepts it.
+        JsonNode v14 = ((com.fasterxml.jackson.databind.node.ObjectNode) clean.deepCopy()).put("schema_version", "1.4");
+        assertFalse(MiniPathwayService.validateMiniPathwayInvariants(v14).isEmpty());
     }
 
     // -- PathwayContextService ------------------------------------------------------------
