@@ -40,11 +40,10 @@ const LAB_SHORTCUTS = [
  * between opens; lifetime stats and the master prompt are refetched each time it opens.
  */
 @Component({
-  selector: 'app-settings-modal',
-  standalone: true,
-  imports: [IconComponent, RouterModelSelectorComponent],
-  templateUrl: './settings-modal.component.html',
-  styleUrl: './settings-modal.component.scss'
+    selector: 'app-settings-modal',
+    imports: [IconComponent, RouterModelSelectorComponent],
+    templateUrl: './settings-modal.component.html',
+    styleUrl: './settings-modal.component.scss'
 })
 export class SettingsModalComponent {
   readonly accentPresets = ACCENT_PRESETS;

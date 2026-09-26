@@ -178,11 +178,10 @@ function messageText(content: unknown): string {
 }
 
 @Component({
-  selector: 'app-pathway-whiteboard',
-  standalone: true,
-  imports: [NgTemplateOutlet, FormsModule, IconComponent],
-  templateUrl: './pathway-whiteboard.component.html',
-  styleUrl: './pathway-whiteboard.component.scss',
+    selector: 'app-pathway-whiteboard',
+    imports: [NgTemplateOutlet, FormsModule, IconComponent],
+    templateUrl: './pathway-whiteboard.component.html',
+    styleUrl: './pathway-whiteboard.component.scss'
 })
 export class PathwayWhiteboardComponent implements OnChanges, OnDestroy {
   @Input() conversationId: string | null = null;

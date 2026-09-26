@@ -6,11 +6,10 @@ const basis: Record<string, string> = { COURSE_RECORD: 'Course record', PROVIDER
 
 /** Port of the original's warehouse/ProviderComparison.tsx. `selection` is split into selectionIds/selectionDisabled/toggleOption. */
 @Component({
-  selector: 'app-provider-comparison',
-  standalone: true,
-  imports: [IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './provider-comparison.component.html',
+    selector: 'app-provider-comparison',
+    imports: [IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './provider-comparison.component.html'
 })
 export class ProviderComparisonComponent {
   @Input({ required: true }) data!: WarehouseComparison;

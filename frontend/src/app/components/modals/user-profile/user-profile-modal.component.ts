@@ -24,11 +24,10 @@ class AutofocusDirective implements AfterViewInit {
  * location live in TokenLabService (which persists them to the original's localStorage keys).
  */
 @Component({
-  selector: 'app-user-profile-modal',
-  standalone: true,
-  imports: [IconComponent, AutofocusDirective],
-  templateUrl: './user-profile-modal.component.html',
-  styleUrl: './user-profile-modal.component.scss'
+    selector: 'app-user-profile-modal',
+    imports: [IconComponent, AutofocusDirective],
+    templateUrl: './user-profile-modal.component.html',
+    styleUrl: './user-profile-modal.component.scss'
 })
 export class UserProfileModalComponent {
   @Output() closed = new EventEmitter<void>();

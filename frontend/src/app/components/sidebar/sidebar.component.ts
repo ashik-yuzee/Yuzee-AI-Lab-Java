@@ -17,11 +17,10 @@ class AutofocusDirective implements AfterViewInit {
 
 /** Port of Sidebar.tsx. */
 @Component({
-  selector: 'app-sidebar',
-  standalone: true,
-  imports: [ConfirmDialogComponent, IconComponent, AutofocusDirective],
-  templateUrl: './sidebar.component.html',
-  styleUrl: './sidebar.component.scss'
+    selector: 'app-sidebar',
+    imports: [ConfirmDialogComponent, IconComponent, AutofocusDirective],
+    templateUrl: './sidebar.component.html',
+    styleUrl: './sidebar.component.scss'
 })
 export class SidebarComponent {
   conversationToDelete = signal<{ id: string; title: string } | null>(null);

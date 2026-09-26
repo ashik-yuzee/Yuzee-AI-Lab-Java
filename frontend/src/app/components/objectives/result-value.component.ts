@@ -16,11 +16,10 @@ export class EvidenceNoteComponent {
 
 /** PrimitiveRenderer.tsx ResultValue (recursive). */
 @Component({
-  selector: 'app-result-value',
-  standalone: true,
-  imports: [EvidenceNoteComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './result-value.component.html',
+    selector: 'app-result-value',
+    imports: [EvidenceNoteComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './result-value.component.html'
 })
 export class ResultValueComponent {
   @Input() value: any;

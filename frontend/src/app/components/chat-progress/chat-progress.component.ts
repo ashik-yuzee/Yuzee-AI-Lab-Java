@@ -19,11 +19,10 @@ export function chatProgressCopy(phase: ChatProgressPhase, tick: number, elapsed
 }
 
 @Component({
-  selector: 'app-chat-progress',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './chat-progress.component.html',
-  styles: [':host{display:block}']
+    selector: 'app-chat-progress',
+    imports: [IconComponent],
+    templateUrl: './chat-progress.component.html',
+    styles: [':host{display:block}']
 })
 export class ChatProgressComponent implements OnInit, OnDestroy {
   private readonly phaseValue = signal<ChatProgressPhase>('waiting');

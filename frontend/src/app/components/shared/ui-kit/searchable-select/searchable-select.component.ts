@@ -26,11 +26,10 @@ interface OptionGroup {
  * `footerNote` is text (the original accepted a ReactNode; no caller passes one).
  */
 @Component({
-  selector: 'app-searchable-select',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './searchable-select.component.html',
-  styleUrl: './searchable-select.component.scss'
+    selector: 'app-searchable-select',
+    imports: [IconComponent],
+    templateUrl: './searchable-select.component.html',
+    styleUrl: './searchable-select.component.scss'
 })
 export class SearchableSelectComponent {
   @Input() id?: string;

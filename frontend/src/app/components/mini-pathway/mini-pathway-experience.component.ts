@@ -38,14 +38,13 @@ const selectionKey = (conversationId: string) => `yuzee-pathway-selection:${conv
  * into #saved-pathways-control (navbar), and owns the resizable/expandable side panel.
  */
 @Component({
-  selector: 'app-mini-pathway-experience',
-  standalone: true,
-  imports: [
-    ProtocolRendererComponent, IconComponent, PathwayHistorySelectorComponent, PathwayColourGuideComponent,
-    MiniPathwayStreamingComponent, MiniPathwayPortalDirective,
-  ],
-  templateUrl: './mini-pathway-experience.component.html',
-  styleUrl: './mini-pathway-experience.component.scss'
+    selector: 'app-mini-pathway-experience',
+    imports: [
+        ProtocolRendererComponent, IconComponent, PathwayHistorySelectorComponent, PathwayColourGuideComponent,
+        MiniPathwayStreamingComponent, MiniPathwayPortalDirective,
+    ],
+    templateUrl: './mini-pathway-experience.component.html',
+    styleUrl: './mini-pathway-experience.component.scss'
 })
 export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
   @Input() conversationId: string | null = null;

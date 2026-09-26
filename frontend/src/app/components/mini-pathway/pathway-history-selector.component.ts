@@ -5,10 +5,9 @@ import { MiniPathwayRun, pathwayContext, pathwayDate } from './history';
 
 /** Port of PathwayHistorySelector.tsx. Styled by the global mini-pathway.css. */
 @Component({
-  selector: 'app-pathway-history-selector',
-  standalone: true,
-  imports: [IconComponent],
-  template: `
+    selector: 'app-pathway-history-selector',
+    imports: [IconComponent],
+    template: `
     @if (runs.length) {
       <div class="mini-pathway-history" #root>
         <span class="mini-pathway-history-label"><app-icon [size]="11" name="Clock" />Saved pathways <b>{{ runs.length }}</b></span>
@@ -42,7 +41,7 @@ import { MiniPathwayRun, pathwayContext, pathwayDate } from './history';
       </div>
     }
   `,
-  styles: [':host{display:contents}'],
+    styles: [':host{display:contents}']
 })
 export class PathwayHistorySelectorComponent implements OnChanges {
   @Input() runs: MiniPathwayRun[] = [];

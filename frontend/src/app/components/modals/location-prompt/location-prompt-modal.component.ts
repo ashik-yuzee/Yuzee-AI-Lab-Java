@@ -9,11 +9,10 @@ const SESSION_KEY = 'yuzee_location_prompted';
  * this browser session (sessionStorage) or when a location is already known.
  */
 @Component({
-  selector: 'app-location-prompt-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './location-prompt-modal.component.html',
-  styleUrl: './location-prompt-modal.component.scss'
+    selector: 'app-location-prompt-modal',
+    imports: [IconComponent],
+    templateUrl: './location-prompt-modal.component.html',
+    styleUrl: './location-prompt-modal.component.scss'
 })
 export class LocationPromptModalComponent implements AfterViewInit {
   @ViewChild('locationInput') inputRef?: ElementRef<HTMLInputElement>;

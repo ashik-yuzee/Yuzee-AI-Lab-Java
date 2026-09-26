@@ -5,11 +5,10 @@ import { IconComponent } from '../../shared/icon/icon.component';
 
 /** 1:1 port of MemoryTimelineModal.tsx — reads the current conversation from TokenLabService. */
 @Component({
-  selector: 'app-memory-timeline-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './memory-timeline-modal.component.html',
-  styleUrl: './memory-timeline-modal.component.scss'
+    selector: 'app-memory-timeline-modal',
+    imports: [IconComponent],
+    templateUrl: './memory-timeline-modal.component.html',
+    styleUrl: './memory-timeline-modal.component.scss'
 })
 export class MemoryTimelineModalComponent {
   @Input() open = false;

@@ -9,11 +9,10 @@ const careerName = (title: string) => /^\d+$/.test(title.trim()) ? 'Other occupa
 
 /** Port of the original's warehouse/LocalAreaGuide.tsx. */
 @Component({
-  selector: 'app-local-area-guide',
-  standalone: true,
-  imports: [IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './local-area-guide.component.html',
+    selector: 'app-local-area-guide',
+    imports: [IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './local-area-guide.component.html'
 })
 export class LocalAreaGuideComponent {
   @Input({ required: true }) data!: WarehouseConnections;

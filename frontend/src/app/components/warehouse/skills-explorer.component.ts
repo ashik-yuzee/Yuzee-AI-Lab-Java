@@ -6,11 +6,10 @@ const empty: ExplorationChoice = { roleIds: [], skills: [] };
 
 /** Port of the original's warehouse/SkillsExplorer.tsx. */
 @Component({
-  selector: 'app-skills-explorer',
-  standalone: true,
-  imports: [IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './skills-explorer.component.html',
+    selector: 'app-skills-explorer',
+    imports: [IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './skills-explorer.component.html'
 })
 export class SkillsExplorerComponent implements OnChanges {
   @Input({ required: true }) data!: WarehouseExploration;

@@ -36,11 +36,10 @@ let nextAnchor = 0;
  * `(openPathway)` is React's `onOpenPathway`: the "Build my pathway" button only appears when bound.
  */
 @Component({
-  selector: 'app-protocol-renderer',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, ConfirmDialogComponent, PathwayLearningCuesComponent, InteractionComponent, GuidanceListComponent],
-  templateUrl: './protocol-renderer.component.html',
-  styleUrls: ['./protocol-renderer.component.scss', './protocol-renderer-blocks.scss']
+    selector: 'app-protocol-renderer',
+    imports: [NgTemplateOutlet, IconComponent, ConfirmDialogComponent, PathwayLearningCuesComponent, InteractionComponent, GuidanceListComponent],
+    templateUrl: './protocol-renderer.component.html',
+    styleUrls: ['./protocol-renderer.component.scss', './protocol-renderer-blocks.scss']
 })
 export class ProtocolRendererComponent {
   @Input() data?: YuzeeResponseV13 | null;

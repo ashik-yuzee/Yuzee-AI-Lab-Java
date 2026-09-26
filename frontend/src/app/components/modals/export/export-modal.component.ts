@@ -6,11 +6,10 @@ import { IconComponent } from '../../shared/icon/icon.component';
 
 /** 1:1 port of ExportModal.tsx — client-side JSON / CSV download of TokenLabService's conversations. */
 @Component({
-  selector: 'app-export-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './export-modal.component.html',
-  styleUrl: './export-modal.component.scss',
+    selector: 'app-export-modal',
+    imports: [IconComponent],
+    templateUrl: './export-modal.component.html',
+    styleUrl: './export-modal.component.scss'
 })
 export class ExportModalComponent {
   @Input() open = false;

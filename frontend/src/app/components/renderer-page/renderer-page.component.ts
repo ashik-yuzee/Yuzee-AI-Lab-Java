@@ -14,11 +14,10 @@ const GROUPS = ['Counselling', 'Boxes & inputs', 'Waiting & recovery'] as const;
  * Mount with `<app-renderer-page (back)="…" />`.
  */
 @Component({
-  selector: 'app-renderer-page',
-  standalone: true,
-  imports: [ProtocolRendererComponent, ChatProgressComponent],
-  templateUrl: './renderer-page.component.html',
-  styleUrl: './renderer-page.component.scss'
+    selector: 'app-renderer-page',
+    imports: [ProtocolRendererComponent, ChatProgressComponent],
+    templateUrl: './renderer-page.component.html',
+    styleUrl: './renderer-page.component.scss'
 })
 export class RendererPageComponent {
   /** "Back to chat" (React's `onBack`). */

@@ -19,11 +19,10 @@ export class ObjectiveToolbarComponent {
 
 /** ObjectiveSuggestions.tsx ObjectiveSuggestions — the "Explore this further" offer under the last assistant turn. */
 @Component({
-  selector: 'app-objective-suggestions',
-  standalone: true,
-  imports: [IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './objective-suggestions.component.html',
+    selector: 'app-objective-suggestions',
+    imports: [IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './objective-suggestions.component.html'
 })
 export class ObjectiveSuggestionsComponent {
   sourceMessageId = input.required<string>();

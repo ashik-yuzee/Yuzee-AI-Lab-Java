@@ -26,11 +26,10 @@ const ESCAPE_HATCHES = ['Skip this for now', 'I am not sure yet', 'Show me a sim
  * - (proceedDeferred)→ proceedWithDeferredMessage().
  */
 @Component({
-  selector: 'app-clarification-questions-modal',
-  standalone: true,
-  imports: [IconComponent, ClarificationQuestionsCardComponent],
-  templateUrl: './clarification-questions-modal.component.html',
-  styleUrl: './clarification-questions-modal.component.scss'
+    selector: 'app-clarification-questions-modal',
+    imports: [IconComponent, ClarificationQuestionsCardComponent],
+    templateUrl: './clarification-questions-modal.component.html',
+    styleUrl: './clarification-questions-modal.component.scss'
 })
 export class ClarificationQuestionsModalComponent {
   @Input() questions: ClarificationQuestion[] = [];

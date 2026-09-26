@@ -28,18 +28,17 @@ import { RendererPageComponent } from './components/renderer-page/renderer-page.
 
 /** Port of App.tsx: auth gate + login page, the authenticated shell layout, and the Renderer page. */
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [
-    IonApp, IonContent,
-    NavbarComponent, SidebarComponent, ChatAreaComponent, ObjectiveToolbarComponent, ObjectiveWorkspaceComponent,
-    TokenInspectorComponent, PathwayWhiteboardComponent, MiniPathwayExperienceComponent,
-    AdvancedLabModalComponent, UserProfileModalComponent, ContextInspectorModalComponent, CareerContextModalComponent,
-    MemoryTimelineModalComponent, BenchmarkModalComponent, AnalyticsDashboardModalComponent, ExportModalComponent,
-    SettingsModalComponent, ClarificationQuestionsModalComponent, LocationPromptModalComponent, RendererPageComponent,
-  ],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss'
+    selector: 'app-root',
+    imports: [
+        IonApp, IonContent,
+        NavbarComponent, SidebarComponent, ChatAreaComponent, ObjectiveToolbarComponent, ObjectiveWorkspaceComponent,
+        TokenInspectorComponent, PathwayWhiteboardComponent, MiniPathwayExperienceComponent,
+        AdvancedLabModalComponent, UserProfileModalComponent, ContextInspectorModalComponent, CareerContextModalComponent,
+        MemoryTimelineModalComponent, BenchmarkModalComponent, AnalyticsDashboardModalComponent, ExportModalComponent,
+        SettingsModalComponent, ClarificationQuestionsModalComponent, LocationPromptModalComponent, RendererPageComponent,
+    ],
+    templateUrl: './app.component.html',
+    styleUrl: './app.component.scss'
 })
 export class AppComponent implements OnInit {
   /** null = still checking the stored token (the original's AppLoadingScreen). */

@@ -15,11 +15,10 @@ const WIDTH_KEY = 'yuzee-objective-workspace-width', DOCK_BREAKPOINT = 1000;
 
 /** Port of the original's objectives/ObjectiveWorkspace.tsx (with miniPathway/useDrawerResize.ts inlined). */
 @Component({
-  selector: 'app-objective-workspace',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, WarehouseConnectionsComponent, WarehouseCoursesComponent, AnswerHistoryComponent, ContextDetailsComponent, PrimitiveRendererComponent, WorkspaceResultComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './objective-workspace.component.html',
+    selector: 'app-objective-workspace',
+    imports: [NgTemplateOutlet, IconComponent, WarehouseConnectionsComponent, WarehouseCoursesComponent, AnswerHistoryComponent, ContextDetailsComponent, PrimitiveRendererComponent, WorkspaceResultComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './objective-workspace.component.html'
 })
 export class ObjectiveWorkspaceComponent {
   @ViewChild('heading') heading?: ElementRef<HTMLHeadingElement>;

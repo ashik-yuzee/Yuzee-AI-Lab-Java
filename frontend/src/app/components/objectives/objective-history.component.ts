@@ -6,11 +6,10 @@ import { ObjectiveAnswerReceipt, ObjectiveSession, activityTitle, answerHistory,
 
 /** ObjectiveHistory.tsx EnteredAnswer + AnswerHistory. */
 @Component({
-  selector: 'app-answer-history',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './answer-history.component.html',
+    selector: 'app-answer-history',
+    imports: [NgTemplateOutlet, IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './answer-history.component.html'
 })
 export class AnswerHistoryComponent {
   @Input({ required: true }) session!: ObjectiveSession;
@@ -23,11 +22,10 @@ export class AnswerHistoryComponent {
 
 /** ObjectiveHistory.tsx ObjectiveHistory: saved activities anchored under the chat turn that started them. */
 @Component({
-  selector: 'app-objective-history',
-  standalone: true,
-  imports: [IconComponent, AnswerHistoryComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './objective-history.component.html',
+    selector: 'app-objective-history',
+    imports: [IconComponent, AnswerHistoryComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './objective-history.component.html'
 })
 export class ObjectiveHistoryComponent {
   @Input({ required: true }) sourceMessageId!: string;

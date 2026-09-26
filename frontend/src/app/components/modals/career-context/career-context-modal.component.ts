@@ -30,11 +30,10 @@ const LEGACY_KEYS: Record<keyof CareerContextCapsule, string> = {
 
 /** 1:1 port of CareerContextModal.tsx. Always mounted (like the original), rendered while isCareerContextOpen. */
 @Component({
-  selector: 'app-career-context-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './career-context-modal.component.html',
-  styleUrl: './career-context-modal.component.scss'
+    selector: 'app-career-context-modal',
+    imports: [IconComponent],
+    templateUrl: './career-context-modal.component.html',
+    styleUrl: './career-context-modal.component.scss'
 })
 export class CareerContextModalComponent {
   @Output() closed = new EventEmitter<void>();

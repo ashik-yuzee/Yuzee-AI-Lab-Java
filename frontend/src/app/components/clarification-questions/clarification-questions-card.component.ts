@@ -31,11 +31,10 @@ export interface ClarificationAnswer {
 
 /** Port of ClarificationQuestionsCard.tsx. */
 @Component({
-  selector: 'app-clarification-questions-card',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './clarification-questions-card.component.html',
-  styleUrl: './clarification-questions-card.component.scss'
+    selector: 'app-clarification-questions-card',
+    imports: [IconComponent],
+    templateUrl: './clarification-questions-card.component.html',
+    styleUrl: './clarification-questions-card.component.scss'
 })
 export class ClarificationQuestionsCardComponent implements OnChanges {
   @Input() questions: ClarificationQuestion[] = [];

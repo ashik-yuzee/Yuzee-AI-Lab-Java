@@ -6,11 +6,10 @@ import { ObjectiveAnswer, componentType, validateObjectiveAnswer } from './objec
 
 /** Port of the original's objectives/PrimitiveRenderer.tsx (PrimitiveRenderer). */
 @Component({
-  selector: 'app-primitive-renderer',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, EvidenceNoteComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './primitive-renderer.component.html',
+    selector: 'app-primitive-renderer',
+    imports: [NgTemplateOutlet, IconComponent, EvidenceNoteComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './primitive-renderer.component.html'
 })
 export class PrimitiveRendererComponent implements OnInit {
   @Input({ required: true }) component: any;

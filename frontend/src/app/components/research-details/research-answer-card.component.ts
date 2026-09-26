@@ -9,11 +9,10 @@ const kindLabels: Record<DetailFact['kind'], string> = { source_backed: 'From a 
 
 /** Port of the original's components/ResearchAnswerCard.tsx. */
 @Component({
-  selector: 'app-research-answer-card',
-  standalone: true,
-  imports: [IconComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './research-answer-card.component.html',
+    selector: 'app-research-answer-card',
+    imports: [IconComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './research-answer-card.component.html'
 })
 export class ResearchAnswerCardComponent implements OnChanges {
   @Input({ required: true }) result!: DetailResult;

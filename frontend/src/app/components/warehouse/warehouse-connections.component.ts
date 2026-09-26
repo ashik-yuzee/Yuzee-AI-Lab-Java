@@ -11,11 +11,10 @@ const funding: [string, string][] = [['Undergraduate supported places', 'cspUnde
 
 /** Port of the original's warehouse/WarehouseConnections.tsx. */
 @Component({
-  selector: 'app-warehouse-connections',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, LocalAreaGuideComponent, SkillsExplorerComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './warehouse-connections.component.html',
+    selector: 'app-warehouse-connections',
+    imports: [NgTemplateOutlet, IconComponent, LocalAreaGuideComponent, SkillsExplorerComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './warehouse-connections.component.html'
 })
 export class WarehouseConnectionsComponent implements OnChanges {
   @Input() pack: WarehousePack | null | undefined;

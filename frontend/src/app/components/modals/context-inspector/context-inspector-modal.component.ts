@@ -5,11 +5,10 @@ import { IconComponent } from '../../shared/icon/icon.component';
 
 /** 1:1 port of ContextInspectorModal.tsx — reads TokenLabService.activeTurnTelemetry.contextMetrics. */
 @Component({
-  selector: 'app-context-inspector-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './context-inspector-modal.component.html',
-  styleUrl: './context-inspector-modal.component.scss'
+    selector: 'app-context-inspector-modal',
+    imports: [IconComponent],
+    templateUrl: './context-inspector-modal.component.html',
+    styleUrl: './context-inspector-modal.component.scss'
 })
 export class ContextInspectorModalComponent {
   @Input() open = false;

@@ -6,11 +6,10 @@ export { comparisonRows } from './objectives.types';
 
 /** Port of the original's objectives/WorkspaceResult.tsx. */
 @Component({
-  selector: 'app-workspace-result',
-  standalone: true,
-  imports: [EvidenceNoteComponent, ResultValueComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './workspace-result.component.html',
+    selector: 'app-workspace-result',
+    imports: [EvidenceNoteComponent, ResultValueComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './workspace-result.component.html'
 })
 export class WorkspaceResultComponent {
   @Input() result: any;

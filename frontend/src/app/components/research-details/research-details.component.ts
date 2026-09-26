@@ -9,11 +9,10 @@ const stageLabels: Record<string, string> = { searching: 'Looking for relevant s
 
 /** Port of the original's components/MoreDetails.tsx ("Explore more" research panel under an answer). */
 @Component({
-  selector: 'app-research-details',
-  standalone: true,
-  imports: [IconComponent, ResearchAnswerCardComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './research-details.component.html',
+    selector: 'app-research-details',
+    imports: [IconComponent, ResearchAnswerCardComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './research-details.component.html'
 })
 export class ResearchDetailsComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) offer!: ResearchOffer;

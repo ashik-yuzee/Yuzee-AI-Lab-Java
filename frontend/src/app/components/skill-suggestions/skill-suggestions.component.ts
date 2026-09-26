@@ -9,11 +9,10 @@ import { SkillChoice, SkillOffer, SkillReview, allowSkillReview, skillMessage } 
  * input change or Retry calls reset(), which aborts the previous review exactly like the effect cleanup.
  */
 @Component({
-  selector: 'app-skill-suggestions',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './skill-suggestions.component.html',
-  styleUrl: './skill-suggestions.component.scss'
+    selector: 'app-skill-suggestions',
+    imports: [IconComponent],
+    templateUrl: './skill-suggestions.component.html',
+    styleUrl: './skill-suggestions.component.scss'
 })
 export class SkillSuggestionsComponent implements OnChanges, OnDestroy {
   @Input({ required: true }) sourceMessageId!: string;

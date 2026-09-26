@@ -30,11 +30,10 @@ function addressOala(text: string): string {
 }
 
 @Component({
-  selector: 'app-composer',
-  standalone: true,
-  imports: [IconComponent, MicroRouterStatusComponent],
-  templateUrl: './composer.component.html',
-  styleUrl: './composer.component.scss',
+    selector: 'app-composer',
+    imports: [IconComponent, MicroRouterStatusComponent],
+    templateUrl: './composer.component.html',
+    styleUrl: './composer.component.scss'
 })
 export class ComposerComponent implements OnChanges {
   /** Conversation the draft is scoped to (sessionStorage key). */

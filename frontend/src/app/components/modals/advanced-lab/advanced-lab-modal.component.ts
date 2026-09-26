@@ -33,11 +33,10 @@ const BENCHMARK_STRATEGIES = ['BASELINE', 'SUMMARY_RECENT', 'ADAPTIVE_HYBRID', '
 
 /** 1:1 port of yuzee-ai-token-lab/src/components/AdvancedLabModal.tsx. */
 @Component({
-  selector: 'app-advanced-lab-modal',
-  standalone: true,
-  imports: [IconComponent, ConfirmDialogComponent, RouterModelSelectorComponent, RangeSliderComponent, ToggleSwitchComponent],
-  templateUrl: './advanced-lab-modal.component.html',
-  styleUrl: './advanced-lab-modal.component.scss'
+    selector: 'app-advanced-lab-modal',
+    imports: [IconComponent, ConfirmDialogComponent, RouterModelSelectorComponent, RangeSliderComponent, ToggleSwitchComponent],
+    templateUrl: './advanced-lab-modal.component.html',
+    styleUrl: './advanced-lab-modal.component.scss'
 })
 export class AdvancedLabModalComponent implements OnChanges {
   @Input() open = false;

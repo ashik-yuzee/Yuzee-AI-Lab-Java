@@ -5,11 +5,10 @@ import { IconComponent } from '../../shared/icon/icon.component';
 
 /** 1:1 port of AnalyticsDashboardModal.tsx — reads TokenLabService.sessionStats. */
 @Component({
-  selector: 'app-analytics-dashboard-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './analytics-dashboard-modal.component.html',
-  styleUrl: './analytics-dashboard-modal.component.scss'
+    selector: 'app-analytics-dashboard-modal',
+    imports: [IconComponent],
+    templateUrl: './analytics-dashboard-modal.component.html',
+    styleUrl: './analytics-dashboard-modal.component.scss'
 })
 export class AnalyticsDashboardModalComponent {
   @Input() open = false;

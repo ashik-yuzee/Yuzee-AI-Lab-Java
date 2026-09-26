@@ -24,11 +24,10 @@ const ROUTER_OPTIONS: SelectOption[] = RUNTIME_ROUTER_MODELS.map(m => ({
 
 /** Port of Navbar.tsx. */
 @Component({
-  selector: 'app-navbar',
-  standalone: true,
-  imports: [IconComponent, SearchableSelectComponent],
-  templateUrl: './navbar.component.html',
-  styleUrl: './navbar.component.scss'
+    selector: 'app-navbar',
+    imports: [IconComponent, SearchableSelectComponent],
+    templateUrl: './navbar.component.html',
+    styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent {
   @Output() openRenderer = new EventEmitter<void>();

@@ -8,11 +8,10 @@ import { IconComponent } from '../../shared/icon/icon.component';
  * like the original.
  */
 @Component({
-  selector: 'app-token-inspector',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './token-inspector.component.html',
-  styleUrl: './token-inspector.component.scss'
+    selector: 'app-token-inspector',
+    imports: [IconComponent],
+    templateUrl: './token-inspector.component.html',
+    styleUrl: './token-inspector.component.scss'
 })
 export class TokenInspectorComponent {
   @Input() open = false;

@@ -36,11 +36,10 @@ const SCENARIO_STEPS = [
 
 /** 1:1 port of BenchmarkModal.tsx: POST /api/benchmark with the original's request fields and result rows. */
 @Component({
-  selector: 'app-benchmark-modal',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './benchmark-modal.component.html',
-  styleUrl: './benchmark-modal.component.scss'
+    selector: 'app-benchmark-modal',
+    imports: [IconComponent],
+    templateUrl: './benchmark-modal.component.html',
+    styleUrl: './benchmark-modal.component.scss'
 })
 export class BenchmarkModalComponent {
   @Input() open = false;

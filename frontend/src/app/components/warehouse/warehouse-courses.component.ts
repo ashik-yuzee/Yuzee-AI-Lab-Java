@@ -6,11 +6,10 @@ import { WarehousePack } from './warehouse.types';
 
 /** Port of the original's warehouse/WarehouseCourses.tsx (CourseDetails is an ng-template). */
 @Component({
-  selector: 'app-warehouse-courses',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, ProviderComparisonComponent],
-  styles: [':host{display:contents}'],
-  templateUrl: './warehouse-courses.component.html',
+    selector: 'app-warehouse-courses',
+    imports: [NgTemplateOutlet, IconComponent, ProviderComparisonComponent],
+    styles: [':host{display:contents}'],
+    templateUrl: './warehouse-courses.component.html'
 })
 export class WarehouseCoursesComponent implements OnChanges {
   @Input() pack: WarehousePack | null | undefined;

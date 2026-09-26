@@ -44,15 +44,14 @@ const HELP_UPDATE_PROMPT = 'Please correct the previous HECS-HELP repayment expl
 
 /** Port of ChatArea.tsx. The host is display:contents so #chat-viewport sits directly in App.tsx's <main>. */
 @Component({
-  selector: 'chat-area',
-  standalone: true,
-  imports: [
-    ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, ChatTurnDividerComponent,
-    ResearchDetailsComponent, SkillSuggestionsComponent, ObjectiveHistoryComponent, ObjectiveSuggestionsComponent,
-    IconComponent,
-  ],
-  templateUrl: './chat-area.component.html',
-  styleUrl: './chat-area.component.scss'
+    selector: 'chat-area',
+    imports: [
+        ProtocolRendererComponent, ChatProgressComponent, ComposerComponent, ChatTurnDividerComponent,
+        ResearchDetailsComponent, SkillSuggestionsComponent, ObjectiveHistoryComponent, ObjectiveSuggestionsComponent,
+        IconComponent,
+    ],
+    templateUrl: './chat-area.component.html',
+    styleUrl: './chat-area.component.scss'
 })
 export class ChatAreaComponent implements OnDestroy {
   @ViewChild('messagesEnd') private messagesEnd?: ElementRef<HTMLDivElement>;

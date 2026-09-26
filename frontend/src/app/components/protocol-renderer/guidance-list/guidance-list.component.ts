@@ -32,11 +32,10 @@ interface GuidanceRow {
 
 /** Port of GuidanceList.tsx (styles: global guidance-* rules from guidance-list.css). */
 @Component({
-  selector: 'app-guidance-list',
-  standalone: true,
-  imports: [NgTemplateOutlet, IconComponent, PathwayLearningCuesComponent],
-  templateUrl: './guidance-list.component.html',
-  styleUrl: './guidance-list.component.scss'
+    selector: 'app-guidance-list',
+    imports: [NgTemplateOutlet, IconComponent, PathwayLearningCuesComponent],
+    templateUrl: './guidance-list.component.html',
+    styleUrl: './guidance-list.component.scss'
 })
 export class GuidanceListComponent {
   @Input({ required: true }) block!: YuzeeContentBlock;

@@ -3,11 +3,10 @@ import { IconComponent } from '../icon/icon.component';
 
 /** 1:1 port of AppleConfirmDialog.tsx (onConfirm/onCancel → (confirmed)/(cancelled)). */
 @Component({
-  selector: 'app-confirm-dialog',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './confirm-dialog.component.html',
-  styleUrl: './confirm-dialog.component.scss'
+    selector: 'app-confirm-dialog',
+    imports: [IconComponent],
+    templateUrl: './confirm-dialog.component.html',
+    styleUrl: './confirm-dialog.component.scss'
 })
 export class ConfirmDialogComponent implements OnChanges {
   @Input({ required: true }) isOpen = false;

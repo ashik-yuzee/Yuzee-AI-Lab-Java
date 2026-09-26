@@ -17,11 +17,10 @@ let nextScope = 0;
  * `reportResult(accepted)`.
  */
 @Component({
-  selector: 'app-interaction',
-  standalone: true,
-  imports: [IconComponent],
-  templateUrl: './interaction.component.html',
-  styleUrl: './interaction.component.scss'
+    selector: 'app-interaction',
+    imports: [IconComponent],
+    templateUrl: './interaction.component.html',
+    styleUrl: './interaction.component.scss'
 })
 export class InteractionComponent implements OnChanges {
   @Input({ required: true }) interaction!: YuzeeInteraction;

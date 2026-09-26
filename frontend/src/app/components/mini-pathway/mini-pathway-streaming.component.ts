@@ -6,10 +6,9 @@ import { miniPathwayPanelResponse } from './history';
 
 /** Port of MiniPathwayStreaming.tsx. Styled by the global mini-pathway.css. */
 @Component({
-  selector: 'app-mini-pathway-streaming',
-  standalone: true,
-  imports: [ProtocolRendererComponent, IconComponent],
-  template: `
+    selector: 'app-mini-pathway-streaming',
+    imports: [ProtocolRendererComponent, IconComponent],
+    template: `
     <div class="mini-pathway-stream">
       <div class="mini-pathway-stream-status">
         <div role="status" aria-live="polite"><app-icon [size]="17" name="Sparkles" /><span>{{ stage }}</span></div>
@@ -31,7 +30,7 @@ import { miniPathwayPanelResponse } from './history';
       </div>
     </div>
   `,
-  styles: [':host{display:contents}'],
+    styles: [':host{display:contents}']
 })
 export class MiniPathwayStreamingComponent implements OnChanges {
   @Input() stage = '';
