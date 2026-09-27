@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, signal, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../../icon/icon.component';
 
 export type SelectBadgeColor = 'blue' | 'emerald' | 'amber' | 'purple' | 'slate';
@@ -29,6 +29,7 @@ interface OptionGroup {
     selector: 'app-searchable-select',
     imports: [IconComponent],
     templateUrl: './searchable-select.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './searchable-select.component.scss'
 })
 export class SearchableSelectComponent {

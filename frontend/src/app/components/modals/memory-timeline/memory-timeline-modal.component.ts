@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { CompactionMetrics, Conversation } from '../../../models/types';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -8,6 +8,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
     selector: 'app-memory-timeline-modal',
     imports: [IconComponent],
     templateUrl: './memory-timeline-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './memory-timeline-modal.component.scss'
 })
 export class MemoryTimelineModalComponent {

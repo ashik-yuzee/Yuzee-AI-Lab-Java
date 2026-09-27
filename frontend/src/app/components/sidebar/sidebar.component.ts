@@ -1,5 +1,6 @@
 import {
-  AfterViewInit, Component, Directive, ElementRef, signal
+  AfterViewInit, Component, Directive, ElementRef, signal,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { TokenLabService } from '../../services/token-lab.service';
@@ -20,6 +21,7 @@ class AutofocusDirective implements AfterViewInit {
     selector: 'app-sidebar',
     imports: [ConfirmDialogComponent, IconComponent, AutofocusDirective],
     templateUrl: './sidebar.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './sidebar.component.scss'
 })
 export class SidebarComponent {

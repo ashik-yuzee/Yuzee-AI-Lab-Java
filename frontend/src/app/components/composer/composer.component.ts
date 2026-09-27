@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, computed, effect, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, computed, effect, signal, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { MicroRouterStatusComponent } from './micro-router-status.component';
 
@@ -33,6 +33,7 @@ function addressOala(text: string): string {
     selector: 'app-composer',
     imports: [IconComponent, MicroRouterStatusComponent],
     templateUrl: './composer.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './composer.component.scss'
 })
 export class ComposerComponent implements OnChanges {

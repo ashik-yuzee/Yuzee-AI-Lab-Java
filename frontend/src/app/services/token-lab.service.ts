@@ -166,7 +166,7 @@ export class TokenLabService {
         next[idx] = current;
         return next;
       });
-    }, { allowSignalWrites: true });
+    });
   }
 
   private get headers(): HttpHeaders {

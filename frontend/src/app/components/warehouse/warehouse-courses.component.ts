@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../shared/icon/icon.component';
 import { ProviderComparisonComponent } from './provider-comparison.component';
@@ -9,6 +9,7 @@ import { WarehousePack } from './warehouse.types';
     selector: 'app-warehouse-courses',
     imports: [NgTemplateOutlet, IconComponent, ProviderComparisonComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './warehouse-courses.component.html'
 })
 export class WarehouseCoursesComponent implements OnChanges {

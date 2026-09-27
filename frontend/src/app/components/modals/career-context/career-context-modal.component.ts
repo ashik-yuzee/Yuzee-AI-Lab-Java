@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, effect, signal, untracked } from '@angular/core';
+import { Component, EventEmitter, Output, effect, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 
@@ -33,6 +33,7 @@ const LEGACY_KEYS: Record<keyof CareerContextCapsule, string> = {
     selector: 'app-career-context-modal',
     imports: [IconComponent],
     templateUrl: './career-context-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './career-context-modal.component.scss'
 })
 export class CareerContextModalComponent {
@@ -45,7 +46,7 @@ export class CareerContextModalComponent {
     effect(() => {
       const conv = this.lab.currentConversation();
       untracked(() => this.seedFrom(conv));
-    }, { allowSignalWrites: true });
+    });
   }
 
   /** Original useEffect([currentConversation]): re-seed only when the conversation carries a capsule. */

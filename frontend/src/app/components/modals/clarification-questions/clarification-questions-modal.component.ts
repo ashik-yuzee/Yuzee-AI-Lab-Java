@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../../shared/icon/icon.component';
 import {
   ClarificationAnswer,
@@ -29,6 +29,7 @@ const ESCAPE_HATCHES = ['Skip this for now', 'I am not sure yet', 'Show me a sim
     selector: 'app-clarification-questions-modal',
     imports: [IconComponent, ClarificationQuestionsCardComponent],
     templateUrl: './clarification-questions-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './clarification-questions-modal.component.scss'
 })
 export class ClarificationQuestionsModalComponent {

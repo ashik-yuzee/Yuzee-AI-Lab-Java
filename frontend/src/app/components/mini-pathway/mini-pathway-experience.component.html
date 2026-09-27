@@ -22,7 +22,7 @@
       <button type="button" class="mini-pathway-expand" [attr.aria-label]="expanded() ? 'Restore mini pathway to side panel' : 'Expand mini pathway'" [attr.aria-expanded]="expanded()" aria-controls="mini-pathway-body" [title]="expanded() ? 'Return to the side panel (Esc)' : 'Expand across the screen'" (click)="expanded.set(!expanded())">@if (expanded()) {<app-icon [size]="18" name="Minimize2" />} @else {<app-icon [size]="18" name="Maximize2" />}<span>{{ expanded() ? 'Collapse' : 'Expand' }}</span></button>
       <button type="button" aria-label="Close mini pathway" (click)="close()"><app-icon [size]="22" name="X" /></button>
     </div></header>
-    <app-pathway-history-selector [runs]="runs()" [selectedId]="run()?.id" [messages]="conv()?.messages || []" [loading]="loading()" (onSelect)="chooseSaved($event)" />
+    <app-pathway-history-selector [runs]="runs()" [selectedId]="$safeNavigationMigration(run()?.id)" [messages]="conv()?.messages || []" [loading]="loading()" (onSelect)="chooseSaved($event)" />
     <div id="mini-pathway-body" class="mini-pathway-body">
       <app-pathway-colour-guide />
       @if (historyError()) {

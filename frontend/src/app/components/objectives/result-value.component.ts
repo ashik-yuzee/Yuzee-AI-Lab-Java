@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 const sourceLabels: Record<string, string> = { USER_CONFIRMED: 'You shared', AI_INFERRED: 'AI interpretation', SOURCED_CURRENT_FACT: 'Source-backed', UNKNOWN: 'Still unknown', GENERAL_GUIDANCE: 'General guidance' };
 
@@ -7,6 +7,7 @@ const sourceLabels: Record<string, string> = { USER_CONFIRMED: 'You shared', AI_
   selector: 'app-evidence-note',
   standalone: true,
   styles: [':host{display:contents}'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   template: `<div [class]="'objective-note ' + (note?.source_status?.toLowerCase() ?? 'undefined')">@if (note?.source_status !== 'USER_CONFIRMED') {<span>{{ label() }}</span>@if (note?.label) {<strong>{{ note.label }}</strong>}}<p>{{ note?.detail }}</p></div>`,
 })
 export class EvidenceNoteComponent {
@@ -19,6 +20,7 @@ export class EvidenceNoteComponent {
     selector: 'app-result-value',
     imports: [EvidenceNoteComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './result-value.component.html'
 })
 export class ResultValueComponent {

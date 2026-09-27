@@ -1,4 +1,4 @@
-import { Component, computed, effect, input, signal, untracked } from '@angular/core';
+import { Component, computed, effect, input, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { ObjectivesService } from '../../services/objectives.service';
 import { RoutingService } from '../../services/routing.service';
@@ -9,6 +9,7 @@ import { fuseObjectiveMatches, objectiveSelectionBoundary } from './objectives.t
   selector: 'app-objective-toolbar',
   standalone: true,
   styles: [':host{display:contents}'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './objective-toolbar.component.html',
 })
 export class ObjectiveToolbarComponent {
@@ -22,6 +23,7 @@ export class ObjectiveToolbarComponent {
     selector: 'app-objective-suggestions',
     imports: [IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './objective-suggestions.component.html'
 })
 export class ObjectiveSuggestionsComponent {
@@ -66,7 +68,7 @@ export class ObjectiveSuggestionsComponent {
         this.routing.startWarmup();
         onCleanup(() => { clearTimeout(timer); abort.abort(); unsubscribe(); });
       });
-    }, { allowSignalWrites: true });
+    });
   }
 
   dismiss(): void {

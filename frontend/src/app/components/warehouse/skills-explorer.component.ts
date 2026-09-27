@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { ExplorationChoice, WarehouseExploration } from './warehouse.types';
 
@@ -9,6 +9,7 @@ const empty: ExplorationChoice = { roleIds: [], skills: [] };
     selector: 'app-skills-explorer',
     imports: [IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './skills-explorer.component.html'
 })
 export class SkillsExplorerComponent implements OnChanges {

@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, ViewChild, computed, effect, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, ViewChild, computed, effect, signal, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../shared/icon/icon.component';
 import { WarehouseConnectionsComponent } from '../warehouse/warehouse-connections.component';
@@ -18,6 +18,7 @@ const WIDTH_KEY = 'yuzee-objective-workspace-width', DOCK_BREAKPOINT = 1000;
     selector: 'app-objective-workspace',
     imports: [NgTemplateOutlet, IconComponent, WarehouseConnectionsComponent, WarehouseCoursesComponent, AnswerHistoryComponent, ContextDetailsComponent, PrimitiveRendererComponent, WorkspaceResultComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './objective-workspace.component.html'
 })
 export class ObjectiveWorkspaceComponent {

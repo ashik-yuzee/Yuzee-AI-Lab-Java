@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../shared/icon/icon.component';
 import { ObjectivesService } from '../../services/objectives.service';
@@ -9,6 +9,7 @@ import { ObjectiveAnswerReceipt, ObjectiveSession, activityTitle, answerHistory,
     selector: 'app-answer-history',
     imports: [NgTemplateOutlet, IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './answer-history.component.html'
 })
 export class AnswerHistoryComponent {
@@ -25,6 +26,7 @@ export class AnswerHistoryComponent {
     selector: 'app-objective-history',
     imports: [IconComponent, AnswerHistoryComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './objective-history.component.html'
 })
 export class ObjectiveHistoryComponent {

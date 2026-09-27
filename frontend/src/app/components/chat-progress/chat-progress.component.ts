@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, computed, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ChatProgressPhase } from '../../models/types';
 import { IconComponent } from '../shared/icon/icon.component';
 
@@ -22,6 +22,7 @@ export function chatProgressCopy(phase: ChatProgressPhase, tick: number, elapsed
     selector: 'app-chat-progress',
     imports: [IconComponent],
     templateUrl: './chat-progress.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styles: [':host{display:block}']
 })
 export class ChatProgressComponent implements OnInit, OnDestroy {

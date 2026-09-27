@@ -1,4 +1,4 @@
-import { Component, effect, signal, untracked } from '@angular/core';
+import { Component, effect, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { ApiService } from '../../../services/api.service';
 import { AuthService } from '../../../services/auth.service';
 import { TokenLabService, formatCost } from '../../../services/token-lab.service';
@@ -43,6 +43,7 @@ const LAB_SHORTCUTS = [
     selector: 'app-settings-modal',
     imports: [IconComponent, RouterModelSelectorComponent],
     templateUrl: './settings-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './settings-modal.component.scss'
 })
 export class SettingsModalComponent {

@@ -60,7 +60,7 @@ export class ObjectivesService {
         if (!abort.signal.aborted) { this.sessions.set(restoreDrafts(conv, data)); this.selectedId.set(data[0]?.id || ''); }
       }).catch(e => { if (!abort.signal.aborted) this.error.set(e.message); });
       onCleanup(() => { abort.abort(); this.active?.abort(); });
-    }, { allowSignalWrites: true });
+    });
     // useEffect([enabled, open, selected?.id, conv?.id]): the visible workspace is sent with chat messages.
     effect(onCleanup => {
       const conv = this.conversationId(), id = this.selected()?.id;
@@ -68,7 +68,7 @@ export class ObjectivesService {
       onCleanup(() => setVisibleWorkspace(null));
     });
     // useEffect([isWhiteboardOpen, isTokenInspectorOpen]): another side panel closes the workspace.
-    effect(() => { if (this.lab.isWhiteboardOpen() || this.lab.isTokenInspectorOpen()) untracked(() => this.open.set(false)); }, { allowSignalWrites: true });
+    effect(() => { if (this.lab.isWhiteboardOpen() || this.lab.isTokenInspectorOpen()) untracked(() => this.open.set(false)); });
   }
 
   private readEnabled(): boolean {

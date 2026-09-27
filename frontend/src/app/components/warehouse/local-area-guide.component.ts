@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { WarehouseConnections } from './warehouse.types';
 
@@ -12,6 +12,7 @@ const careerName = (title: string) => /^\d+$/.test(title.trim()) ? 'Other occupa
     selector: 'app-local-area-guide',
     imports: [IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './local-area-guide.component.html'
 })
 export class LocalAreaGuideComponent {

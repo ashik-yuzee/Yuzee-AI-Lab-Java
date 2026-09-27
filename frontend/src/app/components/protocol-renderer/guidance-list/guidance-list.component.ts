@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { PathwayLearningCuesComponent } from '../../mini-pathway/pathway-learning-cues.component';
@@ -35,6 +35,7 @@ interface GuidanceRow {
     selector: 'app-guidance-list',
     imports: [NgTemplateOutlet, IconComponent, PathwayLearningCuesComponent],
     templateUrl: './guidance-list.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './guidance-list.component.scss'
 })
 export class GuidanceListComponent {

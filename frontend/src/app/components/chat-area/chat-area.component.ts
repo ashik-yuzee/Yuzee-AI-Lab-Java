@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, SecurityContext, ViewChild, computed, effect, signal, untracked } from '@angular/core';
+import { Component, ElementRef, OnDestroy, SecurityContext, ViewChild, computed, effect, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { TokenLabService } from '../../services/token-lab.service';
 import { ObjectivesService } from '../../services/objectives.service';
@@ -51,6 +51,7 @@ const HELP_UPDATE_PROMPT = 'Please correct the previous HECS-HELP repayment expl
         IconComponent,
     ],
     templateUrl: './chat-area.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './chat-area.component.scss'
 })
 export class ChatAreaComponent implements OnDestroy {

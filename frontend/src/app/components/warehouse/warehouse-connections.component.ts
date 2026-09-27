@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../shared/icon/icon.component';
 import { LocalAreaGuideComponent } from './local-area-guide.component';
@@ -14,6 +14,7 @@ const funding: [string, string][] = [['Undergraduate supported places', 'cspUnde
     selector: 'app-warehouse-connections',
     imports: [NgTemplateOutlet, IconComponent, LocalAreaGuideComponent, SkillsExplorerComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './warehouse-connections.component.html'
 })
 export class WarehouseConnectionsComponent implements OnChanges {

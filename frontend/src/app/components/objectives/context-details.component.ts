@@ -1,4 +1,4 @@
-import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { ObjectiveSession, answerText } from './objectives.types';
 
 /** Port of the original's objectives/ContextDetails.tsx. The host recreates it per session revision (React `key`). */
@@ -6,6 +6,7 @@ import { ObjectiveSession, answerText } from './objectives.types';
   selector: 'app-context-details',
   standalone: true,
   styles: [':host{display:contents}'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   templateUrl: './context-details.component.html',
 })
 export class ContextDetailsComponent implements AfterViewChecked {

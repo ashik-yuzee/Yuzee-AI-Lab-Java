@@ -1,6 +1,7 @@
 import {
   Component, Directive, ElementRef, EventEmitter, HostListener, Input, OnChanges, OnDestroy, Output,
-  Injector, SimpleChanges, ViewChild, afterNextRender, computed, effect, inject, signal, untracked
+  Injector, SimpleChanges, ViewChild, afterNextRender, computed, effect, inject, signal, untracked,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { RoutingService } from '../../services/routing.service';
@@ -44,6 +45,7 @@ const selectionKey = (conversationId: string) => `yuzee-pathway-selection:${conv
         MiniPathwayStreamingComponent, MiniPathwayPortalDirective,
     ],
     templateUrl: './mini-pathway-experience.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './mini-pathway-experience.component.scss'
 })
 export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
@@ -107,7 +109,7 @@ export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
       void this.convId();
       untracked(() => { this.panelOpen.set(false); this.expanded.set(false); this.error.set(''); lookUp('saved-pathways-control', this.historyTarget); this.drawer.cancel(); });
       onCleanup(() => this.active?.abort());
-    }, { allowSignalWrites: true });
+    });
 
     // usePathwayHistory: load saved runs for the conversation.
     effect(onCleanup => {
@@ -130,7 +132,7 @@ export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
           if (runs.length) this.reveal();
         }).catch(() => { if (!controller.signal.aborted && this.conv()?.id === conversationId) this.historyError.set('Saved pathways could not be loaded.'); });
       });
-    }, { allowSignalWrites: true });
+    });
 
     // Scroll the report to the top when the selected pathway changes.
     effect(() => { void this.runId(); queueMicrotask(() => document.getElementById('mini-pathway-body')?.scrollTo({ top: 0 })); });
@@ -173,10 +175,10 @@ export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
           if (plan.action === 'automatic') await this.generate('automatic', selection, controller.signal);
         })().catch(e => { if (alive && !controller.signal.aborted) this.error.set(e instanceof Error ? e.message : 'Mini pathway is unavailable.'); });
       });
-    }, { allowSignalWrites: true });
+    });
 
     // useDrawerResize: any drag is reset when open/expanded change.
-    effect(() => { void this.panelOpen(); void this.expanded(); untracked(() => this.drawer.cancel()); }, { allowSignalWrites: true });
+    effect(() => { void this.panelOpen(); void this.expanded(); untracked(() => this.drawer.cancel()); });
 
     // While open: keep the sidebar closed on narrow screens.
     effect(onCleanup => {
@@ -185,7 +187,7 @@ export class MiniPathwayExperienceComponent implements OnChanges, OnDestroy {
       untracked(resize);
       window.addEventListener('resize', resize);
       onCleanup(() => window.removeEventListener('resize', resize));
-    }, { allowSignalWrites: true });
+    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {

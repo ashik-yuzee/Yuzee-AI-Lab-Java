@@ -1,10 +1,11 @@
-import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 
 /** 1:1 port of AppleSlider.tsx (value/onChange → [value]/(valueChange)). */
 @Component({
   selector: 'app-range-slider',
   standalone: true,
   templateUrl: './range-slider.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './range-slider.component.scss'
 })
 export class RangeSliderComponent implements AfterViewChecked {

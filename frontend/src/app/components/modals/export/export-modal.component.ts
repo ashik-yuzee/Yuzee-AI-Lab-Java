@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { calcTurnCost } from '../../../utils/chat-helpers';
 import { Conversation } from '../../../models/types';
@@ -9,6 +9,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
     selector: 'app-export-modal',
     imports: [IconComponent],
     templateUrl: './export-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './export-modal.component.scss'
 })
 export class ExportModalComponent {

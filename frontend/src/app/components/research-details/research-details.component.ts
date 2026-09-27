@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { AuthService } from '../../services/auth.service';
 import { ResearchAnswerCardComponent } from './research-answer-card.component';
@@ -12,6 +12,7 @@ const stageLabels: Record<string, string> = { searching: 'Looking for relevant s
     selector: 'app-research-details',
     imports: [IconComponent, ResearchAnswerCardComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './research-details.component.html'
 })
 export class ResearchDetailsComponent implements OnChanges, OnDestroy {

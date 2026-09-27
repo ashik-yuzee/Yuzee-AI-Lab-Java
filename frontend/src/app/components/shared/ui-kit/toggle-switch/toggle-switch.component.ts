@@ -1,10 +1,11 @@
-import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, EventEmitter, Input, Output, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 
 /** 1:1 port of AppleToggle.tsx (checked/onChange → [checked]/(checkedChange)). */
 @Component({
   selector: 'app-toggle-switch',
   standalone: true,
   templateUrl: './toggle-switch.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './toggle-switch.component.scss'
 })
 export class ToggleSwitchComponent implements AfterViewChecked {

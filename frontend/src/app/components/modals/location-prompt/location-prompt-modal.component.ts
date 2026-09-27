@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, ViewChild, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, ViewChild, signal, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { IconComponent } from '../../shared/icon/icon.component';
 
@@ -12,6 +12,7 @@ const SESSION_KEY = 'yuzee_location_prompted';
     selector: 'app-location-prompt-modal',
     imports: [IconComponent],
     templateUrl: './location-prompt-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './location-prompt-modal.component.scss'
 })
 export class LocationPromptModalComponent implements AfterViewInit {

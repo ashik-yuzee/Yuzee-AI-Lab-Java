@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, SecurityContext, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, Output, SecurityContext, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { NgTemplateOutlet } from '@angular/common';
 import { ApiService } from '../../services/api.service';
@@ -39,6 +39,7 @@ let nextAnchor = 0;
     selector: 'app-protocol-renderer',
     imports: [NgTemplateOutlet, IconComponent, ConfirmDialogComponent, PathwayLearningCuesComponent, InteractionComponent, GuidanceListComponent],
     templateUrl: './protocol-renderer.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrls: ['./protocol-renderer.component.scss', './protocol-renderer-blocks.scss']
 })
 export class ProtocolRendererComponent {

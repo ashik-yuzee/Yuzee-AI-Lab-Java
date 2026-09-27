@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { TokenLabService } from '../../../services/token-lab.service';
@@ -39,6 +39,7 @@ const SCENARIO_STEPS = [
     selector: 'app-benchmark-modal',
     imports: [IconComponent],
     templateUrl: './benchmark-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './benchmark-modal.component.scss'
 })
 export class BenchmarkModalComponent {

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../services/token-lab.service';
 import { RoutingService } from '../../services/routing.service';
 import { IconComponent } from '../shared/icon/icon.component';
@@ -27,6 +27,7 @@ const ROUTER_OPTIONS: SelectOption[] = RUNTIME_ROUTER_MODELS.map(m => ({
     selector: 'app-navbar',
     imports: [IconComponent, SearchableSelectComponent],
     templateUrl: './navbar.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './navbar.component.scss'
 })
 export class NavbarComponent {

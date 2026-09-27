@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../../shared/icon/icon.component';
 import { validateInteractionFields } from '../protocol-validator';
 import type { YuzeeInteraction, UserEvent, YuzeeOption } from '../../../models/types';
@@ -20,6 +20,7 @@ let nextScope = 0;
     selector: 'app-interaction',
     imports: [IconComponent],
     templateUrl: './interaction.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './interaction.component.scss'
 })
 export class InteractionComponent implements OnChanges {

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 
 export interface ClarificationOption {
@@ -34,6 +34,7 @@ export interface ClarificationAnswer {
     selector: 'app-clarification-questions-card',
     imports: [IconComponent],
     templateUrl: './clarification-questions-card.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './clarification-questions-card.component.scss'
 })
 export class ClarificationQuestionsCardComponent implements OnChanges {

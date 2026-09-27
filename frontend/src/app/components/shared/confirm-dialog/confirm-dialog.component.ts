@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../icon/icon.component';
 
 /** 1:1 port of AppleConfirmDialog.tsx (onConfirm/onCancel → (confirmed)/(cancelled)). */
@@ -6,6 +6,7 @@ import { IconComponent } from '../icon/icon.component';
     selector: 'app-confirm-dialog',
     imports: [IconComponent],
     templateUrl: './confirm-dialog.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './confirm-dialog.component.scss'
 })
 export class ConfirmDialogComponent implements OnChanges {

@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { learningTypesIn, LearningType } from './learning-types';
 
 /** Port of PathwayLearningCues.tsx `PathwayLearningCues`. Styled by the global mini-pathway.css. */
@@ -17,6 +17,7 @@ import { learningTypesIn, LearningType } from './learning-types';
       </div>
     }
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [':host{display:contents}'],
 })
 export class PathwayLearningCuesComponent {
@@ -49,6 +50,7 @@ const COLOUR_KEY: [string, string][] = [
       <a href="https://www.aqf.edu.au/framework/aqf-qualifications" target="_blank" rel="noreferrer">About qualification levels ↗</a>
     </details>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [':host{display:contents}'],
 })
 export class PathwayColourGuideComponent {

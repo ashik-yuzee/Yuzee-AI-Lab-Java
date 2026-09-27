@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, Directive, ElementRef, EventEmitter, Output, computed, effect, isSignal, signal, untracked } from '@angular/core';
+import { AfterViewInit, Component, Directive, ElementRef, EventEmitter, Output, computed, effect, isSignal, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { ObjectivesService } from '../../../services/objectives.service';
 import { UserContradiction, UserProfileFact } from '../../../models/types';
@@ -27,6 +27,7 @@ class AutofocusDirective implements AfterViewInit {
     selector: 'app-user-profile-modal',
     imports: [IconComponent, AutofocusDirective],
     templateUrl: './user-profile-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './user-profile-modal.component.scss'
 })
 export class UserProfileModalComponent {
@@ -59,7 +60,7 @@ export class UserProfileModalComponent {
     effect(() => {
       const loc = this.lab.userLocation();
       untracked(() => this.locationDraft.set(loc));
-    }, { allowSignalWrites: true });
+    });
   }
 
   get userProfile() { return this.lab.userProfile; }

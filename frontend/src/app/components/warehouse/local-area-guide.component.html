@@ -22,7 +22,7 @@
         @if (demand.length) {
           <p>These job-advertisement records show types of work to explore. Read the area and date beside each row: some figures cover a wider region than {{ area.name }}.</p>
           <div class="local-demand-scroll" role="region" aria-label="Recorded jobs and employers" tabindex="0"><table><thead><tr><th scope="col">Type of work</th><th scope="col">Job ads</th><th scope="col">Employers</th></tr></thead><tbody>
-            @for (s of demand; track s.id) {<tr><th scope="row">{{ role(s) }}<small>{{ s.region }} · {{ names[s.scope] || s.scope }} · {{ date(s.period) }}</small>@if (!s.metrics) {<small>{{ s.text }}</small>}</th><td>{{ number(s.metrics?.advertisements) }}</td><td>{{ number(s.metrics?.employers) }}</td></tr>}
+            @for (s of demand; track s.id) {<tr><th scope="row">{{ role(s) }}<small>{{ s.region }} · {{ names[s.scope] || s.scope }} · {{ date(s.period) }}</small>@if (!s.metrics) {<small>{{ s.text }}</small>}</th><td>{{ number($safeNavigationMigration(s.metrics?.advertisements)) }}</td><td>{{ number($safeNavigationMigration(s.metrics?.employers)) }}</td></tr>}
           </tbody></table></div>
           <p class="warehouse-muted">Recorded advertisements are not confirmed open today. Employers can appear in more than one row, so these figures should not be added into a company total.</p>
         } @else {

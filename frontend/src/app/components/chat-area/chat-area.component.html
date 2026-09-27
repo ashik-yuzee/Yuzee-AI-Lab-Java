@@ -101,7 +101,7 @@
                             [validationErrors]="msg.validationErrors || []"
                             [interactHandler]="handleInteractionEvent"
                             [readOnly]="lab.isStreaming() || !isLastAssistantMsg(msg.id)"
-                            [conversationId]="lab.activeConversation()?.id"
+                            [conversationId]="$safeNavigationMigration(lab.activeConversation()?.id)"
                             [hideRecommendedActions]="true"
                             [deferQuestionToWorkspace]="deferQuestion(msg, v.structured)" />
                         } @else if (!msg.error && !msg.streamStopped && !msg.isStreaming) {
@@ -126,7 +126,7 @@
                         }
 
                         @if (msg.isStreaming && !v.structured) {
-                          <app-chat-progress [phase]="msg.streamProgress?.phase" [startedAt]="msg.createdAt" (stop)="lab.stopStreaming()" />
+                          <app-chat-progress [phase]="$safeNavigationMigration(msg.streamProgress?.phase)" [startedAt]="msg.createdAt" (stop)="lab.stopStreaming()" />
                         }
                         @if (msg.streamStopped) {
                           <div class="main-chat-stopped" role="status">Stopped. Your question is still here.<button type="button" (click)="retryLastMessage()">Try again</button></div>
@@ -228,5 +228,5 @@
       </div>
     </div>
 
-    <app-composer [conversationId]="lab.activeConversation()?.id" [streaming]="lab.isStreaming()" [sendMessage]="composerSend" (stop)="lab.stopStreaming()" />
+    <app-composer [conversationId]="$safeNavigationMigration(lab.activeConversation()?.id)" [streaming]="lab.isStreaming()" [sendMessage]="composerSend" (stop)="lab.stopStreaming()" />
   </div>

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, ChangeDetectionStrategy } from '@angular/core';
 import { YuzeeContentBlock, YuzeeResponseV13 } from '../../models/types';
 import { ProtocolRendererComponent } from '../protocol-renderer/protocol-renderer.component';
 import { IconComponent } from '../shared/icon/icon.component';
@@ -30,6 +30,7 @@ import { miniPathwayPanelResponse } from './history';
       </div>
     </div>
   `,
+    changeDetection: ChangeDetectionStrategy.Eager,
     styles: [':host{display:contents}']
 })
 export class MiniPathwayStreamingComponent implements OnChanges {

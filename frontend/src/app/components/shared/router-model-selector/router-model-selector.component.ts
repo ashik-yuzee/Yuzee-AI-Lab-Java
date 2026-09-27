@@ -1,4 +1,4 @@
-import { Component, OnDestroy, signal } from '@angular/core';
+import { Component, OnDestroy, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterStatus, RoutingService, RUNTIME_ROUTER_MODELS } from '../../../services/routing.service';
 
 let nextId = 0;
@@ -8,6 +8,7 @@ let nextId = 0;
   selector: 'app-router-model-selector',
   standalone: true,
   templateUrl: './router-model-selector.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './router-model-selector.component.scss'
 })
 export class RouterModelSelectorComponent implements OnDestroy {

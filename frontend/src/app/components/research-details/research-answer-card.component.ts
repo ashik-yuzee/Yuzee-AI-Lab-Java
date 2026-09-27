@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, inject, ChangeDetectionStrategy } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { IconComponent } from '../shared/icon/icon.component';
 import { DetailFact, DetailResult, NextQuestionKind } from './research-details.types';
@@ -12,6 +12,7 @@ const kindLabels: Record<DetailFact['kind'], string> = { source_backed: 'From a 
     selector: 'app-research-answer-card',
     imports: [IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './research-answer-card.component.html'
 })
 export class ResearchAnswerCardComponent implements OnChanges {

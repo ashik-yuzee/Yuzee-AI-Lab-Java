@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, computed, signal } from '@angular/core';
+import { Component, EventEmitter, Output, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ProtocolRendererComponent } from '../protocol-renderer/protocol-renderer.component';
 import { ChatProgressComponent } from '../chat-progress/chat-progress.component';
 import { outputReviewScenarios, outputReviewIssues, ReviewScenario } from './output-review.data';
@@ -17,6 +17,7 @@ const GROUPS = ['Counselling', 'Boxes & inputs', 'Waiting & recovery'] as const;
     selector: 'app-renderer-page',
     imports: [ProtocolRendererComponent, ChatProgressComponent],
     templateUrl: './renderer-page.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './renderer-page.component.scss'
 })
 export class RendererPageComponent {

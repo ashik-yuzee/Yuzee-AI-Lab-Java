@@ -1,10 +1,11 @@
-import { Component, Input, computed, signal } from '@angular/core';
+import { Component, Input, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 
 /** Port of ChatTurnDivider.tsx. */
 @Component({
   selector: 'app-chat-turn-divider',
   standalone: true,
   templateUrl: './chat-turn-divider.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './chat-turn-divider.component.scss'
 })
 export class ChatTurnDividerComponent {

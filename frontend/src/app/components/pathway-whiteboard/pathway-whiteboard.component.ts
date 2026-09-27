@@ -1,6 +1,7 @@
 import {
   Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, OnDestroy, Output,
-  SimpleChanges, ViewChild, computed, effect, signal, untracked
+  SimpleChanges, ViewChild, computed, effect, signal, untracked,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -181,6 +182,7 @@ function messageText(content: unknown): string {
     selector: 'app-pathway-whiteboard',
     imports: [NgTemplateOutlet, FormsModule, IconComponent],
     templateUrl: './pathway-whiteboard.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './pathway-whiteboard.component.scss'
 })
 export class PathwayWhiteboardComponent implements OnChanges, OnDestroy {
@@ -330,7 +332,7 @@ export class PathwayWhiteboardComponent implements OnChanges, OnDestroy {
         if (missing.length > 0) this.startTypingAnim(missing[0].label);
         else this.isTyping.set(false);
       });
-    }, { allowSignalWrites: true });
+    });
 
     // Sync to the host so the navbar can update its label.
     effect(() => { const has = this.hasPathway(); untracked(() => this.hasPathwayChange.emit(has)); });

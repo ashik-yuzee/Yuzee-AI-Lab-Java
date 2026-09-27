@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnDestroy, computed, signal } from '@angular/core';
+import { Component, Input, OnChanges, OnDestroy, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { RoutingService } from '../../services/routing.service';
 import { SkillChoice, SkillOffer, SkillReview, allowSkillReview, skillMessage } from '../../utils/chat-helpers';
@@ -12,6 +12,7 @@ import { SkillChoice, SkillOffer, SkillReview, allowSkillReview, skillMessage } 
     selector: 'app-skill-suggestions',
     imports: [IconComponent],
     templateUrl: './skill-suggestions.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './skill-suggestions.component.scss'
 })
 export class SkillSuggestionsComponent implements OnChanges, OnDestroy {

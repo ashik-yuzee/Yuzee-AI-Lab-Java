@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { EvidenceNoteComponent, ResultValueComponent } from './result-value.component';
 import { comparisonRows } from './objectives.types';
 
@@ -9,6 +9,7 @@ export { comparisonRows } from './objectives.types';
     selector: 'app-workspace-result',
     imports: [EvidenceNoteComponent, ResultValueComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './workspace-result.component.html'
 })
 export class WorkspaceResultComponent {

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { IonApp, IonContent } from '@ionic/angular/standalone';
 import { AuthService } from './services/auth.service';
@@ -38,6 +38,7 @@ import { RendererPageComponent } from './components/renderer-page/renderer-page.
         SettingsModalComponent, ClarificationQuestionsModalComponent, LocationPromptModalComponent, RendererPageComponent,
     ],
     templateUrl: './app.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './app.component.scss'
 })
 export class AppComponent implements OnInit {

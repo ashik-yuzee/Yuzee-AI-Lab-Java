@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, computed, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges, computed, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { TokenLabService } from '../../../services/token-lab.service';
@@ -36,6 +36,7 @@ const BENCHMARK_STRATEGIES = ['BASELINE', 'SUMMARY_RECENT', 'ADAPTIVE_HYBRID', '
     selector: 'app-advanced-lab-modal',
     imports: [IconComponent, ConfirmDialogComponent, RouterModelSelectorComponent, RangeSliderComponent, ToggleSwitchComponent],
     templateUrl: './advanced-lab-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './advanced-lab-modal.component.scss'
 })
 export class AdvancedLabModalComponent implements OnChanges {

@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { IconComponent } from '../shared/icon/icon.component';
 import { EvidenceNoteComponent } from './result-value.component';
@@ -9,6 +9,7 @@ import { ObjectiveAnswer, componentType, validateObjectiveAnswer } from './objec
     selector: 'app-primitive-renderer',
     imports: [NgTemplateOutlet, IconComponent, EvidenceNoteComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './primitive-renderer.component.html'
 })
 export class PrimitiveRendererComponent implements OnInit {

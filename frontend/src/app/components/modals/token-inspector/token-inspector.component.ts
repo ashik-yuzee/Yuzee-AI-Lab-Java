@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { MessageTelemetry, SessionStats, TokenUsageMetrics } from '../../../models/types';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -11,6 +11,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
     selector: 'app-token-inspector',
     imports: [IconComponent],
     templateUrl: './token-inspector.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './token-inspector.component.scss'
 })
 export class TokenInspectorComponent {

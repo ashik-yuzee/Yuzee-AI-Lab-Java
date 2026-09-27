@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { IconComponent } from '../shared/icon/icon.component';
 import { WarehouseComparison } from './warehouse.types';
 
@@ -9,6 +9,7 @@ const basis: Record<string, string> = { COURSE_RECORD: 'Course record', PROVIDER
     selector: 'app-provider-comparison',
     imports: [IconComponent],
     styles: [':host{display:contents}'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     templateUrl: './provider-comparison.component.html'
 })
 export class ProviderComparisonComponent {

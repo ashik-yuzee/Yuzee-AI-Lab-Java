@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, ChangeDetectionStrategy } from '@angular/core';
 import { TokenLabService } from '../../../services/token-lab.service';
 import { ContextBreakdown, ContextSectionDetail, ExcludedSectionDetail } from '../../../models/types';
 import { IconComponent } from '../../shared/icon/icon.component';
@@ -8,6 +8,7 @@ import { IconComponent } from '../../shared/icon/icon.component';
     selector: 'app-context-inspector-modal',
     imports: [IconComponent],
     templateUrl: './context-inspector-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
     styleUrl: './context-inspector-modal.component.scss'
 })
 export class ContextInspectorModalComponent {

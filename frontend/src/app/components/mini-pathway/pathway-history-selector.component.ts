@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, OnChanges, Output, SimpleChanges, ViewChild, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ChatMessage } from '../../models/types';
 import { IconComponent } from '../shared/icon/icon.component';
 import { MiniPathwayRun, pathwayContext, pathwayDate } from './history';
@@ -41,6 +41,7 @@ import { MiniPathwayRun, pathwayContext, pathwayDate } from './history';
       </div>
     }
   `,
+    changeDetection: ChangeDetectionStrategy.Eager,
     styles: [':host{display:contents}']
 })
 export class PathwayHistorySelectorComponent implements OnChanges {
