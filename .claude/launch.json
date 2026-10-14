@@ -2,24 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "frontend-node24-tmp",
-      "runtimeExecutable": "cmd",
-      "runtimeArgs": [
-        "/c",
-        "cd",
-        "frontend",
-        "&&",
-        "C:\\Users\\Reyan\\AppData\\Local\\Temp\\claude\\C--websites-yuzee-ai-lab-java\\af8976dd-755a-4b15-8344-3329ad88b062\\scratchpad\\node24\\node_modules\\node\\bin\\node.exe",
-        "node_modules/@angular/cli/bin/ng.js",
-        "serve",
-        "--proxy-config",
-        "C:/Users/Reyan/AppData/Local/Temp/claude/C--websites-yuzee-ai-lab-java/af8976dd-755a-4b15-8344-3329ad88b062/scratchpad/proxy4300.json",
-        "--port",
-        "4300"
-      ],
-      "port": 4300
-    },
-    {
       "name": "frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
